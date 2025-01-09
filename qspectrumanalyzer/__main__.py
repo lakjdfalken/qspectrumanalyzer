@@ -282,7 +282,7 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
     def on_power_thread_started(self):
         """Update buttons state when power thread is started"""
         self.update_buttons()
-        self.progressbar.setVisible(True)
+        self.progressbar.setVisible(False)
 
     def on_power_thread_stopped(self):
         """Update buttons state and status bar when power thread is stopped"""
