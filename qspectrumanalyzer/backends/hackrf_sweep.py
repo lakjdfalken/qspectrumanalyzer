@@ -115,17 +115,19 @@ class PowerThread(BasePowerThread):
     def parse_output(self, buf):
         """Parse one buf of output from hackrf_sweep"""
         (low_edge, high_edge) = struct.unpack('QQ', buf[:16])
-        data = np.fromstring(buf[16:], dtype='<f4')
+        data = np.frombuffer(buf[16:], dtype='<f4')  # frombuffer is faster than fromstring
         step = (high_edge - low_edge) / len(data)
 
         if (low_edge // 1000000) <= (self.params["start_freq"] - self.lnb_lo / 1e6):
-            # Reset databuffer at the start of each sweep even if we somehow
-            # did not complete the previous sweep.
-            self.databuffer = {"timestamp": [], "x": [], "y": []}
-        x_axis = list(np.arange(low_edge + self.lnb_lo + step / 2, high_edge + self.lnb_lo, step))
-        self.databuffer["x"].extend(x_axis)
-        for i in range(len(data)):
-            self.databuffer["y"].append(data[i])
+            self.databuffer = {"timestamp": np.array([]), 
+                              "x": np.array([]), 
+                              "y": np.array([])}
+        
+        x_axis = np.arange(low_edge + self.lnb_lo + step / 2, 
+                           high_edge + self.lnb_lo, step)
+        
+        self.databuffer["x"] = np.concatenate([self.databuffer["x"], x_axis])
+        self.databuffer["y"] = np.concatenate([self.databuffer["y"], data])
         if (high_edge / 1e6) >= (self.params["stop_freq"] - self.lnb_lo / 1e6):
             # We've reached the end of a pass. If it went too fast for our sweep interval, ignore it
             t_finish = time.time()

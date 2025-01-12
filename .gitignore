@@ -5,3 +5,8 @@ build/
 dist/
 MANIFEST
 *.egg-info
+CACHEDIR.TAG
+bin/
+debug.txt
+lib/
+pyvenv.cfg
