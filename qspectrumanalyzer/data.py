@@ -187,11 +187,24 @@ class DataStorage(QtCore.QObject):
 
     def set_subtract_baseline(self, toggle, baseline_file=None):
         """Toggle baseline subtraction and set baseline"""
+        # First early return - no file provided
+        if toggle and not baseline_file:
+            return
+
+        # Second early return - file doesn't exist
+        if toggle and not os.path.isfile(baseline_file):
+            return
+
+        # Third early return - no change needed
+        if toggle == self.subtract_baseline and baseline_file == self.prev_baseline:
+            return
+
         baseline = None
         baseline_x = None
 
-        # Load baseline from file (compute average if there are multiple PSD data in file)
+        # Only proceed with loading if we have a valid file
         if baseline_file and os.path.isfile(baseline_file):
+            # Load baseline from file (compute average if there are multiple PSD data in file)
             average_counter = 0
             with open(baseline_file, 'rb') as f:
                 for data in soapy_power.read_from_file(f):
@@ -207,20 +220,18 @@ class DataStorage(QtCore.QObject):
             print("Can't subtract baseline (expected {:d} bins, but baseline has {:d} bins)".format(
                 len(self.y), len(baseline)
             ))
-            #baseline = None
 
-        if self.subtract_baseline:
-            self.prev_baseline = self.baseline
-
-        #if not np.array_equal(baseline, self.baseline):
         self.baseline = baseline
         self.baseline_x = baseline_x
+        # Emit signal only when we have valid data
         self.baseline_updated.emit(self)
 
         self.subtract_baseline = toggle
-        self.start_task(self.recalculate_history)
-        self.start_task(self.recalculate_data)
 
+        # Only recalculate if we have valid data
+        if self.y is not None:
+            self.start_task(self.recalculate_history)
+            self.start_task(self.recalculate_data)
     def recalculate_history(self):
         """Recalculate spectrum measurements history"""
         if self.history is None:
