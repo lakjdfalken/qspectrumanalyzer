@@ -1,3 +1,5 @@
+import argparse
+import shlex
 import time
 
 import numpy as np
@@ -45,7 +47,16 @@ class Info(BaseInfo):
     crop_min = 0
     crop_max = 0
     crop = 0
-    additional_params = ''
+    additional_params = '--average 26 --max-rate 100'
+
+    #: One tune cannot be widened, so anything wider goes to the sweeping backend
+    fallback = 'hackrf_sweep'
+
+    @classmethod
+    def covers(cls, start_freq, stop_freq, sample_rate):
+        """True while the requested span fits inside a single tune"""
+        sample_rate = min(max(sample_rate, cls.sample_rate_min), cls.sample_rate_max)
+        return (stop_freq - start_freq) * 1e6 <= sample_rate
 
     @classmethod
     def help_params(cls, executable):
@@ -53,15 +64,56 @@ class Info(BaseInfo):
             return 'hackrf_stream module not found!'
         return (
             'hackrf_stream {}, libhackrf {}\n\n'
-            'This backend has no executable and takes no extra parameters: it\n'
-            'drives the radio in-process through libhackrf.\n\n'
+            'There is no executable: this backend drives the radio in process\n'
+            'through libhackrf, so the executable field is ignored.\n\n'
             'It holds one frequency instead of sweeping, which removes the\n'
             'retune that limits hackrf_sweep to about 405 sweeps per second.\n'
-            'In exchange the span cannot exceed the sample rate, so up to\n'
-            '20 MHz. Use the hackrf_sweep backend for anything wider.\n\n'
-            'Averaging is set from the interval: with interval 0 every\n'
-            'spectrum is delivered.\n'
+            'In exchange the span cannot exceed the sample rate, so 20 MHz at\n'
+            'most. A wider range is handed to the hackrf_sweep backend\n'
+            'automatically; the status bar says so when that happens.\n\n'
+            'Parameters:\n\n'
+            '  --average N    FFTs averaged into each spectrum (default 26).\n'
+            '                 Every sample is used whatever this is, so a\n'
+            '                 larger number is a quieter noise floor rather\n'
+            '                 than discarded data. 26 gives about 1500\n'
+            '                 spectra/s at 20 MSPS with 512 bins.\n\n'
+            '  --max-rate N   Spectra per second handed to the display\n'
+            '                 (default 100). Spectra are produced far faster\n'
+            '                 than anything can look at, and delivering all of\n'
+            '                 them costs enough time that the radio starts\n'
+            '                 dropping samples.\n\n'
+            '  --dc-bins N    Bins interpolated across the centre of the band\n'
+            '                 (default 2), where the receiver\'s own DC offset\n'
+            '                 sits. 0 leaves it visible.\n\n'
+            '  --window NAME  hann (default), hamming, blackman, bartlett or\n'
+            '                 boxcar.\n'
         ).format(hackrf_stream.__version__, hackrf_stream.library_version())
+
+
+def parse_params(text):
+    """Read the backend's additional parameters
+
+    argparse rather than hand-rolled splitting, so a typo is reported instead
+    of quietly ignored; anything unparseable falls back to the defaults."""
+    parser = argparse.ArgumentParser(prog='hackrf_stream', add_help=False)
+    parser.add_argument('--average', type=int, default=26)
+    parser.add_argument('--max-rate', dest='max_rate', type=int, default=100)
+    parser.add_argument('--dc-bins', dest='dc_bins', type=int, default=2)
+    parser.add_argument('--window', default='hann')
+
+    try:
+        options, unknown = parser.parse_known_args(shlex.split(text or ''))
+    except (SystemExit, ValueError):
+        print('hackrf_stream: could not read parameters {!r}, using defaults'.format(text))
+        return parser.parse_args([])
+
+    if unknown:
+        print('hackrf_stream: ignoring unknown parameters {}'.format(' '.join(unknown)))
+
+    options.average = max(1, options.average)
+    options.max_rate = max(1, options.max_rate)
+    options.dc_bins = max(0, options.dc_bins)
+    return options
 
 
 class PowerThread(BasePowerThread):
@@ -71,12 +123,6 @@ class PowerThread(BasePowerThread):
               single_shot=False, device="", sample_rate=20000000, bandwidth=0, lnb_lo=0):
         """Setup hackrf_stream params"""
         sample_rate = min(max(float(sample_rate), Info.sample_rate_min), Info.sample_rate_max)
-        span = (stop_freq - start_freq) * 1e6
-
-        if span > sample_rate:
-            print('Requested span is {:.1f} MHz but one tune only covers {:.1f} MHz. '
-                  'Showing the middle {:.1f} MHz — use the hackrf_sweep backend for '
-                  'wider spans.'.format(span / 1e6, sample_rate / 1e6, sample_rate / 1e6))
 
         center_freq = (start_freq + stop_freq) / 2 * 1e6 - lnb_lo
 
@@ -136,20 +182,22 @@ class PowerThread(BasePowerThread):
             return
 
         settings = QtCore.QSettings()
-        average = max(1, settings.value("hackrf_stream_average", 26, int))
+        options = parse_params(self.additional_params(Info))
+
         # Spectra are produced far faster than anything can look at them, and
         # far faster than DataStorage can absorb them. Deliver at a bounded
         # rate; the ones in between are not wasted, since every sample still
         # went through the averaging that produced them.
-        self.max_delivery_rate = max(1, settings.value("hackrf_stream_max_rate", 100, int))
-        self.delivery_interval = max(self.interval, 1.0 / self.max_delivery_rate)
+        self.delivery_interval = max(self.interval, 1.0 / options.max_rate)
 
         self.source = hackrf_stream.SpectrumSource(
             center_freq=self.params["center_freq"],
             sample_rate=self.params["sample_rate"],
             bin_size=self.params["bin_size"] * 1e3,
-            average=average,
+            average=options.average,
             gain=self.params["gain"],
+            window=options.window,
+            dc_bins=options.dc_bins,
             serial=self.params["device"] or None,
         )
         self.source.open()
@@ -157,9 +205,10 @@ class PowerThread(BasePowerThread):
 
         print('Starting hackrf_stream backend:')
         print('  {:.3f} MHz centre, {:.1f} MHz sample rate, {} bins of {:.2f} kHz, '
-              'averaging {}'.format(self.params["center_freq"] / 1e6,
-                                    self.params["sample_rate"] / 1e6,
-                                    len(self.x), self.source.bin_size / 1e3, average))
+              'averaging {}, up to {} spectra/s to the display'
+              .format(self.params["center_freq"] / 1e6, self.params["sample_rate"] / 1e6,
+                      len(self.x), self.source.bin_size / 1e3,
+                      options.average, options.max_rate))
         print()
         self.source.start(self.on_spectrum)
 

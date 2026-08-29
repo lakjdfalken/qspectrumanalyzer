@@ -37,6 +37,18 @@ class BaseInfo:
     additional_params = ''
     help_device = None
 
+    #: Backend to hand over to when this one cannot cover what was asked for,
+    #: by module name, or None to always attempt it anyway
+    fallback = None
+
+    @classmethod
+    def covers(cls, start_freq, stop_freq, sample_rate):
+        """Can this backend measure the requested range?
+
+        Most can measure anything they are pointed at, by retuning as needed.
+        One that cannot says so here, and names a fallback."""
+        return True
+
     @classmethod
     def help_params(cls, executable):
         cmdline = shlex.split(executable)
@@ -61,7 +73,21 @@ class BasePowerThread(QtCore.QThread):
         self.data_storage = data_storage
         self.alive = False
         self.process = None
+        #: True when this backend was substituted for the one the user chose,
+        #: because that one could not cover the requested range
+        self.substituted = False
         self._shutdown_lock = threading.Lock()
+
+    def additional_params(self, info):
+        """Extra parameters for this backend
+
+        The params setting belongs to the backend the user selected. When
+        another has been substituted for it, that string was written for
+        somebody else and would be rejected, so use this backend's own
+        defaults instead."""
+        if self.substituted:
+            return info.additional_params
+        return QtCore.QSettings().value("params", info.additional_params)
 
     def stop(self):
         """Stop power process thread"""

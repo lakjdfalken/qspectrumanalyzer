@@ -58,7 +58,7 @@ class PowerThread(BasePowerThread):
             if self.params["single_shot"]:
                 cmdline.append("-1")
 
-            additional_params = settings.value("params", Info.additional_params)
+            additional_params = self.additional_params(Info)
             if additional_params:
                 cmdline.extend(shlex.split(additional_params))
 

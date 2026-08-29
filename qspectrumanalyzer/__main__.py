@@ -79,6 +79,7 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         self.data_storage = None
         self.power_thread = None
         self.backend = None
+        self.active_backend = None
         self.setup_power_thread()
 
         # Sweep number currently shown while browsing recorded sweeps
@@ -160,9 +161,59 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         if stop_freq < stop_freq_min or stop_freq > stop_freq_max:
             self.stopFreqSpinBox.setValue(stop_freq_max)
 
+        self.create_power_thread(backend_module, backend)
+
+    def create_power_thread(self, backend_module, name):
+        """Build the power thread for one backend and wire up its signals
+
+        Deliberately separate from setup_power_thread(), which also pushes that
+        backend's defaults into the spin boxes. Switching automatically must not
+        do that: it would throw away the frequency range being asked for."""
+        if self.power_thread and self.power_thread.alive:
+            self.stop()
+
         self.power_thread = backend_module.PowerThread(self.data_storage)
+        self.power_thread.substituted = name != QtCore.QSettings().value("backend", "soapy_power")
         self.power_thread.powerThreadStarted.connect(self.on_power_thread_started)
         self.power_thread.powerThreadStopped.connect(self.on_power_thread_stopped)
+        self.active_backend = name
+
+    def resolve_backend(self):
+        """The backend that can actually measure what the spin boxes ask for
+
+        Returns (module, name). A backend that cannot cover the requested range
+        names a fallback; this follows that chain rather than assuming who it
+        points at."""
+        settings = QtCore.QSettings()
+        name = settings.value("backend", "soapy_power")
+        sample_rate = settings.value("sample_rate", 2560000, float)
+        start_freq = float(self.startFreqSpinBox.value())
+        stop_freq = float(self.stopFreqSpinBox.value())
+
+        seen = set()
+        while name and name not in seen:
+            seen.add(name)
+            module = getattr(backends, name, None)
+            if module is None:
+                break
+            if module.Info.covers(start_freq, stop_freq, sample_rate):
+                return module, name
+            name = module.Info.fallback
+
+        # Nothing covers it; keep what was chosen and let the backend cope
+        chosen = settings.value("backend", "soapy_power")
+        return getattr(backends, chosen, backends.soapy_power), chosen
+
+    def apply_backend_for_range(self):
+        """Swap the power thread if the requested range needs a different backend"""
+        module, name = self.resolve_backend()
+        if name == self.active_backend:
+            return
+
+        selected = QtCore.QSettings().value("backend", "soapy_power")
+        print('{} cannot cover {:g}-{:g} MHz in one tune, handing over to {}'.format(
+            selected, self.startFreqSpinBox.value(), self.stopFreqSpinBox.value(), name))
+        self.create_power_thread(module, name)
 
     def setup_speed_hints(self):
         """Annotate the display options that cost redraw time
@@ -437,6 +488,10 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         timestamp = time.time()
         status = []
 
+        selected = QtCore.QSettings().value("backend", "soapy_power")
+        if self.active_backend and self.active_backend != selected:
+            status.append(self.tr("via {}").format(self.active_backend))
+
         if self.power_thread.params["hops"]:
             status.append(self.tr("Frequency hops: {}").format(self.power_thread.params["hops"]))
 
@@ -491,6 +546,10 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
     def start(self, single_shot=False):
         """Start power thread"""
         settings = QtCore.QSettings()
+
+        # The frequency range is only settled now, so this is the first point
+        # at which we can tell whether the chosen backend can measure it
+        self.apply_backend_for_range()
 
         self.prev_sweep_time = 0
         self.prev_data_timestamp = time.time()
