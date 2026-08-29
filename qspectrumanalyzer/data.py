@@ -8,31 +8,43 @@ from qspectrumanalyzer.backends import soapy_power
 
 
 class HistoryBuffer:
-    """Fixed-size NumPy array ring buffer"""
+    """Fixed-size NumPy array ring buffer
+
+    The data is kept in chronological order (newest last) in a contiguous
+    slice of an over-allocated array, so that get_buffer() can hand out a
+    plain view. append() only writes one row and slides the window forward;
+    the data is moved back to the start of the array once the window runs
+    out of slack, which is once every `slack` appends instead of rolling the
+    whole buffer on every single append."""
     def __init__(self, data_size, max_history_size, dtype=float):
         self.data_size = data_size
         self.max_history_size = max_history_size
         self.history_size = 0
         self.counter = 0
-        self.buffer = np.empty(shape=(max_history_size, data_size), dtype=dtype)
+        self.slack = max(1, max_history_size // 2)
+        self.buffer = np.empty(shape=(max_history_size + self.slack, data_size), dtype=dtype)
+        self.end = 0
 
     def append(self, data):
         """Append new data to ring buffer"""
         self.counter += 1
         if self.history_size < self.max_history_size:
             self.history_size += 1
-        self.buffer = np.roll(self.buffer, -1, axis=0)
-        self.buffer[-1] = data
+
+        if self.end == len(self.buffer):
+            # Out of slack, move the data we still need back to the start
+            self.buffer[:self.max_history_size] = self.buffer[self.slack:]
+            self.end = self.max_history_size
+
+        self.buffer[self.end] = data
+        self.end += 1
 
     def get_buffer(self):
         """Return buffer stripped to size of actual data"""
-        if self.history_size < self.max_history_size:
-            return self.buffer[-self.history_size:]
-        else:
-            return self.buffer
+        return self.buffer[self.end - self.history_size:self.end]
 
     def __getitem__(self, key):
-        return self.buffer[key]
+        return self.get_buffer()[key]
 
 
 class TaskSignals(QtCore.QObject):

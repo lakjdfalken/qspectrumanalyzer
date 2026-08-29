@@ -4,7 +4,13 @@ from Qt import QtCore, QtGui
 import pyqtgraph as pg
 
 # Basic PyQtGraph settings
-pg.setConfigOptions(antialias=True)
+#
+# Antialiasing is off on purpose: antialiasing a polyline of tens of thousands
+# of points is by far the most expensive thing in the paint path, and the
+# curves are one pixel wide anyway. Row-major image order lets the waterfall
+# hand its history buffer to ImageItem without transposing (and copying) it
+# on every frame.
+pg.setConfigOptions(antialias=False, imageAxisOrder='row-major')
 
 
 class SpectrumPlotWidget:
@@ -44,8 +50,10 @@ class SpectrumPlotWidget:
         self.plot.setLimits(xMin=0)
         self.plot.showButtons()
 
-        #self.plot.setDownsampling(mode="peak")
-        #self.plot.setClipToView(True)
+        # Draw only what is visible, and only as many points as there are
+        # pixels to draw them on
+        self.plot.setDownsampling(auto=True, mode="peak")
+        self.plot.setClipToView(True)
 
         self.create_baseline_curve()
         self.create_persistence_curves()
@@ -293,9 +301,6 @@ class WaterfallPlotWidget:
         self.plot.showButtons()
         #self.plot.setAspectLocked(True)
 
-        #self.plot.setDownsampling(mode="peak")
-        #self.plot.setClipToView(True)
-
         # Setup histogram widget (for controlling waterfall plot levels and gradients)
         if self.histogram_layout:
             self.histogram = pg.HistogramLUTItem()
@@ -319,14 +324,12 @@ class WaterfallPlotWidget:
             self.plot.addItem(self.waterfallImg)
 
         # Roll down one and replace leading edge with new data
-        self.waterfallImg.setImage(data_storage.history.buffer[-self.counter:].T,
-                                   autoLevels=False, autoRange=False)
+        # (row-major image order, so no transpose is needed)
+        history = data_storage.history.get_buffer()
+        self.waterfallImg.setImage(history, autoLevels=False, autoRange=False)
 
         # Move waterfall image to always start at 0
-        self.waterfallImg.setPos(
-            data_storage.x[0],
-            -self.counter if self.counter < self.history_size else -self.history_size
-        )
+        self.waterfallImg.setPos(data_storage.x[0], -len(history))
 
         # Link histogram widget to waterfall image on first run
         # (must be done after first data is received or else levels would be wrong)
@@ -342,10 +345,7 @@ class WaterfallPlotWidget:
         if data_storage.x is None:
             return
 
-        self.waterfallImg.setImage(data_storage.history.buffer[-self.counter:].T,
-                                   autoLevels=False, autoRange=False)
-        self.waterfallImg.setPos(
-            data_storage.x[0],
-            -self.counter if self.counter < self.history_size else -self.history_size
-        )
+        history = data_storage.history.get_buffer()
+        self.waterfallImg.setImage(history, autoLevels=False, autoRange=False)
+        self.waterfallImg.setPos(data_storage.x[0], -len(history))
         self.histogram.setImageItem(self.waterfallImg)
