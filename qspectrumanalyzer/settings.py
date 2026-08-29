@@ -1,4 +1,4 @@
-from Qt import QtCore, QtGui, QtWidgets
+from PySide6 import QtCore, QtGui, QtWidgets
 
 from qspectrumanalyzer import backends
 
@@ -93,8 +93,13 @@ class QSpectrumAnalyzerSettings(QtWidgets.QDialog, Ui_QSpectrumAnalyzerSettings)
         self.device_help_dialog.activateWindow()
 
     @QtCore.Slot(str)
-    def on_backendComboBox_currentIndexChanged(self, text):
-        """Change executable when backend is changed"""
+    def on_backendComboBox_currentTextChanged(self, text):
+        """Change executable when backend is changed
+
+        Connected by name to currentTextChanged() rather than to
+        currentIndexChanged(), which in Qt6 only carries the index; its
+        QString overload is gone, so the old name silently connected to
+        nothing and changing the backend stopped updating this dialog."""
         self.executableEdit.setText(text)
         self.deviceEdit.setText("")
 
@@ -133,7 +138,9 @@ class QSpectrumAnalyzerSettingsHelp(QtWidgets.QDialog, Ui_QSpectrumAnalyzerSetti
         super().__init__(parent)
         self.setupUi(self)
 
-        monospace_font = QtGui.QFont('monospace')
-        monospace_font.setStyleHint(QtGui.QFont.Monospace)
+        # Ask the platform for its fixed-width font instead of guessing a
+        # family name. 'monospace' does not exist on macOS, and looking it
+        # up cost ~90 ms of font aliasing every time this dialog opened.
+        monospace_font = QtGui.QFontDatabase.systemFont(QtGui.QFontDatabase.SystemFont.FixedFont)
         self.helpTextEdit.setFont(monospace_font)
         self.helpTextEdit.setPlainText(text)

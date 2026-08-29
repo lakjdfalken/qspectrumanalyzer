@@ -2,7 +2,7 @@
 
 import sys, os, signal, time, argparse
 
-from Qt import QtCore, QtGui, QtWidgets
+from PySide6 import QtCore, QtGui, QtWidgets
 
 from qspectrumanalyzer import backends
 from qspectrumanalyzer.version import __version__
@@ -438,7 +438,7 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
     @QtCore.Slot()
     def on_baselineButton_clicked(self):
         dialog = QSpectrumAnalyzerBaseline(self)
-        if dialog.exec_():
+        if dialog.exec():
             settings = QtCore.QSettings()
             self.data_storage.set_subtract_baseline(
                 bool(self.subtractBaselineCheckBox.isChecked()),
@@ -448,7 +448,7 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
     @QtCore.Slot()
     def on_smoothButton_clicked(self):
         dialog = QSpectrumAnalyzerSmoothing(self)
-        if dialog.exec_():
+        if dialog.exec():
             settings = QtCore.QSettings()
             self.data_storage.set_smooth(
                 bool(self.smoothCheckBox.isChecked()),
@@ -460,7 +460,7 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
     def on_persistenceButton_clicked(self):
         prev_persistence_length = self.spectrumPlotWidget.persistence_length
         dialog = QSpectrumAnalyzerPersistence(self)
-        if dialog.exec_():
+        if dialog.exec():
             settings = QtCore.QSettings()
             persistence_length = settings.value("persistence_length", 5, int)
             self.spectrumPlotWidget.persistence_length = persistence_length
@@ -475,7 +475,7 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
     @QtCore.Slot()
     def on_colorsButton_clicked(self):
         dialog = QSpectrumAnalyzerColors(self)
-        if dialog.exec_():
+        if dialog.exec():
             settings = QtCore.QSettings()
             self.spectrumPlotWidget.main_color = str_to_color(settings.value("main_color", "255, 255, 0, 255"))
             self.spectrumPlotWidget.peak_hold_max_color = str_to_color(settings.value("peak_hold_max_color", "255, 0, 0, 255"))
@@ -488,7 +488,7 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
     @QtCore.Slot()
     def on_action_Settings_triggered(self):
         dialog = QSpectrumAnalyzerSettings(self)
-        if dialog.exec_():
+        if dialog.exec():
             self.setup_power_thread()
 
     @QtCore.Slot()
@@ -533,7 +533,7 @@ def main():
         app.setOrganizationDomain("qspectrumanalyzer.eutopia.cz")
         app.setApplicationName("QSpectrumAnalyzer")
         window = QSpectrumAnalyzerMainWindow()
-        sys.exit(app.exec_())
+        sys.exit(app.exec())
     finally:
         # Unhide console window on Windows (we don't want to leave zombies behind)
         if sys.platform == 'win32' and not debug:

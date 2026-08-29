@@ -1,6 +1,6 @@
 import os, sys, shlex, signal, struct, collections
 
-from Qt import QtCore
+from PySide6 import QtCore
 import numpy as np
 
 from qspectrumanalyzer import subprocess

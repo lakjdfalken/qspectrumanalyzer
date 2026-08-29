@@ -1,6 +1,6 @@
 import math, shlex
 
-from Qt import QtCore
+from PySide6 import QtCore
 
 from qspectrumanalyzer import subprocess
 from qspectrumanalyzer.backends import BaseInfo, BasePowerThread
