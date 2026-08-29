@@ -113,6 +113,19 @@ class ThrottledPlotWidget:
 
 class SpectrumPlotWidget(ThrottledPlotWidget):
     """Main spectrum plot"""
+
+    #: kind -> (attribute holding its on/off flag, attribute holding its curve).
+    #: Persistence has no single curve, so it carries None and is looked up
+    #: through curves_for().
+    CURVES = {
+        "plot": ("main_curve", "curve"),
+        "peak_hold_max": ("peak_hold_max", "curve_peak_hold_max"),
+        "peak_hold_min": ("peak_hold_min", "curve_peak_hold_min"),
+        "average": ("average", "curve_average"),
+        "baseline": ("baseline", "curve_baseline"),
+        "persistence": ("persistence", None),
+    }
+
     def __init__(self, layout, max_refresh_rate=60, antialias=True):
         super().__init__(layout, max_refresh_rate)
         self.antialias = antialias
@@ -397,6 +410,38 @@ class SpectrumPlotWidget(ThrottledPlotWidget):
                 data = data_storage.smooth_data(data)
             self.persistence_data.append(data)
         QtCore.QTimer.singleShot(0, lambda: self.update_persistence(data_storage, force=True))
+
+    def curves_for(self, kind):
+        """Every curve that one kind draws"""
+        attribute = self.CURVES[kind][1]
+        if attribute is None:
+            return list(self.persistence_curves or [])
+        return [getattr(self, attribute)]
+
+    def fill_curve(self, kind, data_storage):
+        """Give a curve that has never been drawn something to show"""
+        if kind == "persistence":
+            # Persistence shows past traces, so it is rebuilt from the history
+            # rather than from the latest sweep
+            self.recalculate_persistence(data_storage)
+        else:
+            getattr(self, "update_" + kind)(data_storage)
+
+    def set_enabled(self, kind, enabled, data_storage):
+        """Show or hide one kind of curve
+
+        While a curve is switched off it is not given data, so one being
+        switched on has to be filled in first, or it would stay empty until
+        the next sweep arrives."""
+        flag = self.CURVES[kind][0]
+        setattr(self, flag, enabled)
+
+        curves = self.curves_for(kind)
+        if enabled and curves and curves[0].xData is None:
+            self.fill_curve(kind, data_storage)
+
+        for curve in curves:
+            curve.setVisible(enabled)
 
     def show_sweep(self, x, y):
         """Draw a single recorded sweep on the main curve (history browsing)"""

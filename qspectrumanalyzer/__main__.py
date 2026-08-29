@@ -578,39 +578,23 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
 
     @QtCore.Slot(bool)
     def on_mainCurveCheckBox_toggled(self, checked):
-        self.spectrumPlotWidget.main_curve = checked
-        if self.spectrumPlotWidget.curve.xData is None:
-            self.spectrumPlotWidget.update_plot(self.data_storage)
-        self.spectrumPlotWidget.curve.setVisible(checked)
+        self.spectrumPlotWidget.set_enabled("plot", checked, self.data_storage)
 
     @QtCore.Slot(bool)
     def on_peakHoldMaxCheckBox_toggled(self, checked):
-        self.spectrumPlotWidget.peak_hold_max = checked
-        if self.spectrumPlotWidget.curve_peak_hold_max.xData is None:
-            self.spectrumPlotWidget.update_peak_hold_max(self.data_storage)
-        self.spectrumPlotWidget.curve_peak_hold_max.setVisible(checked)
+        self.spectrumPlotWidget.set_enabled("peak_hold_max", checked, self.data_storage)
 
     @QtCore.Slot(bool)
     def on_peakHoldMinCheckBox_toggled(self, checked):
-        self.spectrumPlotWidget.peak_hold_min = checked
-        if self.spectrumPlotWidget.curve_peak_hold_min.xData is None:
-            self.spectrumPlotWidget.update_peak_hold_min(self.data_storage)
-        self.spectrumPlotWidget.curve_peak_hold_min.setVisible(checked)
+        self.spectrumPlotWidget.set_enabled("peak_hold_min", checked, self.data_storage)
 
     @QtCore.Slot(bool)
     def on_averageCheckBox_toggled(self, checked):
-        self.spectrumPlotWidget.average = checked
-        if self.spectrumPlotWidget.curve_average.xData is None:
-            self.spectrumPlotWidget.update_average(self.data_storage)
-        self.spectrumPlotWidget.curve_average.setVisible(checked)
+        self.spectrumPlotWidget.set_enabled("average", checked, self.data_storage)
 
     @QtCore.Slot(bool)
     def on_persistenceCheckBox_toggled(self, checked):
-        self.spectrumPlotWidget.persistence = checked
-        if self.spectrumPlotWidget.persistence_curves[0].xData is None:
-            self.spectrumPlotWidget.recalculate_persistence(self.data_storage)
-        for curve in self.spectrumPlotWidget.persistence_curves:
-            curve.setVisible(checked)
+        self.spectrumPlotWidget.set_enabled("persistence", checked, self.data_storage)
 
     @QtCore.Slot(bool)
     def on_smoothCheckBox_toggled(self, checked):
@@ -623,10 +607,7 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
 
     @QtCore.Slot(bool)
     def on_baselineCheckBox_toggled(self, checked):
-        self.spectrumPlotWidget.baseline = checked
-        if self.spectrumPlotWidget.curve_baseline.xData is None:
-            self.spectrumPlotWidget.update_baseline(self.data_storage)
-        self.spectrumPlotWidget.curve_baseline.setVisible(checked)
+        self.spectrumPlotWidget.set_enabled("baseline", checked, self.data_storage)
 
     @QtCore.Slot(bool)
     def on_subtractBaselineCheckBox_toggled(self, checked):
