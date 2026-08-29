@@ -1,6 +1,7 @@
 from PySide6 import QtCore, QtGui, QtWidgets
 
 from qspectrumanalyzer import backends
+from qspectrumanalyzer.data import HistoryBuffer
 
 from qspectrumanalyzer.ui_qspectrumanalyzer_settings import Ui_QSpectrumAnalyzerSettings
 from qspectrumanalyzer.ui_qspectrumanalyzer_settings_help import Ui_QSpectrumAnalyzerSettingsHelp
@@ -22,6 +23,9 @@ class QSpectrumAnalyzerSettings(QtWidgets.QDialog, Ui_QSpectrumAnalyzerSettings)
         self.lnbSpinBox.setValue(settings.value("lnb_lo", 0, float) / 1e6)
         self.waterfallHistorySizeSpinBox.setValue(settings.value("waterfall_history_size", 100, int))
         self.maxRefreshRateSpinBox.setValue(settings.value("max_refresh_rate", 60, int))
+        self.recordDepthSpinBox.setValue(settings.value("record_depth", 1000, int))
+        self.recordDepthSpinBox.valueChanged.connect(self.update_record_depth_estimate)
+        self.update_record_depth_estimate()
 
         backend = settings.value("backend", "soapy_power")
         try:
@@ -118,6 +122,35 @@ class QSpectrumAnalyzerSettings(QtWidgets.QDialog, Ui_QSpectrumAnalyzerSettings)
         self.bandwidthSpinBox.setMaximum(backend_module.Info.bandwidth_max / 1e6)
         self.bandwidthSpinBox.setValue(backend_module.Info.bandwidth / 1e6)
 
+    def current_bin_count(self):
+        """Bins per sweep implied by the frequency range currently set"""
+        settings = QtCore.QSettings()
+        start = settings.value("start_freq", 87.0, float)
+        stop = settings.value("stop_freq", 108.0, float)
+        bin_size = settings.value("bin_size", 10.0, float)
+        if bin_size <= 0 or stop <= start:
+            return None
+        return int(round((stop - start) * 1e6 / (bin_size * 1e3)))
+
+    @QtCore.Slot()
+    def update_record_depth_estimate(self):
+        """Show what the chosen recording depth costs in memory"""
+        bins = self.current_bin_count()
+        if not bins:
+            self.recordDepthEstimateLabel.setText("")
+            return
+
+        wanted = self.recordDepthSpinBox.value()
+        fits = HistoryBuffer.fits(bins, wanted)
+        megabytes = fits * bins * 8 * 1.5 / (1024 * 1024)
+
+        if fits < wanted:
+            self.recordDepthEstimateLabel.setText(self.tr(
+                "~{:.0f} MB at {} bins - capped at {} sweeps").format(megabytes, bins, fits))
+        else:
+            self.recordDepthEstimateLabel.setText(self.tr(
+                "~{:.0f} MB at {} bins").format(megabytes, bins))
+
     def accept(self):
         """Save settings when dialog is accepted"""
         settings = QtCore.QSettings()
@@ -130,6 +163,7 @@ class QSpectrumAnalyzerSettings(QtWidgets.QDialog, Ui_QSpectrumAnalyzerSettings)
         settings.setValue("lnb_lo", self.lnbSpinBox.value() * 1e6)
         settings.setValue("waterfall_history_size", self.waterfallHistorySizeSpinBox.value())
         settings.setValue("max_refresh_rate", self.maxRefreshRateSpinBox.value())
+        settings.setValue("record_depth", self.recordDepthSpinBox.value())
         QtWidgets.QDialog.accept(self)
 
 

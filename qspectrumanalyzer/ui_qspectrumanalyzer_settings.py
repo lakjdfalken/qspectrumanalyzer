@@ -88,10 +88,29 @@ class Ui_QSpectrumAnalyzerSettings(object):
 
         self.formLayout.setWidget(7, QFormLayout.ItemRole.FieldRole, self.waterfallHistorySizeSpinBox)
 
+        self.label_10 = QLabel(QSpectrumAnalyzerSettings)
+        self.label_10.setObjectName(u"label_10")
+
+        self.formLayout.setWidget(8, QFormLayout.ItemRole.LabelRole, self.label_10)
+
+        self.recordDepthSpinBox = QSpinBox(QSpectrumAnalyzerSettings)
+        self.recordDepthSpinBox.setObjectName(u"recordDepthSpinBox")
+        self.recordDepthSpinBox.setMinimum(1)
+        self.recordDepthSpinBox.setMaximum(10000000)
+        self.recordDepthSpinBox.setValue(1000)
+
+        self.formLayout.setWidget(8, QFormLayout.ItemRole.FieldRole, self.recordDepthSpinBox)
+
+        self.recordDepthEstimateLabel = QLabel(QSpectrumAnalyzerSettings)
+        self.recordDepthEstimateLabel.setObjectName(u"recordDepthEstimateLabel")
+        self.recordDepthEstimateLabel.setWordWrap(True)
+
+        self.formLayout.setWidget(9, QFormLayout.ItemRole.FieldRole, self.recordDepthEstimateLabel)
+
         self.label_9 = QLabel(QSpectrumAnalyzerSettings)
         self.label_9.setObjectName(u"label_9")
 
-        self.formLayout.setWidget(8, QFormLayout.ItemRole.LabelRole, self.label_9)
+        self.formLayout.setWidget(10, QFormLayout.ItemRole.LabelRole, self.label_9)
 
         self.maxRefreshRateSpinBox = QSpinBox(QSpectrumAnalyzerSettings)
         self.maxRefreshRateSpinBox.setObjectName(u"maxRefreshRateSpinBox")
@@ -99,7 +118,7 @@ class Ui_QSpectrumAnalyzerSettings(object):
         self.maxRefreshRateSpinBox.setMaximum(1000)
         self.maxRefreshRateSpinBox.setValue(60)
 
-        self.formLayout.setWidget(8, QFormLayout.ItemRole.FieldRole, self.maxRefreshRateSpinBox)
+        self.formLayout.setWidget(10, QFormLayout.ItemRole.FieldRole, self.maxRefreshRateSpinBox)
 
         self.label_7 = QLabel(QSpectrumAnalyzerSettings)
         self.label_7.setObjectName(u"label_7")
@@ -201,6 +220,7 @@ class Ui_QSpectrumAnalyzerSettings(object):
         self.label_5.setBuddy(self.deviceEdit)
         self.label_4.setBuddy(self.sampleRateSpinBox)
         self.label_2.setBuddy(self.waterfallHistorySizeSpinBox)
+        self.label_10.setBuddy(self.recordDepthSpinBox)
         self.label_9.setBuddy(self.maxRefreshRateSpinBox)
         self.label_7.setBuddy(self.bandwidthSpinBox)
         self.label_8.setBuddy(self.lnbSpinBox)
@@ -216,7 +236,8 @@ class Ui_QSpectrumAnalyzerSettings(object):
         QWidget.setTabOrder(self.sampleRateSpinBox, self.bandwidthSpinBox)
         QWidget.setTabOrder(self.bandwidthSpinBox, self.lnbSpinBox)
         QWidget.setTabOrder(self.lnbSpinBox, self.waterfallHistorySizeSpinBox)
-        QWidget.setTabOrder(self.waterfallHistorySizeSpinBox, self.maxRefreshRateSpinBox)
+        QWidget.setTabOrder(self.waterfallHistorySizeSpinBox, self.recordDepthSpinBox)
+        QWidget.setTabOrder(self.recordDepthSpinBox, self.maxRefreshRateSpinBox)
 
         self.retranslateUi(QSpectrumAnalyzerSettings)
         self.buttonBox.accepted.connect(QSpectrumAnalyzerSettings.accept)
@@ -239,7 +260,19 @@ class Ui_QSpectrumAnalyzerSettings(object):
         self.executableButton.setText(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"...", None))
         self.label_5.setText(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"&Device:", None))
         self.label_4.setText(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"Sa&mple rate:", None))
-        self.label_2.setText(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"&Waterfall history size:", None))
+#if QT_CONFIG(tooltip)
+        self.label_2.setToolTip(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"How many sweeps the waterfall plot shows. Independent of how many are recorded.", None))
+#endif // QT_CONFIG(tooltip)
+        self.label_2.setText(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"&Waterfall rows shown:", None))
+#if QT_CONFIG(tooltip)
+        self.label_10.setToolTip(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"How many sweeps are kept for the history browser to step through. Costs memory: one sweep is 8 bytes per bin.", None))
+#endif // QT_CONFIG(tooltip)
+        self.label_10.setText(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"Record&ing depth:", None))
+#if QT_CONFIG(tooltip)
+        self.recordDepthSpinBox.setToolTip(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"How many sweeps are kept for the history browser to step through. Costs memory: one sweep is 8 bytes per bin.", None))
+#endif // QT_CONFIG(tooltip)
+        self.recordDepthSpinBox.setSuffix(QCoreApplication.translate("QSpectrumAnalyzerSettings", u" sweeps", None))
+        self.recordDepthEstimateLabel.setText("")
 #if QT_CONFIG(tooltip)
         self.label_9.setToolTip(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"Upper limit on how often the plots are redrawn. Sweeps arriving faster than this are still recorded in full, only redundant redraws are skipped. 0 means no limit.", None))
 #endif // QT_CONFIG(tooltip)

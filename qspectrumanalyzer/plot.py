@@ -465,6 +465,14 @@ class WaterfallPlotWidget:
         while this one was being held back."""
         self.throttle.schedule("plot", data_storage)
 
+    def visible_history(self, data_storage):
+        """The newest rows of the recording, as many as the waterfall shows
+
+        The recording can be much deeper than the waterfall: it is what the
+        history browser steps through, and drawing tens of thousands of rows
+        into a plot a couple of hundred pixels tall would only cost time."""
+        return data_storage.history.get_buffer()[-self.history_size:]
+
     def draw(self, data_storage, dirty=None):
         """Redraw the waterfall image"""
         self.counter += 1
@@ -481,7 +489,7 @@ class WaterfallPlotWidget:
 
         # Roll down one and replace leading edge with new data
         # (row-major image order, so no transpose is needed)
-        history = data_storage.history.get_buffer()
+        history = self.visible_history(data_storage)
         self.waterfallImg.setImage(history, autoLevels=False, autoRange=False)
 
         # Move waterfall image to always start at 0
@@ -503,7 +511,7 @@ class WaterfallPlotWidget:
             return
 
         self.throttle.reset()
-        history = data_storage.history.get_buffer()
+        history = self.visible_history(data_storage)
         self.waterfallImg.setImage(history, autoLevels=False, autoRange=False)
         self.waterfallImg.setPos(data_storage.x[0], -len(history))
         self.histogram.setImageItem(self.waterfallImg)

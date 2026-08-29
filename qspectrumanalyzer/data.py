@@ -16,6 +16,18 @@ class HistoryBuffer:
     the data is moved back to the start of the array once the window runs
     out of slack, which is once every `slack` appends instead of rolling the
     whole buffer on every single append."""
+    #: Refuse to allocate a ring buffer larger than this (bytes). The
+    #: recording depth is set in sweeps, but what it costs depends on the bin
+    #: count, which is not known until the first sweep arrives, so a depth
+    #: that is harmless at 500 bins can ask for gigabytes at 60000.
+    max_bytes = 256 * 1024 * 1024
+
+    @classmethod
+    def fits(cls, data_size, max_history_size, itemsize=8):
+        """Largest requested depth that stays inside the memory budget"""
+        per_row = data_size * itemsize * 1.5  # 1.5: the slack in the buffer
+        return max(1, min(max_history_size, int(cls.max_bytes / per_row)))
+
     def __init__(self, data_size, max_history_size, dtype=float):
         self.data_size = data_size
         self.max_history_size = max_history_size
@@ -156,7 +168,13 @@ class DataStorage(QtCore.QObject):
     def update_history(self, data):
         """Update spectrum measurements history"""
         if self.history is None:
-            self.history = HistoryBuffer(len(data["y"]), self.max_history_size)
+            depth = HistoryBuffer.fits(len(data["y"]), self.max_history_size)
+            if depth < self.max_history_size:
+                print("Recording depth reduced from {} to {} sweeps to stay under {} MB "
+                      "at {} bins".format(self.max_history_size, depth,
+                                          HistoryBuffer.max_bytes // (1024 * 1024),
+                                          len(data["y"])))
+            self.history = HistoryBuffer(len(data["y"]), depth)
 
         self.history.append(data["y"])
         self.history_updated.emit(self)
