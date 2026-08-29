@@ -17,10 +17,11 @@ from PySide6.QtGui import (QAction, QBrush, QColor, QConicalGradient,
     QPainter, QPalette, QPixmap, QRadialGradient,
     QTransform)
 from PySide6.QtWidgets import (QApplication, QCheckBox, QDockWidget, QDoubleSpinBox,
-    QFormLayout, QGridLayout, QHBoxLayout, QLabel,
-    QMainWindow, QMenu, QMenuBar, QPushButton,
-    QSizePolicy, QSpacerItem, QSpinBox, QSplitter,
-    QStatusBar, QToolButton, QVBoxLayout, QWidget)
+    QFormLayout, QGridLayout, QGroupBox, QHBoxLayout,
+    QLabel, QMainWindow, QMenu, QMenuBar,
+    QPushButton, QSizePolicy, QSlider, QSpacerItem,
+    QSpinBox, QSplitter, QStatusBar, QToolButton,
+    QVBoxLayout, QWidget)
 
 from pyqtgraph import GraphicsLayoutWidget
 
@@ -100,9 +101,52 @@ class Ui_QSpectrumAnalyzerMainWindow(object):
 
         self.gridLayout_2.addWidget(self.singleShotButton, 1, 0, 1, 2)
 
+        self.historyGroupBox = QGroupBox(self.controlsDockWidgetContents)
+        self.historyGroupBox.setObjectName(u"historyGroupBox")
+        self.historyGridLayout = QGridLayout(self.historyGroupBox)
+        self.historyGridLayout.setObjectName(u"historyGridLayout")
+        self.browseHistoryCheckBox = QCheckBox(self.historyGroupBox)
+        self.browseHistoryCheckBox.setObjectName(u"browseHistoryCheckBox")
+
+        self.historyGridLayout.addWidget(self.browseHistoryCheckBox, 0, 0, 1, 3)
+
+        self.historyBackButton = QPushButton(self.historyGroupBox)
+        self.historyBackButton.setObjectName(u"historyBackButton")
+
+        self.historyGridLayout.addWidget(self.historyBackButton, 1, 0, 1, 1)
+
+        self.historyStepSpinBox = QSpinBox(self.historyGroupBox)
+        self.historyStepSpinBox.setObjectName(u"historyStepSpinBox")
+        self.historyStepSpinBox.setMinimum(1)
+        self.historyStepSpinBox.setMaximum(1000000)
+        self.historyStepSpinBox.setValue(1)
+
+        self.historyGridLayout.addWidget(self.historyStepSpinBox, 1, 1, 1, 1)
+
+        self.historyForwardButton = QPushButton(self.historyGroupBox)
+        self.historyForwardButton.setObjectName(u"historyForwardButton")
+
+        self.historyGridLayout.addWidget(self.historyForwardButton, 1, 2, 1, 1)
+
+        self.historySlider = QSlider(self.historyGroupBox)
+        self.historySlider.setObjectName(u"historySlider")
+        self.historySlider.setOrientation(Qt.Horizontal)
+
+        self.historyGridLayout.addWidget(self.historySlider, 2, 0, 1, 3)
+
+        self.historyPositionLabel = QLabel(self.historyGroupBox)
+        self.historyPositionLabel.setObjectName(u"historyPositionLabel")
+        self.historyPositionLabel.setAlignment(Qt.AlignCenter)
+        self.historyPositionLabel.setWordWrap(True)
+
+        self.historyGridLayout.addWidget(self.historyPositionLabel, 3, 0, 1, 3)
+
+
+        self.gridLayout_2.addWidget(self.historyGroupBox, 2, 0, 1, 2)
+
         self.verticalSpacer = QSpacerItem(20, 561, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
 
-        self.gridLayout_2.addItem(self.verticalSpacer, 2, 0, 1, 1)
+        self.gridLayout_2.addItem(self.verticalSpacer, 3, 0, 1, 1)
 
         self.controlsDockWidget.setWidget(self.controlsDockWidgetContents)
         QSpectrumAnalyzerMainWindow.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.controlsDockWidget)
@@ -347,7 +391,12 @@ class Ui_QSpectrumAnalyzerMainWindow(object):
 #endif // QT_CONFIG(shortcut)
         QWidget.setTabOrder(self.startButton, self.stopButton)
         QWidget.setTabOrder(self.stopButton, self.singleShotButton)
-        QWidget.setTabOrder(self.singleShotButton, self.startFreqSpinBox)
+        QWidget.setTabOrder(self.singleShotButton, self.browseHistoryCheckBox)
+        QWidget.setTabOrder(self.browseHistoryCheckBox, self.historyBackButton)
+        QWidget.setTabOrder(self.historyBackButton, self.historyStepSpinBox)
+        QWidget.setTabOrder(self.historyStepSpinBox, self.historyForwardButton)
+        QWidget.setTabOrder(self.historyForwardButton, self.historySlider)
+        QWidget.setTabOrder(self.historySlider, self.startFreqSpinBox)
         QWidget.setTabOrder(self.startFreqSpinBox, self.stopFreqSpinBox)
         QWidget.setTabOrder(self.stopFreqSpinBox, self.binSizeSpinBox)
         QWidget.setTabOrder(self.binSizeSpinBox, self.intervalSpinBox)
@@ -396,6 +445,23 @@ class Ui_QSpectrumAnalyzerMainWindow(object):
         self.startButton.setText(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"&Start", None))
         self.stopButton.setText(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"S&top", None))
         self.singleShotButton.setText(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Si&ngle shot", None))
+        self.historyGroupBox.setTitle(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"History", None))
+#if QT_CONFIG(tooltip)
+        self.browseHistoryCheckBox.setToolTip(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Freeze the plots and step back through the recorded sweeps. Acquisition keeps running and keeps recording.", None))
+#endif // QT_CONFIG(tooltip)
+        self.browseHistoryCheckBox.setText(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"&Browse recorded sweeps", None))
+#if QT_CONFIG(tooltip)
+        self.historyBackButton.setToolTip(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Step back through the recorded sweeps", None))
+#endif // QT_CONFIG(tooltip)
+        self.historyBackButton.setText(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"<", None))
+#if QT_CONFIG(tooltip)
+        self.historyStepSpinBox.setToolTip(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"How many sweeps each step moves", None))
+#endif // QT_CONFIG(tooltip)
+#if QT_CONFIG(tooltip)
+        self.historyForwardButton.setToolTip(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Step forward through the recorded sweeps", None))
+#endif // QT_CONFIG(tooltip)
+        self.historyForwardButton.setText(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u">", None))
+        self.historyPositionLabel.setText(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Live", None))
         self.frequencyDockWidget.setWindowTitle(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Frequency", None))
         self.label_2.setText(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Start:", None))
         self.startFreqSpinBox.setSuffix(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u" MHz", None))

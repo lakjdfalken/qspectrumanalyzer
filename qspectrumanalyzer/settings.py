@@ -21,6 +21,7 @@ class QSpectrumAnalyzerSettings(QtWidgets.QDialog, Ui_QSpectrumAnalyzerSettings)
         self.deviceEdit.setText(settings.value("device", ""))
         self.lnbSpinBox.setValue(settings.value("lnb_lo", 0, float) / 1e6)
         self.waterfallHistorySizeSpinBox.setValue(settings.value("waterfall_history_size", 100, int))
+        self.maxRefreshRateSpinBox.setValue(settings.value("max_refresh_rate", 60, int))
 
         backend = settings.value("backend", "soapy_power")
         try:
@@ -128,6 +129,7 @@ class QSpectrumAnalyzerSettings(QtWidgets.QDialog, Ui_QSpectrumAnalyzerSettings)
         settings.setValue("bandwidth", self.bandwidthSpinBox.value() * 1e6)
         settings.setValue("lnb_lo", self.lnbSpinBox.value() * 1e6)
         settings.setValue("waterfall_history_size", self.waterfallHistorySizeSpinBox.value())
+        settings.setValue("max_refresh_rate", self.maxRefreshRateSpinBox.value())
         QtWidgets.QDialog.accept(self)
 
 

@@ -88,6 +88,19 @@ class Ui_QSpectrumAnalyzerSettings(object):
 
         self.formLayout.setWidget(7, QFormLayout.ItemRole.FieldRole, self.waterfallHistorySizeSpinBox)
 
+        self.label_9 = QLabel(QSpectrumAnalyzerSettings)
+        self.label_9.setObjectName(u"label_9")
+
+        self.formLayout.setWidget(8, QFormLayout.ItemRole.LabelRole, self.label_9)
+
+        self.maxRefreshRateSpinBox = QSpinBox(QSpectrumAnalyzerSettings)
+        self.maxRefreshRateSpinBox.setObjectName(u"maxRefreshRateSpinBox")
+        self.maxRefreshRateSpinBox.setMinimum(0)
+        self.maxRefreshRateSpinBox.setMaximum(1000)
+        self.maxRefreshRateSpinBox.setValue(60)
+
+        self.formLayout.setWidget(8, QFormLayout.ItemRole.FieldRole, self.maxRefreshRateSpinBox)
+
         self.label_7 = QLabel(QSpectrumAnalyzerSettings)
         self.label_7.setObjectName(u"label_7")
 
@@ -188,6 +201,7 @@ class Ui_QSpectrumAnalyzerSettings(object):
         self.label_5.setBuddy(self.deviceEdit)
         self.label_4.setBuddy(self.sampleRateSpinBox)
         self.label_2.setBuddy(self.waterfallHistorySizeSpinBox)
+        self.label_9.setBuddy(self.maxRefreshRateSpinBox)
         self.label_7.setBuddy(self.bandwidthSpinBox)
         self.label_8.setBuddy(self.lnbSpinBox)
         self.label_6.setBuddy(self.paramsEdit)
@@ -202,6 +216,7 @@ class Ui_QSpectrumAnalyzerSettings(object):
         QWidget.setTabOrder(self.sampleRateSpinBox, self.bandwidthSpinBox)
         QWidget.setTabOrder(self.bandwidthSpinBox, self.lnbSpinBox)
         QWidget.setTabOrder(self.lnbSpinBox, self.waterfallHistorySizeSpinBox)
+        QWidget.setTabOrder(self.waterfallHistorySizeSpinBox, self.maxRefreshRateSpinBox)
 
         self.retranslateUi(QSpectrumAnalyzerSettings)
         self.buttonBox.accepted.connect(QSpectrumAnalyzerSettings.accept)
@@ -225,6 +240,15 @@ class Ui_QSpectrumAnalyzerSettings(object):
         self.label_5.setText(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"&Device:", None))
         self.label_4.setText(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"Sa&mple rate:", None))
         self.label_2.setText(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"&Waterfall history size:", None))
+#if QT_CONFIG(tooltip)
+        self.label_9.setToolTip(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"Upper limit on how often the plots are redrawn. Sweeps arriving faster than this are still recorded in full, only redundant redraws are skipped. 0 means no limit.", None))
+#endif // QT_CONFIG(tooltip)
+        self.label_9.setText(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"Max &redraw rate:", None))
+#if QT_CONFIG(tooltip)
+        self.maxRefreshRateSpinBox.setToolTip(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"Upper limit on how often the plots are redrawn. Sweeps arriving faster than this are still recorded in full, only redundant redraws are skipped. 0 means no limit.", None))
+#endif // QT_CONFIG(tooltip)
+        self.maxRefreshRateSpinBox.setSpecialValueText(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"No limit", None))
+        self.maxRefreshRateSpinBox.setSuffix(QCoreApplication.translate("QSpectrumAnalyzerSettings", u" Hz", None))
         self.label_7.setText(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"Bandwidt&h:", None))
 #if QT_CONFIG(tooltip)
         self.label_8.setToolTip(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"Negative frequency for upconverters, positive frequency for downconverters.", None))
