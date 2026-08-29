@@ -21,6 +21,19 @@ class SpectrumPlotWidget:
 
         self.layout = layout
 
+        # How many samples pyqtgraph should keep per pixel when auto
+        # downsampling. Its default is 5, and with peak downsampling that
+        # draws ten points into every pixel column: nine of them land on top
+        # of each other and cost paint time for nothing. Peak downsampling
+        # keeps the minimum and the maximum of each bin, so one bin per
+        # physical pixel already draws the full envelope, narrow spikes
+        # included. That is a factor of devicePixelRatio, since the factor is
+        # applied to the widget's logical width.
+        try:
+            self.downsample_factor = max(1.0, float(layout.devicePixelRatioF()))
+        except AttributeError:
+            self.downsample_factor = 1.0
+
         self.main_curve = True
         self.main_color = pg.mkColor("y")
         self.persistence = False
@@ -72,30 +85,32 @@ class SpectrumPlotWidget:
         self.mouseProxy = pg.SignalProxy(self.plot.scene().sigMouseMoved,
                                          rateLimit=60, slot=self.mouse_moved)
 
+    def create_curve(self, pen, z_value):
+        """Create one curve, downsampled to the resolution of the screen"""
+        curve = self.plot.plot(pen=pen)
+        curve.setZValue(z_value)
+        curve.opts["autoDownsampleFactor"] = self.downsample_factor
+        return curve
+
     def create_main_curve(self):
         """Create main spectrum curve"""
-        self.curve = self.plot.plot(pen=self.main_color)
-        self.curve.setZValue(900)
+        self.curve = self.create_curve(self.main_color, 900)
 
     def create_peak_hold_max_curve(self):
         """Create max. peak hold curve"""
-        self.curve_peak_hold_max = self.plot.plot(pen=self.peak_hold_max_color)
-        self.curve_peak_hold_max.setZValue(800)
+        self.curve_peak_hold_max = self.create_curve(self.peak_hold_max_color, 800)
 
     def create_peak_hold_min_curve(self):
         """Create min. peak hold curve"""
-        self.curve_peak_hold_min = self.plot.plot(pen=self.peak_hold_min_color)
-        self.curve_peak_hold_min.setZValue(800)
+        self.curve_peak_hold_min = self.create_curve(self.peak_hold_min_color, 800)
 
     def create_average_curve(self):
         """Create average curve"""
-        self.curve_average = self.plot.plot(pen=self.average_color)
-        self.curve_average.setZValue(700)
+        self.curve_average = self.create_curve(self.average_color, 700)
 
     def create_baseline_curve(self):
         """Create baseline curve"""
-        self.curve_baseline = self.plot.plot(pen=self.baseline_color)
-        self.curve_baseline.setZValue(500)
+        self.curve_baseline = self.create_curve(self.baseline_color, 500)
 
     def create_persistence_curves(self):
         """Create spectrum persistence curves"""
@@ -105,8 +120,8 @@ class SpectrumPlotWidget:
         for i in range(self.persistence_length):
             alpha = 255 * decay(i + 1, self.persistence_length + 1)
             color = self.persistence_color
-            curve = self.plot.plot(pen=(color.red(), color.green(), color.blue(), alpha))
-            curve.setZValue(z_index_base - i)
+            curve = self.create_curve((color.red(), color.green(), color.blue(), alpha),
+                                      z_index_base - i)
             self.persistence_curves.append(curve)
 
     def set_colors(self):
