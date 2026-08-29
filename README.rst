@@ -14,9 +14,8 @@ Screenshots
 Requirements
 ------------
 
-- Python >= 3.3
-- PyQt4 / PyQt5 / PySide / PySide2
-- Qt.py (https://github.com/mottosso/Qt.py)
+- Python >= 3.9
+- PySide6 (Qt 6)
 - PyQtGraph (http://www.pyqtgraph.org)
 - soapy_power (https://github.com/xmikos/soapy_power)
 - Optional: hackrf / rtl-sdr / rtl_power_fftw / rx_tools
@@ -127,7 +126,7 @@ Ubuntu:
     sudo apt-get update
 
     # Install basic dependencies
-    sudo apt-get install python3-pip python3-pyqt5 python3-numpy python3-scipy soapysdr python3-soapysdr
+    sudo apt-get install python3-pip python3-pyside6 python3-numpy python3-scipy soapysdr python3-soapysdr
 
     # Install SoapySDR drivers for your hardware (e.g. RTL-SDR, Airspy, HackRF, LimeSDR, etc.)
     sudo apt-get install soapysdr-module-rtlsdr soapysdr-module-airspy soapysdr-module-hackrf soapysdr-module-lms7
@@ -168,7 +167,7 @@ You can also install QSpectrumAnalyzer manually from `PyPI <https://pypi.python.
    (bundled as part of Pothos SDR installer: `download <http://downloads.myriadrf.org/builds/PothosSDR/?C=M;O=D>`_)
 3. Open ``cmd.exe`` and run::
 
-        pip install PyQt5
+        pip install PySide6
         pip install QSpectrumAnalyzer
 
 You should then be able to run it with ``qspectrumanalyzer`` (or ``python -m qspectrumanalyzer``
