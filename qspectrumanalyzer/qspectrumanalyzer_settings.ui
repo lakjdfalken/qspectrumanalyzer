@@ -177,6 +177,19 @@
        </property>
       </widget>
      </item>
+     <item row="11" column="0" colspan="2">
+      <widget class="QCheckBox" name="antialiasCheckBox">
+       <property name="toolTip">
+        <string>Smooth the curves. Turning it off is faster, but the traces look harder edged.</string>
+       </property>
+       <property name="text">
+        <string>&amp;Antialias the curves</string>
+       </property>
+       <property name="checked">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
      <item row="10" column="0">
       <widget class="QLabel" name="label_9">
        <property name="toolTip">

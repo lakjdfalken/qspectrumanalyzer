@@ -15,10 +15,11 @@ from PySide6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
     QFont, QFontDatabase, QGradient, QIcon,
     QImage, QKeySequence, QLinearGradient, QPainter,
     QPalette, QPixmap, QRadialGradient, QTransform)
-from PySide6.QtWidgets import (QAbstractButton, QApplication, QComboBox, QDialog,
-    QDialogButtonBox, QDoubleSpinBox, QFormLayout, QHBoxLayout,
-    QLabel, QLineEdit, QSizePolicy, QSpacerItem,
-    QSpinBox, QToolButton, QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QAbstractButton, QApplication, QCheckBox, QComboBox,
+    QDialog, QDialogButtonBox, QDoubleSpinBox, QFormLayout,
+    QHBoxLayout, QLabel, QLineEdit, QSizePolicy,
+    QSpacerItem, QSpinBox, QToolButton, QVBoxLayout,
+    QWidget)
 
 class Ui_QSpectrumAnalyzerSettings(object):
     def setupUi(self, QSpectrumAnalyzerSettings):
@@ -106,6 +107,12 @@ class Ui_QSpectrumAnalyzerSettings(object):
         self.recordDepthEstimateLabel.setWordWrap(True)
 
         self.formLayout.setWidget(9, QFormLayout.ItemRole.FieldRole, self.recordDepthEstimateLabel)
+
+        self.antialiasCheckBox = QCheckBox(QSpectrumAnalyzerSettings)
+        self.antialiasCheckBox.setObjectName(u"antialiasCheckBox")
+        self.antialiasCheckBox.setChecked(True)
+
+        self.formLayout.setWidget(11, QFormLayout.ItemRole.SpanningRole, self.antialiasCheckBox)
 
         self.label_9 = QLabel(QSpectrumAnalyzerSettings)
         self.label_9.setObjectName(u"label_9")
@@ -273,6 +280,10 @@ class Ui_QSpectrumAnalyzerSettings(object):
 #endif // QT_CONFIG(tooltip)
         self.recordDepthSpinBox.setSuffix(QCoreApplication.translate("QSpectrumAnalyzerSettings", u" sweeps", None))
         self.recordDepthEstimateLabel.setText("")
+#if QT_CONFIG(tooltip)
+        self.antialiasCheckBox.setToolTip(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"Smooth the curves. Turning it off is faster, but the traces look harder edged.", None))
+#endif // QT_CONFIG(tooltip)
+        self.antialiasCheckBox.setText(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"&Antialias the curves", None))
 #if QT_CONFIG(tooltip)
         self.label_9.setToolTip(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"Upper limit on how often the plots are redrawn. Sweeps arriving faster than this are still recorded in full, only redundant redraws are skipped. 0 means no limit.", None))
 #endif // QT_CONFIG(tooltip)

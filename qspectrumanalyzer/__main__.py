@@ -61,7 +61,8 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         settings = QtCore.QSettings()
         max_refresh_rate = settings.value("max_refresh_rate", 60, int)
         self.spectrumPlotWidget = SpectrumPlotWidget(self.mainPlotLayout,
-                                                     max_refresh_rate=max_refresh_rate)
+                                                     max_refresh_rate=max_refresh_rate,
+                                                     antialias=settings.value("antialias", 1, int))
         self.waterfallPlotWidget = WaterfallPlotWidget(self.waterfallPlotLayout,
                                                        self.histogramPlotLayout,
                                                        max_refresh_rate=max_refresh_rate)
@@ -693,6 +694,7 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
             max_refresh_rate = settings.value("max_refresh_rate", 60, int)
             self.spectrumPlotWidget.throttle.set_max_refresh_rate(max_refresh_rate)
             self.waterfallPlotWidget.throttle.set_max_refresh_rate(max_refresh_rate)
+            self.spectrumPlotWidget.set_antialias(bool(settings.value("antialias", 1, int)))
             self.setup_power_thread()
 
     @QtCore.Slot()

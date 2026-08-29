@@ -5,11 +5,10 @@ import pyqtgraph as pg
 
 # Basic PyQtGraph settings
 #
-# Antialiasing is off on purpose: antialiasing a polyline of tens of thousands
-# of points is by far the most expensive thing in the paint path, and the
-# curves are one pixel wide anyway. Row-major image order lets the waterfall
-# hand its history buffer to ImageItem without transposing (and copying) it
-# on every frame.
+# Antialiasing is off globally, which keeps the axes and the crosshair cheap,
+# and is turned back on per curve when the setting asks for it. Row-major
+# image order lets the waterfall hand its history buffer to ImageItem without
+# transposing (and copying) it on every frame.
 pg.setConfigOptions(antialias=False, imageAxisOrder='row-major')
 
 
@@ -93,12 +92,13 @@ class RedrawThrottle:
 
 class SpectrumPlotWidget:
     """Main spectrum plot"""
-    def __init__(self, layout, max_refresh_rate=60):
+    def __init__(self, layout, max_refresh_rate=60, antialias=True):
         if not isinstance(layout, pg.GraphicsLayoutWidget):
             raise ValueError("layout must be instance of pyqtgraph.GraphicsLayoutWidget")
 
         self.layout = layout
         self.throttle = RedrawThrottle(max_refresh_rate, self.draw)
+        self.antialias = antialias
 
         # How many samples pyqtgraph should keep per pixel when auto
         # downsampling. Its default is 5, and with peak downsampling that
@@ -164,12 +164,32 @@ class SpectrumPlotWidget:
         self.mouseProxy = pg.SignalProxy(self.plot.scene().sigMouseMoved,
                                          rateLimit=60, slot=self.mouse_moved)
 
+    def all_curves(self):
+        """Every curve on the spectrum plot"""
+        return [self.curve, self.curve_peak_hold_max, self.curve_peak_hold_min,
+                self.curve_average, self.curve_baseline] + list(self.persistence_curves or [])
+
     def create_curve(self, pen, z_value):
         """Create one curve, downsampled to the resolution of the screen"""
         curve = self.plot.plot(pen=pen)
         curve.setZValue(z_value)
         curve.opts["autoDownsampleFactor"] = self.downsample_factor
+        # Antialiasing is off globally, so ask for it per curve. It has to be
+        # set on the PlotDataItem: it copies its own value down into the
+        # PlotCurveItem it owns on every setData, overwriting anything set
+        # there directly.
+        curve.opts["antialias"] = self.antialias
+        curve.curve.opts["antialias"] = self.antialias
         return curve
+
+    def set_antialias(self, antialias):
+        """Turn antialiasing of the curves on or off"""
+        self.antialias = antialias
+        for curve in self.all_curves():
+            if curve is not None:
+                curve.opts["antialias"] = antialias
+                curve.curve.opts["antialias"] = antialias
+                curve.curve.update()
 
     def create_main_curve(self):
         """Create main spectrum curve"""

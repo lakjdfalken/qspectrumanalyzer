@@ -24,6 +24,7 @@ class QSpectrumAnalyzerSettings(QtWidgets.QDialog, Ui_QSpectrumAnalyzerSettings)
         self.waterfallHistorySizeSpinBox.setValue(settings.value("waterfall_history_size", 100, int))
         self.maxRefreshRateSpinBox.setValue(settings.value("max_refresh_rate", 60, int))
         self.recordDepthSpinBox.setValue(settings.value("record_depth", 1000, int))
+        self.antialiasCheckBox.setChecked(settings.value("antialias", 1, int))
         self.recordDepthSpinBox.valueChanged.connect(self.update_record_depth_estimate)
         self.update_record_depth_estimate()
 
@@ -164,6 +165,7 @@ class QSpectrumAnalyzerSettings(QtWidgets.QDialog, Ui_QSpectrumAnalyzerSettings)
         settings.setValue("waterfall_history_size", self.waterfallHistorySizeSpinBox.value())
         settings.setValue("max_refresh_rate", self.maxRefreshRateSpinBox.value())
         settings.setValue("record_depth", self.recordDepthSpinBox.value())
+        settings.setValue("antialias", int(self.antialiasCheckBox.isChecked()))
         QtWidgets.QDialog.accept(self)
 
 
