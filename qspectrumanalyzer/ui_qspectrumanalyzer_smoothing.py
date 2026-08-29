@@ -1,68 +1,101 @@
 # -*- coding: utf-8 -*-
 
-# Form implementation generated from reading ui file 'qspectrumanalyzer/qspectrumanalyzer_smoothing.ui'
-#
-# Created by: PyQt5 UI code generator 5.8
-#
-# WARNING! All changes made in this file will be lost!
+################################################################################
+## Form generated from reading UI file 'qspectrumanalyzer_smoothing.ui'
+##
+## Created by: Qt User Interface Compiler version 6.11.2
+##
+## WARNING! All changes made in this file will be lost when recompiling UI file!
+################################################################################
 
-from Qt import QtCore, QtGui, QtWidgets
+from PySide6.QtCore import (QCoreApplication, QDate, QDateTime, QLocale,
+    QMetaObject, QObject, QPoint, QRect,
+    QSize, QTime, QUrl, Qt)
+from PySide6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
+    QFont, QFontDatabase, QGradient, QIcon,
+    QImage, QKeySequence, QLinearGradient, QPainter,
+    QPalette, QPixmap, QRadialGradient, QTransform)
+from PySide6.QtWidgets import (QAbstractButton, QApplication, QComboBox, QDialog,
+    QDialogButtonBox, QFormLayout, QLabel, QSizePolicy,
+    QSpacerItem, QSpinBox, QVBoxLayout, QWidget)
 
 class Ui_QSpectrumAnalyzerSmoothing(object):
     def setupUi(self, QSpectrumAnalyzerSmoothing):
-        QSpectrumAnalyzerSmoothing.setObjectName("QSpectrumAnalyzerSmoothing")
+        if not QSpectrumAnalyzerSmoothing.objectName():
+            QSpectrumAnalyzerSmoothing.setObjectName(u"QSpectrumAnalyzerSmoothing")
         QSpectrumAnalyzerSmoothing.resize(250, 130)
-        self.verticalLayout = QtWidgets.QVBoxLayout(QSpectrumAnalyzerSmoothing)
-        self.verticalLayout.setObjectName("verticalLayout")
-        self.formLayout = QtWidgets.QFormLayout()
-        self.formLayout.setObjectName("formLayout")
-        self.label = QtWidgets.QLabel(QSpectrumAnalyzerSmoothing)
-        self.label.setObjectName("label")
-        self.formLayout.setWidget(0, QtWidgets.QFormLayout.LabelRole, self.label)
-        self.windowFunctionComboBox = QtWidgets.QComboBox(QSpectrumAnalyzerSmoothing)
-        self.windowFunctionComboBox.setObjectName("windowFunctionComboBox")
+        self.verticalLayout = QVBoxLayout(QSpectrumAnalyzerSmoothing)
+        self.verticalLayout.setObjectName(u"verticalLayout")
+        self.formLayout = QFormLayout()
+        self.formLayout.setObjectName(u"formLayout")
+        self.label = QLabel(QSpectrumAnalyzerSmoothing)
+        self.label.setObjectName(u"label")
+
+        self.formLayout.setWidget(0, QFormLayout.ItemRole.LabelRole, self.label)
+
+        self.windowFunctionComboBox = QComboBox(QSpectrumAnalyzerSmoothing)
         self.windowFunctionComboBox.addItem("")
         self.windowFunctionComboBox.addItem("")
         self.windowFunctionComboBox.addItem("")
         self.windowFunctionComboBox.addItem("")
         self.windowFunctionComboBox.addItem("")
-        self.formLayout.setWidget(0, QtWidgets.QFormLayout.FieldRole, self.windowFunctionComboBox)
-        self.label_2 = QtWidgets.QLabel(QSpectrumAnalyzerSmoothing)
-        self.label_2.setObjectName("label_2")
-        self.formLayout.setWidget(1, QtWidgets.QFormLayout.LabelRole, self.label_2)
-        self.windowLengthSpinBox = QtWidgets.QSpinBox(QSpectrumAnalyzerSmoothing)
+        self.windowFunctionComboBox.setObjectName(u"windowFunctionComboBox")
+
+        self.formLayout.setWidget(0, QFormLayout.ItemRole.FieldRole, self.windowFunctionComboBox)
+
+        self.label_2 = QLabel(QSpectrumAnalyzerSmoothing)
+        self.label_2.setObjectName(u"label_2")
+
+        self.formLayout.setWidget(1, QFormLayout.ItemRole.LabelRole, self.label_2)
+
+        self.windowLengthSpinBox = QSpinBox(QSpectrumAnalyzerSmoothing)
+        self.windowLengthSpinBox.setObjectName(u"windowLengthSpinBox")
         self.windowLengthSpinBox.setMinimum(3)
         self.windowLengthSpinBox.setMaximum(1001)
-        self.windowLengthSpinBox.setProperty("value", 11)
-        self.windowLengthSpinBox.setObjectName("windowLengthSpinBox")
-        self.formLayout.setWidget(1, QtWidgets.QFormLayout.FieldRole, self.windowLengthSpinBox)
+        self.windowLengthSpinBox.setValue(11)
+
+        self.formLayout.setWidget(1, QFormLayout.ItemRole.FieldRole, self.windowLengthSpinBox)
+
+
         self.verticalLayout.addLayout(self.formLayout)
-        spacerItem = QtWidgets.QSpacerItem(20, 1, QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Expanding)
-        self.verticalLayout.addItem(spacerItem)
-        self.buttonBox = QtWidgets.QDialogButtonBox(QSpectrumAnalyzerSmoothing)
-        self.buttonBox.setOrientation(QtCore.Qt.Horizontal)
-        self.buttonBox.setStandardButtons(QtWidgets.QDialogButtonBox.Cancel|QtWidgets.QDialogButtonBox.Ok)
-        self.buttonBox.setObjectName("buttonBox")
+
+        self.verticalSpacer = QSpacerItem(20, 1, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
+
+        self.verticalLayout.addItem(self.verticalSpacer)
+
+        self.buttonBox = QDialogButtonBox(QSpectrumAnalyzerSmoothing)
+        self.buttonBox.setObjectName(u"buttonBox")
+        self.buttonBox.setOrientation(Qt.Horizontal)
+        self.buttonBox.setStandardButtons(QDialogButtonBox.Cancel|QDialogButtonBox.Ok)
+
         self.verticalLayout.addWidget(self.buttonBox)
+
+#if QT_CONFIG(shortcut)
         self.label.setBuddy(self.windowFunctionComboBox)
         self.label_2.setBuddy(self.windowLengthSpinBox)
+#endif // QT_CONFIG(shortcut)
+        QWidget.setTabOrder(self.windowFunctionComboBox, self.windowLengthSpinBox)
+        QWidget.setTabOrder(self.windowLengthSpinBox, self.buttonBox)
 
         self.retranslateUi(QSpectrumAnalyzerSmoothing)
-        self.windowFunctionComboBox.setCurrentIndex(1)
         self.buttonBox.accepted.connect(QSpectrumAnalyzerSmoothing.accept)
         self.buttonBox.rejected.connect(QSpectrumAnalyzerSmoothing.reject)
-        QtCore.QMetaObject.connectSlotsByName(QSpectrumAnalyzerSmoothing)
-        QSpectrumAnalyzerSmoothing.setTabOrder(self.windowFunctionComboBox, self.windowLengthSpinBox)
-        QSpectrumAnalyzerSmoothing.setTabOrder(self.windowLengthSpinBox, self.buttonBox)
+
+        self.windowFunctionComboBox.setCurrentIndex(1)
+
+
+        QMetaObject.connectSlotsByName(QSpectrumAnalyzerSmoothing)
+    # setupUi
 
     def retranslateUi(self, QSpectrumAnalyzerSmoothing):
-        _translate = QtCore.QCoreApplication.translate
-        QSpectrumAnalyzerSmoothing.setWindowTitle(_translate("QSpectrumAnalyzerSmoothing", "Smoothing - QSpectrumAnalyzer"))
-        self.label.setText(_translate("QSpectrumAnalyzerSmoothing", "&Window function:"))
-        self.windowFunctionComboBox.setItemText(0, _translate("QSpectrumAnalyzerSmoothing", "rectangular"))
-        self.windowFunctionComboBox.setItemText(1, _translate("QSpectrumAnalyzerSmoothing", "hanning"))
-        self.windowFunctionComboBox.setItemText(2, _translate("QSpectrumAnalyzerSmoothing", "hamming"))
-        self.windowFunctionComboBox.setItemText(3, _translate("QSpectrumAnalyzerSmoothing", "bartlett"))
-        self.windowFunctionComboBox.setItemText(4, _translate("QSpectrumAnalyzerSmoothing", "blackman"))
-        self.label_2.setText(_translate("QSpectrumAnalyzerSmoothing", "Window len&gth:"))
+        QSpectrumAnalyzerSmoothing.setWindowTitle(QCoreApplication.translate("QSpectrumAnalyzerSmoothing", u"Smoothing - QSpectrumAnalyzer", None))
+        self.label.setText(QCoreApplication.translate("QSpectrumAnalyzerSmoothing", u"&Window function:", None))
+        self.windowFunctionComboBox.setItemText(0, QCoreApplication.translate("QSpectrumAnalyzerSmoothing", u"rectangular", None))
+        self.windowFunctionComboBox.setItemText(1, QCoreApplication.translate("QSpectrumAnalyzerSmoothing", u"hanning", None))
+        self.windowFunctionComboBox.setItemText(2, QCoreApplication.translate("QSpectrumAnalyzerSmoothing", u"hamming", None))
+        self.windowFunctionComboBox.setItemText(3, QCoreApplication.translate("QSpectrumAnalyzerSmoothing", u"bartlett", None))
+        self.windowFunctionComboBox.setItemText(4, QCoreApplication.translate("QSpectrumAnalyzerSmoothing", u"blackman", None))
+
+        self.label_2.setText(QCoreApplication.translate("QSpectrumAnalyzerSmoothing", u"Window len&gth:", None))
+    # retranslateUi
 

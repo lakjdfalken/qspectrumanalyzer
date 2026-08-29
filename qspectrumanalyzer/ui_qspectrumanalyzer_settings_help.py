@@ -1,37 +1,54 @@
 # -*- coding: utf-8 -*-
 
-# Form implementation generated from reading ui file 'qspectrumanalyzer/qspectrumanalyzer_settings_help.ui'
-#
-# Created by: PyQt5 UI code generator 5.8
-#
-# WARNING! All changes made in this file will be lost!
+################################################################################
+## Form generated from reading UI file 'qspectrumanalyzer_settings_help.ui'
+##
+## Created by: Qt User Interface Compiler version 6.11.2
+##
+## WARNING! All changes made in this file will be lost when recompiling UI file!
+################################################################################
 
-from Qt import QtCore, QtGui, QtWidgets
+from PySide6.QtCore import (QCoreApplication, QDate, QDateTime, QLocale,
+    QMetaObject, QObject, QPoint, QRect,
+    QSize, QTime, QUrl, Qt)
+from PySide6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
+    QFont, QFontDatabase, QGradient, QIcon,
+    QImage, QKeySequence, QLinearGradient, QPainter,
+    QPalette, QPixmap, QRadialGradient, QTransform)
+from PySide6.QtWidgets import (QAbstractButton, QApplication, QDialog, QDialogButtonBox,
+    QPlainTextEdit, QSizePolicy, QVBoxLayout, QWidget)
 
 class Ui_QSpectrumAnalyzerSettingsHelp(object):
     def setupUi(self, QSpectrumAnalyzerSettingsHelp):
-        QSpectrumAnalyzerSettingsHelp.setObjectName("QSpectrumAnalyzerSettingsHelp")
+        if not QSpectrumAnalyzerSettingsHelp.objectName():
+            QSpectrumAnalyzerSettingsHelp.setObjectName(u"QSpectrumAnalyzerSettingsHelp")
         QSpectrumAnalyzerSettingsHelp.resize(1200, 700)
-        self.verticalLayout = QtWidgets.QVBoxLayout(QSpectrumAnalyzerSettingsHelp)
-        self.verticalLayout.setObjectName("verticalLayout")
-        self.helpTextEdit = QtWidgets.QPlainTextEdit(QSpectrumAnalyzerSettingsHelp)
+        self.verticalLayout = QVBoxLayout(QSpectrumAnalyzerSettingsHelp)
+        self.verticalLayout.setObjectName(u"verticalLayout")
+        self.helpTextEdit = QPlainTextEdit(QSpectrumAnalyzerSettingsHelp)
+        self.helpTextEdit.setObjectName(u"helpTextEdit")
         self.helpTextEdit.setUndoRedoEnabled(False)
-        self.helpTextEdit.setTextInteractionFlags(QtCore.Qt.TextSelectableByKeyboard|QtCore.Qt.TextSelectableByMouse)
-        self.helpTextEdit.setObjectName("helpTextEdit")
+        self.helpTextEdit.setTextInteractionFlags(Qt.TextSelectableByKeyboard|Qt.TextSelectableByMouse)
+
         self.verticalLayout.addWidget(self.helpTextEdit)
-        self.buttonBox = QtWidgets.QDialogButtonBox(QSpectrumAnalyzerSettingsHelp)
-        self.buttonBox.setOrientation(QtCore.Qt.Horizontal)
-        self.buttonBox.setStandardButtons(QtWidgets.QDialogButtonBox.Close)
-        self.buttonBox.setObjectName("buttonBox")
+
+        self.buttonBox = QDialogButtonBox(QSpectrumAnalyzerSettingsHelp)
+        self.buttonBox.setObjectName(u"buttonBox")
+        self.buttonBox.setOrientation(Qt.Horizontal)
+        self.buttonBox.setStandardButtons(QDialogButtonBox.Close)
+
         self.verticalLayout.addWidget(self.buttonBox)
+
+        QWidget.setTabOrder(self.helpTextEdit, self.buttonBox)
 
         self.retranslateUi(QSpectrumAnalyzerSettingsHelp)
         self.buttonBox.accepted.connect(QSpectrumAnalyzerSettingsHelp.accept)
         self.buttonBox.rejected.connect(QSpectrumAnalyzerSettingsHelp.reject)
-        QtCore.QMetaObject.connectSlotsByName(QSpectrumAnalyzerSettingsHelp)
-        QSpectrumAnalyzerSettingsHelp.setTabOrder(self.helpTextEdit, self.buttonBox)
+
+        QMetaObject.connectSlotsByName(QSpectrumAnalyzerSettingsHelp)
+    # setupUi
 
     def retranslateUi(self, QSpectrumAnalyzerSettingsHelp):
-        _translate = QtCore.QCoreApplication.translate
-        QSpectrumAnalyzerSettingsHelp.setWindowTitle(_translate("QSpectrumAnalyzerSettingsHelp", "Help - QSpectrumAnalyzer"))
+        QSpectrumAnalyzerSettingsHelp.setWindowTitle(QCoreApplication.translate("QSpectrumAnalyzerSettingsHelp", u"Help - QSpectrumAnalyzer", None))
+    # retranslateUi
 

@@ -1,124 +1,188 @@
 # -*- coding: utf-8 -*-
 
-# Form implementation generated from reading ui file 'qspectrumanalyzer/qspectrumanalyzer_settings.ui'
-#
-# Created by: PyQt5 UI code generator 5.8
-#
-# WARNING! All changes made in this file will be lost!
+################################################################################
+## Form generated from reading UI file 'qspectrumanalyzer_settings.ui'
+##
+## Created by: Qt User Interface Compiler version 6.11.2
+##
+## WARNING! All changes made in this file will be lost when recompiling UI file!
+################################################################################
 
-from Qt import QtCore, QtGui, QtWidgets
+from PySide6.QtCore import (QCoreApplication, QDate, QDateTime, QLocale,
+    QMetaObject, QObject, QPoint, QRect,
+    QSize, QTime, QUrl, Qt)
+from PySide6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
+    QFont, QFontDatabase, QGradient, QIcon,
+    QImage, QKeySequence, QLinearGradient, QPainter,
+    QPalette, QPixmap, QRadialGradient, QTransform)
+from PySide6.QtWidgets import (QAbstractButton, QApplication, QComboBox, QDialog,
+    QDialogButtonBox, QDoubleSpinBox, QFormLayout, QHBoxLayout,
+    QLabel, QLineEdit, QSizePolicy, QSpacerItem,
+    QSpinBox, QToolButton, QVBoxLayout, QWidget)
 
 class Ui_QSpectrumAnalyzerSettings(object):
     def setupUi(self, QSpectrumAnalyzerSettings):
-        QSpectrumAnalyzerSettings.setObjectName("QSpectrumAnalyzerSettings")
+        if not QSpectrumAnalyzerSettings.objectName():
+            QSpectrumAnalyzerSettings.setObjectName(u"QSpectrumAnalyzerSettings")
         QSpectrumAnalyzerSettings.resize(600, 388)
-        self.verticalLayout = QtWidgets.QVBoxLayout(QSpectrumAnalyzerSettings)
-        self.verticalLayout.setObjectName("verticalLayout")
-        self.formLayout = QtWidgets.QFormLayout()
-        self.formLayout.setObjectName("formLayout")
-        self.label_3 = QtWidgets.QLabel(QSpectrumAnalyzerSettings)
-        self.label_3.setObjectName("label_3")
-        self.formLayout.setWidget(0, QtWidgets.QFormLayout.LabelRole, self.label_3)
-        self.backendComboBox = QtWidgets.QComboBox(QSpectrumAnalyzerSettings)
-        self.backendComboBox.setObjectName("backendComboBox")
+        self.verticalLayout = QVBoxLayout(QSpectrumAnalyzerSettings)
+        self.verticalLayout.setObjectName(u"verticalLayout")
+        self.formLayout = QFormLayout()
+        self.formLayout.setObjectName(u"formLayout")
+        self.label_3 = QLabel(QSpectrumAnalyzerSettings)
+        self.label_3.setObjectName(u"label_3")
+
+        self.formLayout.setWidget(0, QFormLayout.ItemRole.LabelRole, self.label_3)
+
+        self.backendComboBox = QComboBox(QSpectrumAnalyzerSettings)
         self.backendComboBox.addItem("")
         self.backendComboBox.addItem("")
         self.backendComboBox.addItem("")
         self.backendComboBox.addItem("")
         self.backendComboBox.addItem("")
-        self.formLayout.setWidget(0, QtWidgets.QFormLayout.FieldRole, self.backendComboBox)
-        self.label = QtWidgets.QLabel(QSpectrumAnalyzerSettings)
-        self.label.setObjectName("label")
-        self.formLayout.setWidget(1, QtWidgets.QFormLayout.LabelRole, self.label)
-        self.horizontalLayout = QtWidgets.QHBoxLayout()
-        self.horizontalLayout.setObjectName("horizontalLayout")
-        self.executableEdit = QtWidgets.QLineEdit(QSpectrumAnalyzerSettings)
-        self.executableEdit.setObjectName("executableEdit")
+        self.backendComboBox.setObjectName(u"backendComboBox")
+
+        self.formLayout.setWidget(0, QFormLayout.ItemRole.FieldRole, self.backendComboBox)
+
+        self.label = QLabel(QSpectrumAnalyzerSettings)
+        self.label.setObjectName(u"label")
+
+        self.formLayout.setWidget(1, QFormLayout.ItemRole.LabelRole, self.label)
+
+        self.horizontalLayout = QHBoxLayout()
+        self.horizontalLayout.setObjectName(u"horizontalLayout")
+        self.executableEdit = QLineEdit(QSpectrumAnalyzerSettings)
+        self.executableEdit.setObjectName(u"executableEdit")
+
         self.horizontalLayout.addWidget(self.executableEdit)
-        self.executableButton = QtWidgets.QToolButton(QSpectrumAnalyzerSettings)
-        self.executableButton.setMinimumSize(QtCore.QSize(50, 0))
-        self.executableButton.setObjectName("executableButton")
+
+        self.executableButton = QToolButton(QSpectrumAnalyzerSettings)
+        self.executableButton.setObjectName(u"executableButton")
+        self.executableButton.setMinimumSize(QSize(50, 0))
+
         self.horizontalLayout.addWidget(self.executableButton)
-        self.formLayout.setLayout(1, QtWidgets.QFormLayout.FieldRole, self.horizontalLayout)
-        self.label_5 = QtWidgets.QLabel(QSpectrumAnalyzerSettings)
-        self.label_5.setObjectName("label_5")
-        self.formLayout.setWidget(3, QtWidgets.QFormLayout.LabelRole, self.label_5)
-        self.label_4 = QtWidgets.QLabel(QSpectrumAnalyzerSettings)
-        self.label_4.setObjectName("label_4")
-        self.formLayout.setWidget(4, QtWidgets.QFormLayout.LabelRole, self.label_4)
-        self.label_2 = QtWidgets.QLabel(QSpectrumAnalyzerSettings)
-        self.label_2.setObjectName("label_2")
-        self.formLayout.setWidget(7, QtWidgets.QFormLayout.LabelRole, self.label_2)
-        self.waterfallHistorySizeSpinBox = QtWidgets.QSpinBox(QSpectrumAnalyzerSettings)
+
+
+        self.formLayout.setLayout(1, QFormLayout.ItemRole.FieldRole, self.horizontalLayout)
+
+        self.label_5 = QLabel(QSpectrumAnalyzerSettings)
+        self.label_5.setObjectName(u"label_5")
+
+        self.formLayout.setWidget(3, QFormLayout.ItemRole.LabelRole, self.label_5)
+
+        self.label_4 = QLabel(QSpectrumAnalyzerSettings)
+        self.label_4.setObjectName(u"label_4")
+
+        self.formLayout.setWidget(4, QFormLayout.ItemRole.LabelRole, self.label_4)
+
+        self.label_2 = QLabel(QSpectrumAnalyzerSettings)
+        self.label_2.setObjectName(u"label_2")
+
+        self.formLayout.setWidget(7, QFormLayout.ItemRole.LabelRole, self.label_2)
+
+        self.waterfallHistorySizeSpinBox = QSpinBox(QSpectrumAnalyzerSettings)
+        self.waterfallHistorySizeSpinBox.setObjectName(u"waterfallHistorySizeSpinBox")
         self.waterfallHistorySizeSpinBox.setMinimum(1)
         self.waterfallHistorySizeSpinBox.setMaximum(10000000)
-        self.waterfallHistorySizeSpinBox.setProperty("value", 100)
-        self.waterfallHistorySizeSpinBox.setObjectName("waterfallHistorySizeSpinBox")
-        self.formLayout.setWidget(7, QtWidgets.QFormLayout.FieldRole, self.waterfallHistorySizeSpinBox)
-        self.label_7 = QtWidgets.QLabel(QSpectrumAnalyzerSettings)
-        self.label_7.setObjectName("label_7")
-        self.formLayout.setWidget(5, QtWidgets.QFormLayout.LabelRole, self.label_7)
-        self.label_8 = QtWidgets.QLabel(QSpectrumAnalyzerSettings)
-        self.label_8.setObjectName("label_8")
-        self.formLayout.setWidget(6, QtWidgets.QFormLayout.LabelRole, self.label_8)
-        self.label_6 = QtWidgets.QLabel(QSpectrumAnalyzerSettings)
-        self.label_6.setObjectName("label_6")
-        self.formLayout.setWidget(2, QtWidgets.QFormLayout.LabelRole, self.label_6)
-        self.horizontalLayout_2 = QtWidgets.QHBoxLayout()
-        self.horizontalLayout_2.setObjectName("horizontalLayout_2")
-        self.paramsEdit = QtWidgets.QLineEdit(QSpectrumAnalyzerSettings)
-        self.paramsEdit.setObjectName("paramsEdit")
+        self.waterfallHistorySizeSpinBox.setValue(100)
+
+        self.formLayout.setWidget(7, QFormLayout.ItemRole.FieldRole, self.waterfallHistorySizeSpinBox)
+
+        self.label_7 = QLabel(QSpectrumAnalyzerSettings)
+        self.label_7.setObjectName(u"label_7")
+
+        self.formLayout.setWidget(5, QFormLayout.ItemRole.LabelRole, self.label_7)
+
+        self.label_8 = QLabel(QSpectrumAnalyzerSettings)
+        self.label_8.setObjectName(u"label_8")
+
+        self.formLayout.setWidget(6, QFormLayout.ItemRole.LabelRole, self.label_8)
+
+        self.label_6 = QLabel(QSpectrumAnalyzerSettings)
+        self.label_6.setObjectName(u"label_6")
+
+        self.formLayout.setWidget(2, QFormLayout.ItemRole.LabelRole, self.label_6)
+
+        self.horizontalLayout_2 = QHBoxLayout()
+        self.horizontalLayout_2.setObjectName(u"horizontalLayout_2")
+        self.paramsEdit = QLineEdit(QSpectrumAnalyzerSettings)
+        self.paramsEdit.setObjectName(u"paramsEdit")
+
         self.horizontalLayout_2.addWidget(self.paramsEdit)
-        self.paramsHelpButton = QtWidgets.QToolButton(QSpectrumAnalyzerSettings)
-        self.paramsHelpButton.setMinimumSize(QtCore.QSize(50, 0))
-        self.paramsHelpButton.setObjectName("paramsHelpButton")
+
+        self.paramsHelpButton = QToolButton(QSpectrumAnalyzerSettings)
+        self.paramsHelpButton.setObjectName(u"paramsHelpButton")
+        self.paramsHelpButton.setMinimumSize(QSize(50, 0))
+
         self.horizontalLayout_2.addWidget(self.paramsHelpButton)
-        self.formLayout.setLayout(2, QtWidgets.QFormLayout.FieldRole, self.horizontalLayout_2)
-        self.horizontalLayout_3 = QtWidgets.QHBoxLayout()
-        self.horizontalLayout_3.setObjectName("horizontalLayout_3")
-        self.deviceEdit = QtWidgets.QLineEdit(QSpectrumAnalyzerSettings)
-        self.deviceEdit.setObjectName("deviceEdit")
+
+
+        self.formLayout.setLayout(2, QFormLayout.ItemRole.FieldRole, self.horizontalLayout_2)
+
+        self.horizontalLayout_3 = QHBoxLayout()
+        self.horizontalLayout_3.setObjectName(u"horizontalLayout_3")
+        self.deviceEdit = QLineEdit(QSpectrumAnalyzerSettings)
+        self.deviceEdit.setObjectName(u"deviceEdit")
+
         self.horizontalLayout_3.addWidget(self.deviceEdit)
-        self.deviceHelpButton = QtWidgets.QToolButton(QSpectrumAnalyzerSettings)
-        self.deviceHelpButton.setMinimumSize(QtCore.QSize(50, 0))
-        self.deviceHelpButton.setObjectName("deviceHelpButton")
+
+        self.deviceHelpButton = QToolButton(QSpectrumAnalyzerSettings)
+        self.deviceHelpButton.setObjectName(u"deviceHelpButton")
+        self.deviceHelpButton.setMinimumSize(QSize(50, 0))
+
         self.horizontalLayout_3.addWidget(self.deviceHelpButton)
-        self.formLayout.setLayout(3, QtWidgets.QFormLayout.FieldRole, self.horizontalLayout_3)
-        self.sampleRateSpinBox = QtWidgets.QDoubleSpinBox(QSpectrumAnalyzerSettings)
-        self.sampleRateSpinBox.setProperty("showGroupSeparator", True)
+
+
+        self.formLayout.setLayout(3, QFormLayout.ItemRole.FieldRole, self.horizontalLayout_3)
+
+        self.sampleRateSpinBox = QDoubleSpinBox(QSpectrumAnalyzerSettings)
+        self.sampleRateSpinBox.setObjectName(u"sampleRateSpinBox")
+        self.sampleRateSpinBox.setProperty(u"showGroupSeparator", True)
         self.sampleRateSpinBox.setDecimals(3)
-        self.sampleRateSpinBox.setMinimum(0.0)
-        self.sampleRateSpinBox.setMaximum(999999.99)
-        self.sampleRateSpinBox.setSingleStep(0.01)
-        self.sampleRateSpinBox.setProperty("value", 61.44)
-        self.sampleRateSpinBox.setObjectName("sampleRateSpinBox")
-        self.formLayout.setWidget(4, QtWidgets.QFormLayout.FieldRole, self.sampleRateSpinBox)
-        self.bandwidthSpinBox = QtWidgets.QDoubleSpinBox(QSpectrumAnalyzerSettings)
-        self.bandwidthSpinBox.setProperty("showGroupSeparator", True)
+        self.sampleRateSpinBox.setMinimum(0.000000000000000)
+        self.sampleRateSpinBox.setMaximum(999999.989999999990687)
+        self.sampleRateSpinBox.setSingleStep(0.010000000000000)
+        self.sampleRateSpinBox.setValue(61.439999999999998)
+
+        self.formLayout.setWidget(4, QFormLayout.ItemRole.FieldRole, self.sampleRateSpinBox)
+
+        self.bandwidthSpinBox = QDoubleSpinBox(QSpectrumAnalyzerSettings)
+        self.bandwidthSpinBox.setObjectName(u"bandwidthSpinBox")
+        self.bandwidthSpinBox.setProperty(u"showGroupSeparator", True)
         self.bandwidthSpinBox.setDecimals(3)
-        self.bandwidthSpinBox.setMinimum(0.0)
-        self.bandwidthSpinBox.setMaximum(999999.99)
-        self.bandwidthSpinBox.setSingleStep(0.01)
-        self.bandwidthSpinBox.setProperty("value", 0.0)
-        self.bandwidthSpinBox.setObjectName("bandwidthSpinBox")
-        self.formLayout.setWidget(5, QtWidgets.QFormLayout.FieldRole, self.bandwidthSpinBox)
-        self.lnbSpinBox = QtWidgets.QDoubleSpinBox(QSpectrumAnalyzerSettings)
-        self.lnbSpinBox.setProperty("showGroupSeparator", True)
+        self.bandwidthSpinBox.setMinimum(0.000000000000000)
+        self.bandwidthSpinBox.setMaximum(999999.989999999990687)
+        self.bandwidthSpinBox.setSingleStep(0.010000000000000)
+        self.bandwidthSpinBox.setValue(0.000000000000000)
+
+        self.formLayout.setWidget(5, QFormLayout.ItemRole.FieldRole, self.bandwidthSpinBox)
+
+        self.lnbSpinBox = QDoubleSpinBox(QSpectrumAnalyzerSettings)
+        self.lnbSpinBox.setObjectName(u"lnbSpinBox")
+        self.lnbSpinBox.setProperty(u"showGroupSeparator", True)
         self.lnbSpinBox.setDecimals(3)
-        self.lnbSpinBox.setMinimum(-999999.999)
-        self.lnbSpinBox.setMaximum(999999.999)
-        self.lnbSpinBox.setSingleStep(0.01)
-        self.lnbSpinBox.setProperty("value", 0.0)
-        self.lnbSpinBox.setObjectName("lnbSpinBox")
-        self.formLayout.setWidget(6, QtWidgets.QFormLayout.FieldRole, self.lnbSpinBox)
+        self.lnbSpinBox.setMinimum(-999999.998999999952503)
+        self.lnbSpinBox.setMaximum(999999.998999999952503)
+        self.lnbSpinBox.setSingleStep(0.010000000000000)
+        self.lnbSpinBox.setValue(0.000000000000000)
+
+        self.formLayout.setWidget(6, QFormLayout.ItemRole.FieldRole, self.lnbSpinBox)
+
+
         self.verticalLayout.addLayout(self.formLayout)
-        spacerItem = QtWidgets.QSpacerItem(20, 21, QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Expanding)
-        self.verticalLayout.addItem(spacerItem)
-        self.buttonBox = QtWidgets.QDialogButtonBox(QSpectrumAnalyzerSettings)
-        self.buttonBox.setOrientation(QtCore.Qt.Horizontal)
-        self.buttonBox.setStandardButtons(QtWidgets.QDialogButtonBox.Cancel|QtWidgets.QDialogButtonBox.Ok)
-        self.buttonBox.setObjectName("buttonBox")
+
+        self.verticalSpacer = QSpacerItem(20, 21, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
+
+        self.verticalLayout.addItem(self.verticalSpacer)
+
+        self.buttonBox = QDialogButtonBox(QSpectrumAnalyzerSettings)
+        self.buttonBox.setObjectName(u"buttonBox")
+        self.buttonBox.setOrientation(Qt.Horizontal)
+        self.buttonBox.setStandardButtons(QDialogButtonBox.Cancel|QDialogButtonBox.Ok)
+
         self.verticalLayout.addWidget(self.buttonBox)
+
+#if QT_CONFIG(shortcut)
         self.label_3.setBuddy(self.backendComboBox)
         self.label.setBuddy(self.executableEdit)
         self.label_5.setBuddy(self.deviceEdit)
@@ -127,45 +191,53 @@ class Ui_QSpectrumAnalyzerSettings(object):
         self.label_7.setBuddy(self.bandwidthSpinBox)
         self.label_8.setBuddy(self.lnbSpinBox)
         self.label_6.setBuddy(self.paramsEdit)
+#endif // QT_CONFIG(shortcut)
+        QWidget.setTabOrder(self.backendComboBox, self.executableEdit)
+        QWidget.setTabOrder(self.executableEdit, self.executableButton)
+        QWidget.setTabOrder(self.executableButton, self.paramsEdit)
+        QWidget.setTabOrder(self.paramsEdit, self.paramsHelpButton)
+        QWidget.setTabOrder(self.paramsHelpButton, self.deviceEdit)
+        QWidget.setTabOrder(self.deviceEdit, self.deviceHelpButton)
+        QWidget.setTabOrder(self.deviceHelpButton, self.sampleRateSpinBox)
+        QWidget.setTabOrder(self.sampleRateSpinBox, self.bandwidthSpinBox)
+        QWidget.setTabOrder(self.bandwidthSpinBox, self.lnbSpinBox)
+        QWidget.setTabOrder(self.lnbSpinBox, self.waterfallHistorySizeSpinBox)
 
         self.retranslateUi(QSpectrumAnalyzerSettings)
         self.buttonBox.accepted.connect(QSpectrumAnalyzerSettings.accept)
         self.buttonBox.rejected.connect(QSpectrumAnalyzerSettings.reject)
-        QtCore.QMetaObject.connectSlotsByName(QSpectrumAnalyzerSettings)
-        QSpectrumAnalyzerSettings.setTabOrder(self.backendComboBox, self.executableEdit)
-        QSpectrumAnalyzerSettings.setTabOrder(self.executableEdit, self.executableButton)
-        QSpectrumAnalyzerSettings.setTabOrder(self.executableButton, self.paramsEdit)
-        QSpectrumAnalyzerSettings.setTabOrder(self.paramsEdit, self.paramsHelpButton)
-        QSpectrumAnalyzerSettings.setTabOrder(self.paramsHelpButton, self.deviceEdit)
-        QSpectrumAnalyzerSettings.setTabOrder(self.deviceEdit, self.deviceHelpButton)
-        QSpectrumAnalyzerSettings.setTabOrder(self.deviceHelpButton, self.sampleRateSpinBox)
-        QSpectrumAnalyzerSettings.setTabOrder(self.sampleRateSpinBox, self.bandwidthSpinBox)
-        QSpectrumAnalyzerSettings.setTabOrder(self.bandwidthSpinBox, self.lnbSpinBox)
-        QSpectrumAnalyzerSettings.setTabOrder(self.lnbSpinBox, self.waterfallHistorySizeSpinBox)
+
+        QMetaObject.connectSlotsByName(QSpectrumAnalyzerSettings)
+    # setupUi
 
     def retranslateUi(self, QSpectrumAnalyzerSettings):
-        _translate = QtCore.QCoreApplication.translate
-        QSpectrumAnalyzerSettings.setWindowTitle(_translate("QSpectrumAnalyzerSettings", "Settings - QSpectrumAnalyzer"))
-        self.label_3.setText(_translate("QSpectrumAnalyzerSettings", "&Backend:"))
-        self.backendComboBox.setItemText(0, _translate("QSpectrumAnalyzerSettings", "soapy_power"))
-        self.backendComboBox.setItemText(1, _translate("QSpectrumAnalyzerSettings", "rx_power"))
-        self.backendComboBox.setItemText(2, _translate("QSpectrumAnalyzerSettings", "rtl_power_fftw"))
-        self.backendComboBox.setItemText(3, _translate("QSpectrumAnalyzerSettings", "rtl_power"))
-        self.backendComboBox.setItemText(4, _translate("QSpectrumAnalyzerSettings", "hackrf_sweep"))
-        self.label.setText(_translate("QSpectrumAnalyzerSettings", "E&xecutable:"))
-        self.executableEdit.setText(_translate("QSpectrumAnalyzerSettings", "soapy_power"))
-        self.executableButton.setText(_translate("QSpectrumAnalyzerSettings", "..."))
-        self.label_5.setText(_translate("QSpectrumAnalyzerSettings", "&Device:"))
-        self.label_4.setText(_translate("QSpectrumAnalyzerSettings", "Sa&mple rate:"))
-        self.label_2.setText(_translate("QSpectrumAnalyzerSettings", "&Waterfall history size:"))
-        self.label_7.setText(_translate("QSpectrumAnalyzerSettings", "Bandwidt&h:"))
-        self.label_8.setToolTip(_translate("QSpectrumAnalyzerSettings", "Negative frequency for upconverters, positive frequency for downconverters."))
-        self.label_8.setText(_translate("QSpectrumAnalyzerSettings", "&LNB LO:"))
-        self.label_6.setText(_translate("QSpectrumAnalyzerSettings", "Add&itional parameters:"))
-        self.paramsHelpButton.setText(_translate("QSpectrumAnalyzerSettings", " ? "))
-        self.deviceHelpButton.setText(_translate("QSpectrumAnalyzerSettings", " ? "))
-        self.sampleRateSpinBox.setSuffix(_translate("QSpectrumAnalyzerSettings", " MHz"))
-        self.bandwidthSpinBox.setSuffix(_translate("QSpectrumAnalyzerSettings", " MHz"))
-        self.lnbSpinBox.setToolTip(_translate("QSpectrumAnalyzerSettings", "Negative frequency for upconverters, positive frequency for downconverters."))
-        self.lnbSpinBox.setSuffix(_translate("QSpectrumAnalyzerSettings", " MHz"))
+        QSpectrumAnalyzerSettings.setWindowTitle(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"Settings - QSpectrumAnalyzer", None))
+        self.label_3.setText(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"&Backend:", None))
+        self.backendComboBox.setItemText(0, QCoreApplication.translate("QSpectrumAnalyzerSettings", u"soapy_power", None))
+        self.backendComboBox.setItemText(1, QCoreApplication.translate("QSpectrumAnalyzerSettings", u"rx_power", None))
+        self.backendComboBox.setItemText(2, QCoreApplication.translate("QSpectrumAnalyzerSettings", u"rtl_power_fftw", None))
+        self.backendComboBox.setItemText(3, QCoreApplication.translate("QSpectrumAnalyzerSettings", u"rtl_power", None))
+        self.backendComboBox.setItemText(4, QCoreApplication.translate("QSpectrumAnalyzerSettings", u"hackrf_sweep", None))
+
+        self.label.setText(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"E&xecutable:", None))
+        self.executableEdit.setText(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"soapy_power", None))
+        self.executableButton.setText(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"...", None))
+        self.label_5.setText(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"&Device:", None))
+        self.label_4.setText(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"Sa&mple rate:", None))
+        self.label_2.setText(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"&Waterfall history size:", None))
+        self.label_7.setText(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"Bandwidt&h:", None))
+#if QT_CONFIG(tooltip)
+        self.label_8.setToolTip(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"Negative frequency for upconverters, positive frequency for downconverters.", None))
+#endif // QT_CONFIG(tooltip)
+        self.label_8.setText(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"&LNB LO:", None))
+        self.label_6.setText(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"Add&itional parameters:", None))
+        self.paramsHelpButton.setText(QCoreApplication.translate("QSpectrumAnalyzerSettings", u" ? ", None))
+        self.deviceHelpButton.setText(QCoreApplication.translate("QSpectrumAnalyzerSettings", u" ? ", None))
+        self.sampleRateSpinBox.setSuffix(QCoreApplication.translate("QSpectrumAnalyzerSettings", u" MHz", None))
+        self.bandwidthSpinBox.setSuffix(QCoreApplication.translate("QSpectrumAnalyzerSettings", u" MHz", None))
+#if QT_CONFIG(tooltip)
+        self.lnbSpinBox.setToolTip(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"Negative frequency for upconverters, positive frequency for downconverters.", None))
+#endif // QT_CONFIG(tooltip)
+        self.lnbSpinBox.setSuffix(QCoreApplication.translate("QSpectrumAnalyzerSettings", u" MHz", None))
+    # retranslateUi
 
