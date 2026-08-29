@@ -111,7 +111,8 @@ class BasePowerThread(QtCore.QThread):
 
 
 # Build list of all backends
-__all__ = ['soapy_power', 'hackrf_sweep', 'rtl_power', 'rtl_power_fftw', 'rx_power']
+__all__ = ['soapy_power', 'hackrf_sweep', 'hackrf_stream', 'rtl_power', 'rtl_power_fftw', 'rx_power']
 
 # Import all backends
-from qspectrumanalyzer.backends import soapy_power, hackrf_sweep, rtl_power, rtl_power_fftw, rx_power
+from qspectrumanalyzer.backends import (soapy_power, hackrf_sweep, hackrf_stream,
+                                       rtl_power, rtl_power_fftw, rx_power)
