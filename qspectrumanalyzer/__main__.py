@@ -252,7 +252,7 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         y = history[self.browse_counter - oldest].copy()
         if self.data_storage.smooth:
             y = self.data_storage.smooth_data(y)
-        self.spectrumPlotWidget.curve.setData(self.data_storage.x, y)
+        self.spectrumPlotWidget.show_sweep(self.data_storage.x, y)
         self.update_history_controls()
 
     def refresh_browsing(self):
@@ -275,8 +275,8 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
             browsing = False
 
         self.browse_counter = newest if browsing else None
-        self.spectrumPlotWidget.throttle.set_frozen(browsing)
-        self.waterfallPlotWidget.throttle.set_frozen(browsing)
+        self.spectrumPlotWidget.set_frozen(browsing)
+        self.waterfallPlotWidget.set_frozen(browsing)
 
         if browsing:
             self.show_browsed_sweep()
@@ -692,8 +692,8 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         if dialog.exec():
             settings = QtCore.QSettings()
             max_refresh_rate = settings.value("max_refresh_rate", 60, int)
-            self.spectrumPlotWidget.throttle.set_max_refresh_rate(max_refresh_rate)
-            self.waterfallPlotWidget.throttle.set_max_refresh_rate(max_refresh_rate)
+            self.spectrumPlotWidget.set_max_refresh_rate(max_refresh_rate)
+            self.waterfallPlotWidget.set_max_refresh_rate(max_refresh_rate)
             self.spectrumPlotWidget.set_antialias(bool(settings.value("antialias", 1, int)))
             self.setup_power_thread()
 

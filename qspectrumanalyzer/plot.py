@@ -26,9 +26,8 @@ class RedrawThrottle:
     history, the average and the peak hold see all of the data; what is
     dropped is redundant repaints of data that is about to be overwritten."""
     def __init__(self, max_refresh_rate, flush):
-        self.max_refresh_rate = max_refresh_rate
         self._flush = flush
-        self._interval = 1.0 / max_refresh_rate if max_refresh_rate > 0 else 0.0
+        self.set_max_refresh_rate(max_refresh_rate)
         self._dirty = set()
         self._storage = None
         self._last_draw = 0.0
@@ -90,14 +89,32 @@ class RedrawThrottle:
         self._last_draw = 0.0
 
 
-class SpectrumPlotWidget:
-    """Main spectrum plot"""
-    def __init__(self, layout, max_refresh_rate=60, antialias=True):
+class ThrottledPlotWidget:
+    """A plot whose redraws are coalesced by a RedrawThrottle"""
+    def __init__(self, layout, max_refresh_rate=60):
         if not isinstance(layout, pg.GraphicsLayoutWidget):
             raise ValueError("layout must be instance of pyqtgraph.GraphicsLayoutWidget")
 
         self.layout = layout
         self.throttle = RedrawThrottle(max_refresh_rate, self.draw)
+
+    def draw(self, data_storage, dirty):
+        """Redraw whatever the throttle has been holding"""
+        raise NotImplementedError
+
+    def set_frozen(self, frozen):
+        """Stop redrawing (while recorded sweeps are being browsed)"""
+        self.throttle.set_frozen(frozen)
+
+    def set_max_refresh_rate(self, max_refresh_rate):
+        """Change how often this plot may be redrawn"""
+        self.throttle.set_max_refresh_rate(max_refresh_rate)
+
+
+class SpectrumPlotWidget(ThrottledPlotWidget):
+    """Main spectrum plot"""
+    def __init__(self, layout, max_refresh_rate=60, antialias=True):
+        super().__init__(layout, max_refresh_rate)
         self.antialias = antialias
 
         # How many samples pyqtgraph should keep per pixel when auto
@@ -252,93 +269,79 @@ class SpectrumPlotWidget:
         else:
             return self.decay_linear
 
-
     def draw(self, data_storage, dirty):
         """Redraw every curve that has pending data"""
         for kind in dirty:
             getattr(self, "draw_" + kind)(data_storage)
 
-    def update_plot(self, data_storage, force=False):
-        """Queue a redraw of the plot (drawn at up to the throttle's rate)"""
+    def queue_redraw(self, kind, data_storage, force):
+        """Draw at once when forced, otherwise let the throttle pick the moment"""
         if force:
-            self.draw_plot(data_storage, force=True)
+            getattr(self, "draw_" + kind)(data_storage, force=True)
         else:
-            self.throttle.schedule("plot", data_storage)
+            self.throttle.schedule(kind, data_storage)
+
+    def update_plot(self, data_storage, force=False):
+        """Queue a redraw of the plot"""
+        self.queue_redraw("plot", data_storage, force)
 
     def update_peak_hold_max(self, data_storage, force=False):
-        """Queue a redraw of the peak hold max (drawn at up to the throttle's rate)"""
-        if force:
-            self.draw_peak_hold_max(data_storage, force=True)
-        else:
-            self.throttle.schedule("peak_hold_max", data_storage)
+        """Queue a redraw of the peak hold max"""
+        self.queue_redraw("peak_hold_max", data_storage, force)
 
     def update_peak_hold_min(self, data_storage, force=False):
-        """Queue a redraw of the peak hold min (drawn at up to the throttle's rate)"""
-        if force:
-            self.draw_peak_hold_min(data_storage, force=True)
-        else:
-            self.throttle.schedule("peak_hold_min", data_storage)
+        """Queue a redraw of the peak hold min"""
+        self.queue_redraw("peak_hold_min", data_storage, force)
 
     def update_average(self, data_storage, force=False):
-        """Queue a redraw of the average (drawn at up to the throttle's rate)"""
-        if force:
-            self.draw_average(data_storage, force=True)
-        else:
-            self.throttle.schedule("average", data_storage)
+        """Queue a redraw of the average"""
+        self.queue_redraw("average", data_storage, force)
 
     def update_baseline(self, data_storage, force=False):
-        """Queue a redraw of the baseline (drawn at up to the throttle's rate)"""
-        if force:
-            self.draw_baseline(data_storage, force=True)
-        else:
-            self.throttle.schedule("baseline", data_storage)
+        """Queue a redraw of the baseline"""
+        self.queue_redraw("baseline", data_storage, force)
 
     def update_persistence(self, data_storage, force=False):
-        """Queue a redraw of the persistence (drawn at up to the throttle's rate)"""
-        if force:
-            self.draw_persistence(data_storage, force=True)
-        else:
-            self.throttle.schedule("persistence", data_storage)
+        """Queue a redraw of the persistence"""
+        self.queue_redraw("persistence", data_storage, force)
+
+    def draw_curve(self, curve, x, y, enabled, force):
+        """Give one curve new data
+
+        A curve that is switched off is left alone, since it is not on screen,
+        unless the caller forces it: that happens when the data behind it has
+        been recalculated, and then its visibility is set too.
+
+        Either array can still be None by the time this runs: redraws are
+        deferred by the throttle, and a reset in between (a new run, or
+        changed settings) clears the data that was queued to be drawn."""
+        if x is None or y is None:
+            return
+
+        if enabled or force:
+            curve.setData(x, y)
+            if force:
+                curve.setVisible(enabled)
 
     def draw_plot(self, data_storage, force=False):
         """Update main spectrum curve"""
-        if data_storage.x is None:
-            return
-
-        if self.main_curve or force:
-            self.curve.setData(data_storage.x, data_storage.y)
-            if force:
-                self.curve.setVisible(self.main_curve)
+        self.draw_curve(self.curve, data_storage.x, data_storage.y,
+                        self.main_curve, force)
 
     def draw_peak_hold_max(self, data_storage, force=False):
         """Update max. peak hold curve"""
-        if data_storage.x is None:
-            return
-
-        if self.peak_hold_max or force:
-            self.curve_peak_hold_max.setData(data_storage.x, data_storage.peak_hold_max)
-            if force:
-                self.curve_peak_hold_max.setVisible(self.peak_hold_max)
+        self.draw_curve(self.curve_peak_hold_max, data_storage.x, data_storage.peak_hold_max,
+                        self.peak_hold_max, force)
 
     def draw_peak_hold_min(self, data_storage, force=False):
         """Update min. peak hold curve"""
-        if data_storage.x is None:
-            return
-
-        if self.peak_hold_min or force:
-            self.curve_peak_hold_min.setData(data_storage.x, data_storage.peak_hold_min)
-            if force:
-                self.curve_peak_hold_min.setVisible(self.peak_hold_min)
+        self.draw_curve(self.curve_peak_hold_min, data_storage.x, data_storage.peak_hold_min,
+                        self.peak_hold_min, force)
 
     def draw_average(self, data_storage, force=False):
         """Update average curve"""
-        if data_storage.x is None:
-            return
-
-        if self.average or force:
-            self.curve_average.setData(data_storage.x, data_storage.average)
-            if force:
-                self.curve_average.setVisible(self.average)
+        self.draw_curve(self.curve_average, data_storage.x, data_storage.average,
+                        self.average, force)
 
     def draw_baseline(self, data_storage, force=False):
         """Update baseline curve"""
@@ -346,14 +349,12 @@ class SpectrumPlotWidget:
             self.curve_baseline.clear()
             return
 
-        if self.baseline or force:
-            self.curve_baseline.setData(data_storage.baseline_x, data_storage.baseline)
-            if force:
-                self.curve_baseline.setVisible(self.baseline)
+        self.draw_curve(self.curve_baseline, data_storage.baseline_x, data_storage.baseline,
+                        self.baseline, force)
 
     def draw_persistence(self, data_storage, force=False):
         """Update persistence curves"""
-        if data_storage.x is None:
+        if data_storage.x is None or data_storage.y is None:
             return
 
         if self.persistence or force:
@@ -376,11 +377,12 @@ class SpectrumPlotWidget:
         # holding is about to be redrawn anyway
         self.throttle.reset()
 
-        QtCore.QTimer.singleShot(0, lambda: self.update_plot(data_storage, force=True))
-        QtCore.QTimer.singleShot(0, lambda: self.update_average(data_storage, force=True))
-        QtCore.QTimer.singleShot(0, lambda: self.update_baseline(data_storage, force=True))
-        QtCore.QTimer.singleShot(0, lambda: self.update_peak_hold_max(data_storage, force=True))
-        QtCore.QTimer.singleShot(0, lambda: self.update_peak_hold_min(data_storage, force=True))
+        QtCore.QTimer.singleShot(0, lambda: self.redraw_all(data_storage))
+
+    def redraw_all(self, data_storage):
+        """Redraw every curve except persistence, whatever the throttle says"""
+        for kind in ("plot", "average", "baseline", "peak_hold_max", "peak_hold_min"):
+            getattr(self, "draw_" + kind)(data_storage, force=True)
 
     def recalculate_persistence(self, data_storage):
         """Recalculate persistence data and update persistence curves"""
@@ -395,6 +397,10 @@ class SpectrumPlotWidget:
                 data = data_storage.smooth_data(data)
             self.persistence_data.append(data)
         QtCore.QTimer.singleShot(0, lambda: self.update_persistence(data_storage, force=True))
+
+    def show_sweep(self, x, y):
+        """Draw a single recorded sweep on the main curve (history browsing)"""
+        self.curve.setData(x, y)
 
     def mouse_moved(self, evt):
         """Update crosshair when mouse is moved"""
@@ -440,18 +446,14 @@ class SpectrumPlotWidget:
         self.create_persistence_curves()
 
 
-class WaterfallPlotWidget:
+class WaterfallPlotWidget(ThrottledPlotWidget):
     """Waterfall plot"""
     def __init__(self, layout, histogram_layout=None, max_refresh_rate=60):
-        if not isinstance(layout, pg.GraphicsLayoutWidget):
-            raise ValueError("layout must be instance of pyqtgraph.GraphicsLayoutWidget")
-
         if histogram_layout and not isinstance(histogram_layout, pg.GraphicsLayoutWidget):
             raise ValueError("histogram_layout must be instance of pyqtgraph.GraphicsLayoutWidget")
 
-        self.layout = layout
+        super().__init__(layout, max_refresh_rate)
         self.histogram_layout = histogram_layout
-        self.throttle = RedrawThrottle(max_refresh_rate, self.draw)
 
         self.history_size = 100
         self.counter = 0
@@ -495,6 +497,11 @@ class WaterfallPlotWidget:
 
     def draw(self, data_storage, dirty=None):
         """Redraw the waterfall image"""
+        # The redraw was queued at a point when there was data; a reset in
+        # between (a new run, or changed settings) can have cleared it since
+        if data_storage.x is None or data_storage.history is None:
+            return
+
         self.counter += 1
 
         # Create waterfall image on first run
@@ -527,7 +534,7 @@ class WaterfallPlotWidget:
 
     def recalculate_plot(self, data_storage):
         """Recalculate waterfall plot"""
-        if data_storage.x is None:
+        if data_storage.x is None or data_storage.history is None or not self.counter:
             return
 
         self.throttle.reset()
