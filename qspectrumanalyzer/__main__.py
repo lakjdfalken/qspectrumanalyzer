@@ -8,6 +8,7 @@ from PySide6 import QtCore, QtGui, QtWidgets
 from qspectrumanalyzer import backends
 from qspectrumanalyzer.version import __version__
 from qspectrumanalyzer.data import DataStorage
+from qspectrumanalyzer import findings
 from qspectrumanalyzer.plot import (ScopePlotWidget, SpectrumPlotWidget,
                                     WaterfallPlotWidget)
 from qspectrumanalyzer.utils import str_to_color, human_time
@@ -229,6 +230,63 @@ class Survey:
         out.writerows(("{:.0f}".format(f), "{:.2f}".format(d), a, t)
                       for f, d, a, t in self.rows)
         return len(self.rows)
+
+
+class SurveyFindings(QtWidgets.QDialog):
+    """What a survey turned up, and a way to go and look at it
+
+    Deliberately a list of measurements rather than a verdict. It says how wide
+    something was, how far it stood above the noise and how often it was there;
+    what it is remains the reader's call. The one thing it will do is aim the
+    receiver, because deriving the settings by hand is where an evening goes:
+    a band left outside the tune, or a trigger level set against the spectrum
+    when the scope's own floor is twenty decibels higher, both fail silently."""
+
+    def __init__(self, found, floor, parent=None):
+        super().__init__(parent)
+        self.found = found
+        self.setWindowTitle(self.tr("Survey findings"))
+        self.resize(620, 300)
+
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.addWidget(QtWidgets.QLabel(self.tr(
+            "{} stretches stood out from a noise floor of {:+.1f} dB. "
+            "Pick one and the receiver will be pointed at it.").format(
+                len(found), floor)))
+
+        self.table = QtWidgets.QTableWidget(len(found), 4, self)
+        self.table.setHorizontalHeaderLabels(
+            [self.tr("Centre"), self.tr("Width"), self.tr("Above the floor"),
+             self.tr("Seen in")])
+        self.table.setSelectionBehavior(QtWidgets.QTableWidget.SelectRows)
+        self.table.setSelectionMode(QtWidgets.QTableWidget.SingleSelection)
+        self.table.setEditTriggers(QtWidgets.QTableWidget.NoEditTriggers)
+        self.table.verticalHeader().setVisible(False)
+        for row, finding in enumerate(found):
+            cells = ("{:.3f} MHz".format(finding.centre_hz / 1e6),
+                     "{:.2f} MHz".format(finding.width_hz / 1e6),
+                     "{:+.1f} dB".format(finding.above_db),
+                     self.tr("always on") if finding.steady
+                     else "{} of {} sweeps".format(finding.active, finding.sweeps))
+            for column, text in enumerate(cells):
+                self.table.setItem(row, column, QtWidgets.QTableWidgetItem(text))
+        self.table.resizeColumnsToContents()
+        self.table.selectRow(0)
+        self.table.doubleClicked.connect(self.accept)
+        layout.addWidget(self.table)
+
+        buttons = QtWidgets.QDialogButtonBox()
+        self.look = buttons.addButton(self.tr("&Look at this one"),
+                                      QtWidgets.QDialogButtonBox.AcceptRole)
+        buttons.addButton(QtWidgets.QDialogButtonBox.Close)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    def chosen(self):
+        """The finding the user picked, or None"""
+        row = self.table.currentRow()
+        return self.found[row] if 0 <= row < len(self.found) else None
 
 
 class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMainWindow):
@@ -1347,6 +1405,56 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
             return
         self.show_status(self.tr("{} - {} bins written to {}").format(
             why, rows, os.path.basename(filename)), timeout=0)
+        self.show_findings(survey, filename)
+
+    def show_findings(self, survey, filename):
+        """Say what the survey turned up, and offer to go and look at it"""
+        columns = np.array(survey.rows, dtype=np.float64)
+        found, floor = findings.find(columns[:, 0], columns[:, 1],
+                                     columns[:, 2], columns[:, 3])
+        print("\n".join(findings.report(filename)))
+        if not found:
+            return
+
+        dialog = SurveyFindings(found, floor, self)
+        if dialog.exec() != QtWidgets.QDialog.Accepted:
+            return
+        chosen = dialog.chosen()
+        if chosen is not None:
+            self.aim_at(chosen)
+
+    def aim_at(self, finding):
+        """Point the receiver at something the survey found
+
+        Everything here is worked out from the measurement rather than typed:
+        the tune brackets the finding so it cannot sit outside what the radio
+        can hear, the band is its measured width, and the trigger level is
+        left automatic because the scope's own noise floor is not the one on
+        the spectrum above it and a number carried across from there is wrong
+        by twenty decibels."""
+        width = self.tune_width() or 20e6
+        centre = finding.centre_hz
+        self.startFreqSpinBox.setValue((centre - width / 2) / 1e6)
+        self.stopFreqSpinBox.setValue((centre + width / 2) / 1e6)
+
+        self.scopeCheckBox.setChecked(True)
+        self.scopeBandCheckBox.setChecked(True)
+        self.scopeCentreSpinBox.setValue(centre / 1e6)
+        self.scopeWidthSpinBox.setValue(max(finding.width_hz, 1e6) / 1e3)
+        self.scopeFastCheckBox.setChecked(True)
+        self.scopeSpanSpinBox.setValue(20.0)
+        self.scopeTriggerCheckBox.setChecked(True)
+        self.scopeTriggerSpinBox.setValue(self.scopeTriggerSpinBox.minimum())
+        self.scopeSingleCheckBox.setChecked(True)
+        self.apply_scope_band()
+        self.apply_scope_trigger()
+
+        print("Pointed at {:.3f} MHz: tuned {:g}-{:g} MHz, band {:.0f} kHz wide, "
+              "single sweep armed on the automatic level. Press Start."
+              .format(centre / 1e6, self.startFreqSpinBox.value(),
+                      self.stopFreqSpinBox.value(), self.scopeWidthSpinBox.value()))
+        self.show_status(self.tr("Pointed at {:.3f} MHz - press Start, then Arm")
+                         .format(centre / 1e6), timeout=0)
 
     def survey_header(self, survey):
         """What the survey was, for the top of the file"""
