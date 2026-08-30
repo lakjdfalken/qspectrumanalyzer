@@ -2,6 +2,7 @@
 
 import sys, os, csv, signal, time, argparse
 
+import numpy as np
 from PySide6 import QtCore, QtGui, QtWidgets
 
 from qspectrumanalyzer import backends
@@ -164,6 +165,72 @@ RADAR_PRESETS = [
 ]
 
 
+class Survey:
+    """A walk across a frequency range, one tune at a time
+
+    Sweeping past a signal that is only there occasionally misses it: a radar
+    lights a fixed point for a few tens of milliseconds every few seconds, so a
+    receiver that visits its frequency a tenth of the time throws away nine
+    tenths of what there was to hear. This stays on each slice for a dwell
+    instead, and writes down both what was ever heard there and how often —
+    which is what separates something that comes and goes from something that
+    is simply always on."""
+
+    #: How far above a bin's own median a sweep has to be to count as activity
+    ACTIVE_MARGIN = 10.0
+
+    def __init__(self, start_hz, stop_hz, width_hz, dwell):
+        self.width = width_hz
+        self.dwell = dwell
+        self.edges = []
+        edge = start_hz
+        while edge < stop_hz:
+            self.edges.append((edge, min(edge + width_hz, stop_hz)))
+            edge += width_hz
+        self.index = 0
+        #: (frequency, loudest, active sweeps, total sweeps) for every bin so far
+        self.rows = []
+
+    @property
+    def slice(self):
+        """The tune being listened to, in Hz"""
+        return self.edges[self.index] if self.index < len(self.edges) else None
+
+    @property
+    def finished(self):
+        return self.index >= len(self.edges)
+
+    def harvest(self, data_storage):
+        """Take what this slice heard, before the next one wipes it"""
+        history = data_storage.history
+        if history is None or data_storage.x is None or not history.history_size:
+            return 0
+        recorded = history.get_buffer()
+        x = data_storage.x
+        count = min(len(x), recorded.shape[1])
+        recorded, x = recorded[:, :count], x[:count]
+
+        loudest = recorded.max(axis=0)
+        # Against each bin's own median, so a bin sitting on a carrier is not
+        # counted as busy and a quiet one is not missed for being quiet
+        floor = np.median(recorded, axis=0)
+        active = (recorded > floor + self.ACTIVE_MARGIN).sum(axis=0)
+        for i in range(count):
+            self.rows.append((float(x[i]), float(loudest[i]),
+                              int(active[i]), int(recorded.shape[0])))
+        return recorded.shape[0]
+
+    def write(self, handle, header):
+        """Write the survey out, loudest first within each slice"""
+        for line in header:
+            handle.write("# {}\n".format(line))
+        out = csv.writer(handle)
+        out.writerow(("frequency_hz", "loudest_db", "active_sweeps", "total_sweeps"))
+        out.writerows(("{:.0f}".format(f), "{:.2f}".format(d), a, t)
+                      for f, d, a, t in self.rows)
+        return len(self.rows)
+
+
 class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMainWindow):
     """QSpectrumAnalyzer main window"""
 
@@ -256,6 +323,12 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         # Sweep number currently shown while browsing recorded sweeps
         # (HistoryBuffer.counter of that sweep), or None while live
         self.browse_counter = None
+
+        # The survey walking across a range, or None
+        self.survey = None
+        self.survey_timer = QtCore.QTimer()
+        self.survey_timer.setSingleShot(True)
+        self.survey_timer.timeout.connect(self.advance_survey)
 
         # What the display has had to give up to keep the backend fed
         self.refresh_rate = None
@@ -1160,6 +1233,128 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         self.apply_scope_band()
         self.apply_scope_trigger()
         self.show_status(self.tr("{} - press Start").format(label), timeout=0)
+
+    # --- walking a range one tune at a time ---------------------------
+
+    def tune_width(self):
+        """How much spectrum this backend can hear at once, in Hz"""
+        settings = QtCore.QSettings()
+        module = getattr(backends, settings.value("backend", "soapy_power"),
+                         backends.soapy_power)
+        rate = settings.value("sample_rate", module.Info.sample_rate, float)
+        return min(max(rate, module.Info.sample_rate_min or rate),
+                   module.Info.sample_rate_max or rate)
+
+    @QtCore.Slot()
+    def on_surveyButton_clicked(self):
+        """Start walking the range, or stop a walk that is running"""
+        if self.survey is not None:
+            self.finish_survey(self.tr("Survey stopped"))
+            return
+
+        start = float(self.startFreqSpinBox.value()) * 1e6
+        stop = float(self.stopFreqSpinBox.value()) * 1e6
+        width = self.tune_width()
+        if stop <= start or width <= 0:
+            self.show_status(self.tr("Set a frequency range to survey first"),
+                             timeout=5000)
+            return
+
+        self.survey = Survey(start, stop, width, self.surveyDwellSpinBox.value())
+        self.survey_range = (start, stop)
+        self.surveyButton.setText(self.tr("Stop the sur&vey"))
+        print("Surveying {:g}-{:g} MHz in {:g} MHz steps, {} s each: {} tunes, "
+              "about {}".format(start / 1e6, stop / 1e6, width / 1e6,
+                                self.survey.dwell, len(self.survey.edges),
+                                human_time(len(self.survey.edges) * (self.survey.dwell + 2))))
+        self.begin_survey_slice()
+
+    def begin_survey_slice(self):
+        """Point the radio at the next slice and start the clock on it"""
+        low, high = self.survey.slice
+        self.startFreqSpinBox.setValue(low / 1e6)
+        self.stopFreqSpinBox.setValue(high / 1e6)
+        self.stop()
+        self.start()
+        self.survey_timer.start(int(self.survey.dwell * 1000))
+        self.show_survey_progress()
+
+    def advance_survey(self):
+        """A slice has had its time; keep what it heard and move on"""
+        if self.survey is None:
+            return
+        swept = self.survey.harvest(self.data_storage)
+        low, high = self.survey.slice
+        print("  {:8.3f}-{:8.3f} MHz: {} sweeps".format(low / 1e6, high / 1e6, swept))
+        self.survey.index += 1
+        if self.survey.finished:
+            self.finish_survey(self.tr("Survey finished"))
+            return
+        self.begin_survey_slice()
+
+    def show_survey_progress(self):
+        """Say which slice is being listened to and how far along that is"""
+        if self.survey is None:
+            self.surveyProgressLabel.setText("")
+            return
+        low, high = self.survey.slice
+        self.surveyProgressLabel.setText(self.tr(
+            "Listening to {:g}-{:g} MHz \u00b7 {} of {}").format(
+                low / 1e6, high / 1e6, self.survey.index + 1, len(self.survey.edges)))
+
+    def finish_survey(self, why):
+        """Stop walking, and offer to write down what was heard"""
+        survey, self.survey = self.survey, None
+        self.survey_timer.stop()
+        self.surveyButton.setText(self.tr("Sur&vey the range..."))
+        self.surveyProgressLabel.setText("")
+        self.stop()
+        if survey is None:
+            return
+
+        # Whatever the last slice heard is worth keeping too, even if it was
+        # cut short: a survey stopped early is still a survey
+        if not survey.finished:
+            survey.harvest(self.data_storage)
+
+        if not survey.rows:
+            self.show_status(self.tr("{} - nothing was recorded").format(why), timeout=0)
+            return
+
+        suggested = time.strftime("survey-%Y%m%d-%H%M%S.csv")
+        filename = QtWidgets.QFileDialog.getSaveFileName(
+            self, self.tr("Save survey - QSpectrumAnalyzer"), suggested,
+            self.tr("Comma separated values (*.csv);;All files (*)"))[0]
+        if not filename:
+            self.show_status(self.tr("{} - not saved").format(why), timeout=0)
+            return
+        try:
+            with open(filename, "w", newline="") as handle:
+                rows = survey.write(handle, self.survey_header(survey))
+        except OSError as error:
+            self.show_status(self.tr("Could not save: {}").format(error), timeout=0)
+            return
+        self.show_status(self.tr("{} - {} bins written to {}").format(
+            why, rows, os.path.basename(filename)), timeout=0)
+
+    def survey_header(self, survey):
+        """What the survey was, for the top of the file"""
+        low, high = self.survey_range
+        return [
+            "QSpectrumAnalyzer survey",
+            "saved " + time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+            "{:g}-{:g} MHz in {:g} MHz steps, {} s on each, {} of {} tunes done".format(
+                low / 1e6, high / 1e6, survey.width / 1e6, survey.dwell,
+                min(survey.index, len(survey.edges)), len(survey.edges)),
+            "backend {}, bin size {:g} kHz, gain {:g} dB, RF amp {}".format(
+                self.active_backend, self.binSizeSpinBox.value(),
+                self.gainSpinBox.value(),
+                "on" if self.ampCheckBox.isChecked() else "off"),
+            "loudest_db is the highest that bin ever reached; active_sweeps counts "
+            "the sweeps in which it stood more than {:g} dB above its own median, "
+            "which is what tells a signal that comes and goes from one that is "
+            "always there".format(Survey.ACTIVE_MARGIN),
+        ]
 
     def configured_refresh_rate(self):
         """The redraw rate the settings ask for"""

@@ -608,6 +608,58 @@
        </property>
       </widget>
      </item>
+     <item row="3" column="0">
+      <widget class="QLabel" name="surveyDwellLabel">
+       <property name="text">
+        <string>D&amp;well:</string>
+       </property>
+       <property name="buddy">
+        <cstring>surveyDwellSpinBox</cstring>
+       </property>
+      </widget>
+     </item>
+     <item row="3" column="1">
+      <widget class="QSpinBox" name="surveyDwellSpinBox">
+       <property name="toolTip">
+        <string>How long a survey listens to each slice of the range before moving on. Long enough for whatever you are looking for to come round: a radar that turns every five seconds needs tens of seconds to be sure of catching several of its passes.</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+       </property>
+       <property name="suffix">
+        <string> s</string>
+       </property>
+       <property name="minimum">
+        <number>1</number>
+       </property>
+       <property name="maximum">
+        <number>3600</number>
+       </property>
+       <property name="value">
+        <number>60</number>
+       </property>
+      </widget>
+     </item>
+     <item row="4" column="0" colspan="2">
+      <widget class="QPushButton" name="surveyButton">
+       <property name="toolTip">
+        <string>Walk the whole Start to Stop range one tune at a time, camping on each slice for the dwell and writing down what was ever heard in it and how often. Meant for a signal that is only there occasionally: sweeping past such a thing misses it, staying put does not. Press again to stop.</string>
+       </property>
+       <property name="text">
+        <string>Sur&amp;vey the range...</string>
+       </property>
+      </widget>
+     </item>
+     <item row="5" column="0" colspan="2">
+      <widget class="QLabel" name="surveyProgressLabel">
+       <property name="text">
+        <string/>
+       </property>
+       <property name="wordWrap">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
      <item row="2" column="1">
       <widget class="QDoubleSpinBox" name="binSizeSpinBox">
        <property name="sizePolicy">
@@ -639,7 +691,7 @@
        </property>
       </widget>
      </item>
-     <item row="3" column="0" colspan="2">
+     <item row="6" column="0" colspan="2">
       <spacer name="verticalSpacer_3">
        <property name="orientation">
         <enum>Qt::Vertical</enum>
@@ -975,6 +1027,8 @@
   <tabstop>startFreqSpinBox</tabstop>
   <tabstop>stopFreqSpinBox</tabstop>
   <tabstop>binSizeSpinBox</tabstop>
+  <tabstop>surveyDwellSpinBox</tabstop>
+  <tabstop>surveyButton</tabstop>
   <tabstop>intervalSpinBox</tabstop>
   <tabstop>gainSpinBox</tabstop>
   <tabstop>ppmSpinBox</tabstop>

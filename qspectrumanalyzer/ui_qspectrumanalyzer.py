@@ -343,6 +343,31 @@ class Ui_QSpectrumAnalyzerMainWindow(object):
 
         self.formLayout.setWidget(2, QFormLayout.ItemRole.LabelRole, self.label)
 
+        self.surveyDwellLabel = QLabel(self.frequencyDockWidgetContents)
+        self.surveyDwellLabel.setObjectName(u"surveyDwellLabel")
+
+        self.formLayout.setWidget(3, QFormLayout.ItemRole.LabelRole, self.surveyDwellLabel)
+
+        self.surveyDwellSpinBox = QSpinBox(self.frequencyDockWidgetContents)
+        self.surveyDwellSpinBox.setObjectName(u"surveyDwellSpinBox")
+        self.surveyDwellSpinBox.setAlignment(Qt.AlignRight|Qt.AlignTrailing|Qt.AlignVCenter)
+        self.surveyDwellSpinBox.setMinimum(1)
+        self.surveyDwellSpinBox.setMaximum(3600)
+        self.surveyDwellSpinBox.setValue(60)
+
+        self.formLayout.setWidget(3, QFormLayout.ItemRole.FieldRole, self.surveyDwellSpinBox)
+
+        self.surveyButton = QPushButton(self.frequencyDockWidgetContents)
+        self.surveyButton.setObjectName(u"surveyButton")
+
+        self.formLayout.setWidget(4, QFormLayout.ItemRole.SpanningRole, self.surveyButton)
+
+        self.surveyProgressLabel = QLabel(self.frequencyDockWidgetContents)
+        self.surveyProgressLabel.setObjectName(u"surveyProgressLabel")
+        self.surveyProgressLabel.setWordWrap(True)
+
+        self.formLayout.setWidget(5, QFormLayout.ItemRole.SpanningRole, self.surveyProgressLabel)
+
         self.binSizeSpinBox = QDoubleSpinBox(self.frequencyDockWidgetContents)
         self.binSizeSpinBox.setObjectName(u"binSizeSpinBox")
         sizePolicy3.setHeightForWidth(self.binSizeSpinBox.sizePolicy().hasHeightForWidth())
@@ -358,7 +383,7 @@ class Ui_QSpectrumAnalyzerMainWindow(object):
 
         self.verticalSpacer_3 = QSpacerItem(20, 0, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
 
-        self.formLayout.setItem(3, QFormLayout.ItemRole.SpanningRole, self.verticalSpacer_3)
+        self.formLayout.setItem(6, QFormLayout.ItemRole.SpanningRole, self.verticalSpacer_3)
 
         self.frequencyDockWidget.setWidget(self.frequencyDockWidgetContents)
         QSpectrumAnalyzerMainWindow.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.frequencyDockWidget)
@@ -531,6 +556,7 @@ class Ui_QSpectrumAnalyzerMainWindow(object):
         self.label_2.setBuddy(self.startFreqSpinBox)
         self.label_3.setBuddy(self.stopFreqSpinBox)
         self.label.setBuddy(self.binSizeSpinBox)
+        self.surveyDwellLabel.setBuddy(self.surveyDwellSpinBox)
         self.label_4.setBuddy(self.intervalSpinBox)
         self.label_6.setBuddy(self.gainSpinBox)
         self.label_5.setBuddy(self.ppmSpinBox)
@@ -559,7 +585,9 @@ class Ui_QSpectrumAnalyzerMainWindow(object):
         QWidget.setTabOrder(self.scopeSaveButton, self.startFreqSpinBox)
         QWidget.setTabOrder(self.startFreqSpinBox, self.stopFreqSpinBox)
         QWidget.setTabOrder(self.stopFreqSpinBox, self.binSizeSpinBox)
-        QWidget.setTabOrder(self.binSizeSpinBox, self.intervalSpinBox)
+        QWidget.setTabOrder(self.binSizeSpinBox, self.surveyDwellSpinBox)
+        QWidget.setTabOrder(self.surveyDwellSpinBox, self.surveyButton)
+        QWidget.setTabOrder(self.surveyButton, self.intervalSpinBox)
         QWidget.setTabOrder(self.intervalSpinBox, self.gainSpinBox)
         QWidget.setTabOrder(self.gainSpinBox, self.ppmSpinBox)
         QWidget.setTabOrder(self.ppmSpinBox, self.cropSpinBox)
@@ -690,6 +718,16 @@ class Ui_QSpectrumAnalyzerMainWindow(object):
         self.label_3.setText(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Stop:", None))
         self.stopFreqSpinBox.setSuffix(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u" MHz", None))
         self.label.setText(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"&Bin size:", None))
+        self.surveyDwellLabel.setText(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"D&well:", None))
+#if QT_CONFIG(tooltip)
+        self.surveyDwellSpinBox.setToolTip(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"How long a survey listens to each slice of the range before moving on. Long enough for whatever you are looking for to come round: a radar that turns every five seconds needs tens of seconds to be sure of catching several of its passes.", None))
+#endif // QT_CONFIG(tooltip)
+        self.surveyDwellSpinBox.setSuffix(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u" s", None))
+#if QT_CONFIG(tooltip)
+        self.surveyButton.setToolTip(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Walk the whole Start to Stop range one tune at a time, camping on each slice for the dwell and writing down what was ever heard in it and how often. Meant for a signal that is only there occasionally: sweeping past such a thing misses it, staying put does not. Press again to stop.", None))
+#endif // QT_CONFIG(tooltip)
+        self.surveyButton.setText(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Sur&vey the range...", None))
+        self.surveyProgressLabel.setText("")
         self.binSizeSpinBox.setSuffix(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u" kHz", None))
         self.settingsDockWidget.setWindowTitle(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Settings", None))
         self.label_4.setText(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"&Interval [s]:", None))
