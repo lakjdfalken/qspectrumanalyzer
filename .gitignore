@@ -10,3 +10,9 @@ bin/
 debug.txt
 lib/
 pyvenv.cfg
+
+# macOS finder metadata
+.DS_Store
+
+# setup.py data_files, installed into the venv that shares this directory
+share/
