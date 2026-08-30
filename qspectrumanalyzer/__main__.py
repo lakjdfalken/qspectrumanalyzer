@@ -118,6 +118,19 @@ RADAR_PRESETS = [
      {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': False, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'gainSpinBox': 16.0, 'startFreqSpinBox': 2790.0, 'stopFreqSpinBox': 2810.0, 'binSizeSpinBox': 625.0, 'waterfallCheckBox': False, 'scopeCheckBox': True, 'scopeBandCheckBox': True, 'scopeCentreSpinBox': 2800.0, 'scopeWidthSpinBox': 2000.0, 'scopeFastCheckBox': True, 'scopeSpanSpinBox': 20.0, 'scopeTriggerCheckBox': True, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': True},
      {"tap_resolution": 0.0, "tap_detector": "peak", "record_depth": 10000}),
 
+    ("S-band airport radar \u2014 camp on one tune",
+     "The way to actually find a rotating radar. It is transmitting four "
+     "ten-thousandths of one per cent of the time, so a sweep that is only on "
+     "any given tile a tenth of the time throws away nine pulses in ten: camp "
+     "on twenty megahertz instead and catch them all. 625 kHz bins put a 1 us "
+     "pulse in a 1.6 us frame, and the tap reads frames rather than averaged "
+     "spectra, which together are worth 26 dB over hunting the same pulse with "
+     "40 kHz bins on the delivered sweeps. Give each tune a couple of minutes "
+     "and step Start and Stop on by 20 MHz to cover the band. A radar shows as "
+     "evenly spaced spikes on the scope, one every rotation.",
+     {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': True, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'gainSpinBox': 24.0, 'startFreqSpinBox': 2790.0, 'stopFreqSpinBox': 2810.0, 'binSizeSpinBox': 625.0, 'waterfallCheckBox': True, 'scopeCheckBox': True, 'scopeBandCheckBox': False, 'scopeCentreSpinBox': 2800.0, 'scopeWidthSpinBox': 2000.0, 'scopeFastCheckBox': True, 'scopeSpanSpinBox': 0.0, 'scopeTriggerCheckBox': False, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': False},
+     {"tap_resolution": 1000.0, "tap_detector": "peak", "record_depth": 85000}),
+
     ("Airport transponder replies \u2014 1090 MHz",
      "Every aircraft with a transponder answers on 1090 MHz. A frame lasts "
      "120 us and each aircraft sends a couple a second, so the duty cycle is "
