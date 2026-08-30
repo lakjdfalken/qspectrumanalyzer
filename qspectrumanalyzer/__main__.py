@@ -774,6 +774,17 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
                 if self.scopeBandCheckBox.isChecked() else None)
         self.scopePlotWidget.set_band(band)
 
+        # A band outside the tune is a band the radio cannot hear. It is easy
+        # to leave one behind after moving the frequency range, and there is
+        # nothing on screen to say so. Mostly outside counts: a 10 MHz band
+        # overlapping the tune by a fifth of a megahertz is not a measurement
+        # of anything, and it is not visibly different from one that is.
+        first, last = self.display_span()
+        self.scopePlotWidget.band_outside = False
+        if band is not None and band[1] > band[0]:
+            overlap = max(0.0, min(band[1], last) - max(band[0], first))
+            self.scopePlotWidget.band_outside = overlap < (band[1] - band[0]) / 2
+
         # The high rate samples are measured for whichever band was selected
         # at the time, so they cannot follow it backwards the way the trace
         # reduced from the recording can. Only asked for while the scope is

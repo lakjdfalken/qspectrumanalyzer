@@ -934,6 +934,12 @@ class ScopePlotWidget(ThrottledPlotWidget):
         self.trigger = None
         #: Where the last sweep was triggered, in recording coordinates
         self.trigger_time = None
+        #: Set when the band being watched is not inside what the radio is
+        #: tuned to, which is silent otherwise: the tap simply hears nothing
+        self.band_outside = False
+        #: The lowest reading in the last search, for saying when a level is
+        #: under the whole trace and so has no rising edge to find
+        self.level_trough = None
         #: The level find_trigger() last used, or None if it found nothing,
         #: and the loudest reading it saw — so that a trigger which never
         #: fires can say whether the level is simply above everything
@@ -1086,6 +1092,10 @@ class ScopePlotWidget(ThrottledPlotWidget):
         trigger that has not fired needs to say why, because a level above the
         whole trace looks exactly like a broken feature; and an empty window
         needs to say that the sweep is shorter than the data."""
+        if self.band_outside:
+            return ("The band lies outside what the radio is tuned to \u2014 "
+                    "move it inside the frequency range, or the range around it")
+
         if self.trigger is not None:
             if self.single and self.captured:
                 return "Caught one \u2014 press Arm to wait for the next"
@@ -1094,9 +1104,18 @@ class ScopePlotWidget(ThrottledPlotWidget):
             if waiting:
                 above = (self.level_used is not None and self.level_peak is not None
                          and self.level_peak < self.level_used)
+                # A level under the whole trace has no rising edge to find:
+                # a trigger fires where the trace crosses upwards, and a trace
+                # that is never below the level never crosses it
+                below = (self.level_used is not None and self.level_trough is not None
+                         and self.level_trough > self.level_used)
                 if above:
                     reason = "level {:+.1f} dB is above the trace, which peaks at {:+.1f}".format(
                         self.level_used, self.level_peak)
+                elif below:
+                    reason = ("level {:+.1f} dB is below the whole trace, which "
+                              "never drops under {:+.1f}, so nothing ever rises "
+                              "across it").format(self.level_used, self.level_trough)
                 elif self.level_used is None:
                     reason = "nothing in the trace stands clear of the noise"
                 else:
@@ -1189,6 +1208,7 @@ class ScopePlotWidget(ThrottledPlotWidget):
         if times is None or not len(times):
             return None
         self.level_peak = float(np.max(values))
+        self.level_trough = float(np.min(values))
         level = self.trigger_level(values)
         self.level_used = level
         if level is None:
