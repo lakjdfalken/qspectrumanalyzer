@@ -58,12 +58,13 @@ RADAR_PRESETS = [
     ("Custom \u2014 leave everything alone", None, {}, {}),
 
     ("Airband voice \u2014 118-137 MHz",
-     "The whole airband in one tune, with max hold and the waterfall on. This "
-     "is the honest test of a chain: it is a band you already know is busy, "
-     "and a telescopic whip is cut for it. Every transmission paints the "
-     "waterfall and lifts the scope, which is reading the peak across the "
-     "whole 19 MHz. If this shows nothing, the problem is the radio or the "
-     "lead, not the frequency you were hunting.",
+     "The whole airband in one tune, with max hold and the waterfall on. A "
+     "band that is busy most of the time and easy to receive, so it is worth "
+     "running first: every transmission paints the waterfall as a vertical "
+     "line. If this shows nothing, the problem is the radio or the lead, not "
+     "the frequency being hunted. The scope is reading the peak across all 19 "
+     "MHz, where the noisiest of a thousand bins outweighs any one carrier, so "
+     "put the band on a channel that is active to see a transmission rise.",
      {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': True, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'gainSpinBox': 40.0, 'startFreqSpinBox': 118.0, 'stopFreqSpinBox': 137.0, 'binSizeSpinBox': 25.0, 'waterfallCheckBox': True, 'scopeCheckBox': True, 'scopeBandCheckBox': False, 'scopeCentreSpinBox': 127.5, 'scopeWidthSpinBox': 25.0, 'scopeFastCheckBox': True, 'scopeSpanSpinBox': 2000.0, 'scopeTriggerCheckBox': False, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': False},
      {"tap_resolution": 1000.0, "tap_detector": "mean", "record_depth": 10000}),
 
@@ -98,7 +99,7 @@ RADAR_PRESETS = [
      "is often sited miles from the runway. Try the 1030 MHz interrogator "
      "first; it is far easier to catch and it proves there is a radar to look "
      "for. CHECK THE INPUT FIRST: a "
-     "surveillance radar a couple of kilometres away can put +18 dBm into the "
+     "surveillance radar at close range can put well over +10 dBm into the "
      "antenna and a HackRF is linear to about -5 dBm. Gain is set to zero here, "
      "which keeps the reading out of compression but does nothing for the front "
      "end - only an attenuator in the lead does that.",
@@ -119,8 +120,8 @@ RADAR_PRESETS = [
      "tiny and only max hold will paint it - the live trace averages it away "
      "to nothing. The tune is deliberately off centre, because the radio's own "
      "DC offset lands in the middle of a tune and 1090 is what we came for. "
-     "Needs an antenna that works at 1090: a telescopic whip is cut for VHF "
-     "and is a poor match eight times up.",
+     "Expect a broad hump rather than separate frames: a decoder correlating "
+     "against the preamble sees far weaker signals than a spectrum can show.",
      {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': True, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'gainSpinBox': 40.0, 'startFreqSpinBox': 1082.0, 'stopFreqSpinBox': 1102.0, 'binSizeSpinBox': 40.0, 'waterfallCheckBox': True, 'scopeCheckBox': True, 'scopeBandCheckBox': True, 'scopeCentreSpinBox': 1090.0, 'scopeWidthSpinBox': 4000.0, 'scopeFastCheckBox': True, 'scopeSpanSpinBox': 5.0, 'scopeTriggerCheckBox': True, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': False},
      {"tap_resolution": 0.0, "tap_detector": "peak", "record_depth": 10000}),
 
