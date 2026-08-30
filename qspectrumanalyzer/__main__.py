@@ -98,12 +98,16 @@ RADAR_PRESETS = [
      "plenty of regional fields have no primary radar at all, and a radar head "
      "is often sited miles from the runway. Try the 1030 MHz interrogator "
      "first; it is far easier to catch and it proves there is a radar to look "
-     "for. CHECK THE INPUT FIRST: a "
+     "for. A quarter wave here is 25 mm, so a whip left at airband length is "
+     "twenty-two quarter waves and a comb of nulls rather than an antenna. "
+     "CHECK THE INPUT FIRST: a "
      "surveillance radar at close range can put well over +10 dBm into the "
      "antenna and a HackRF is linear to about -5 dBm. Gain is set to zero here, "
      "which keeps the reading out of compression but does nothing for the front "
-     "end - only an attenuator in the lead does that.",
-     {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': True, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'gainSpinBox': 0.0, 'startFreqSpinBox': 2700.0, 'stopFreqSpinBox': 2900.0, 'binSizeSpinBox': 40.0, 'waterfallCheckBox': True, 'scopeCheckBox': False, 'scopeBandCheckBox': False, 'scopeCentreSpinBox': 2800.0, 'scopeWidthSpinBox': 2000.0, 'scopeFastCheckBox': False, 'scopeSpanSpinBox': 0.0, 'scopeTriggerCheckBox': False, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': False},
+     "end - only an attenuator in the lead does that. Raising the gain is "
+     "safe by comparison: it can only compress the reading, and compression "
+     "shows as a trace that stops moving when the gain does.",
+     {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': True, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'gainSpinBox': 16.0, 'startFreqSpinBox': 2700.0, 'stopFreqSpinBox': 2900.0, 'binSizeSpinBox': 40.0, 'waterfallCheckBox': True, 'scopeCheckBox': False, 'scopeBandCheckBox': False, 'scopeCentreSpinBox': 2800.0, 'scopeWidthSpinBox': 2000.0, 'scopeFastCheckBox': False, 'scopeSpanSpinBox': 0.0, 'scopeTriggerCheckBox': False, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': False},
      {"tap_resolution": 0.0, "tap_detector": "peak", "record_depth": 10000}),
 
     ("S-band airport radar \u2014 catch a burst",
@@ -111,7 +115,7 @@ RADAR_PRESETS = [
      "approach radar turns every 4-5 seconds and lights you for about 20 ms "
      "with pulses roughly 1 ms apart, so a 20 ms sweep holds a dozen of them. "
      "The attenuation still applies.",
-     {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': False, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'gainSpinBox': 0.0, 'startFreqSpinBox': 2790.0, 'stopFreqSpinBox': 2810.0, 'binSizeSpinBox': 625.0, 'waterfallCheckBox': False, 'scopeCheckBox': True, 'scopeBandCheckBox': True, 'scopeCentreSpinBox': 2800.0, 'scopeWidthSpinBox': 2000.0, 'scopeFastCheckBox': True, 'scopeSpanSpinBox': 20.0, 'scopeTriggerCheckBox': True, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': True},
+     {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': False, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'gainSpinBox': 16.0, 'startFreqSpinBox': 2790.0, 'stopFreqSpinBox': 2810.0, 'binSizeSpinBox': 625.0, 'waterfallCheckBox': False, 'scopeCheckBox': True, 'scopeBandCheckBox': True, 'scopeCentreSpinBox': 2800.0, 'scopeWidthSpinBox': 2000.0, 'scopeFastCheckBox': True, 'scopeSpanSpinBox': 20.0, 'scopeTriggerCheckBox': True, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': True},
      {"tap_resolution": 0.0, "tap_detector": "peak", "record_depth": 10000}),
 
     ("Airport transponder replies \u2014 1090 MHz",
@@ -121,7 +125,8 @@ RADAR_PRESETS = [
      "to nothing. The tune is deliberately off centre, because the radio's own "
      "DC offset lands in the middle of a tune and 1090 is what we came for. "
      "Expect a broad hump rather than separate frames: a decoder correlating "
-     "against the preamble sees far weaker signals than a spectrum can show.",
+     "against the preamble sees far weaker signals than a spectrum can show. "
+     "A quarter wave here is 65 mm.",
      {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': True, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'gainSpinBox': 40.0, 'startFreqSpinBox': 1082.0, 'stopFreqSpinBox': 1102.0, 'binSizeSpinBox': 40.0, 'waterfallCheckBox': True, 'scopeCheckBox': True, 'scopeBandCheckBox': True, 'scopeCentreSpinBox': 1090.0, 'scopeWidthSpinBox': 4000.0, 'scopeFastCheckBox': True, 'scopeSpanSpinBox': 5.0, 'scopeTriggerCheckBox': True, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': False},
      {"tap_resolution": 0.0, "tap_detector": "peak", "record_depth": 10000}),
 
@@ -131,8 +136,9 @@ RADAR_PRESETS = [
      "needing to know what band the primary uses. Expect a burst every 4-12 "
      "seconds as the beam comes round. Much easier than 2.8 GHz: lower "
      "frequency, longer pulses, and it transmits all the time rather than only "
-     "when pointing at you.",
-     {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': True, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'gainSpinBox': 8.0, 'startFreqSpinBox': 1022.0, 'stopFreqSpinBox': 1042.0, 'binSizeSpinBox': 40.0, 'waterfallCheckBox': True, 'scopeCheckBox': True, 'scopeBandCheckBox': True, 'scopeCentreSpinBox': 1030.0, 'scopeWidthSpinBox': 4000.0, 'scopeFastCheckBox': True, 'scopeSpanSpinBox': 0.0, 'scopeTriggerCheckBox': False, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': False},
+     "when pointing at you. A quarter wave here is 69 mm, which a telescopic "
+     "whip can be set to exactly.",
+     {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': True, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'gainSpinBox': 24.0, 'startFreqSpinBox': 1022.0, 'stopFreqSpinBox': 1042.0, 'binSizeSpinBox': 40.0, 'waterfallCheckBox': True, 'scopeCheckBox': True, 'scopeBandCheckBox': True, 'scopeCentreSpinBox': 1030.0, 'scopeWidthSpinBox': 4000.0, 'scopeFastCheckBox': True, 'scopeSpanSpinBox': 0.0, 'scopeTriggerCheckBox': False, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': False},
      {"tap_resolution": 0.0, "tap_detector": "peak", "record_depth": 10000}),
 
     ("Wi-Fi burst \u2014 5 GHz channel 36",
