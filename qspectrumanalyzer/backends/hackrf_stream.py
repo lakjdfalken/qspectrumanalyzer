@@ -189,6 +189,7 @@ class PowerThread(BasePowerThread):
     # The band can be chosen before anything has been measured, so these have
     # to exist before setup() has run
     source = None
+    amp = False
     band = None
     band_resolution = None
     band_detector = "peak"
@@ -196,7 +197,7 @@ class PowerThread(BasePowerThread):
     lnb_lo = 0
 
     def setup(self, start_freq, stop_freq, bin_size, interval=0.0, gain=-1, ppm=0, crop=0,
-              single_shot=False, device="", sample_rate=20000000, bandwidth=0, lnb_lo=0):
+              single_shot=False, device="", sample_rate=20000000, bandwidth=0, lnb_lo=0, amp=False):
         """Setup hackrf_stream params"""
         sample_rate = min(max(float(sample_rate), Info.sample_rate_min), Info.sample_rate_max)
 
@@ -217,6 +218,7 @@ class PowerThread(BasePowerThread):
             "crop": 0,
             "single_shot": single_shot,
         }
+        self.amp = bool(amp)
         self.lnb_lo = lnb_lo
         self.interval = interval
         self.last_spectrum = 0.0
@@ -281,6 +283,7 @@ class PowerThread(BasePowerThread):
             gain=self.params["gain"],
             window=options.window,
             dc_bins=options.dc_bins,
+            amp=self.amp,
             serial=self.params["device"] or None,
             mode='peak' if options.peak else 'mean',
         )

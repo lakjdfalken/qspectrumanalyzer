@@ -53,7 +53,7 @@ class PowerThread(BasePowerThread):
     """Thread which runs hackrf_sweep process"""
     def setup(self, start_freq=0, stop_freq=6000, bin_size=1000,
               interval=0.0, gain=40, ppm=0, crop=0, single_shot=False,
-              device=0, sample_rate=20000000, bandwidth=0, lnb_lo=0):
+              device=0, sample_rate=20000000, bandwidth=0, lnb_lo=0, amp=False):
         """Setup hackrf_sweep params"""
         # Small bin sizes (<40 kHz) are only suitable with an arbitrarily
         # reduced sweep interval. Bin sizes smaller than 3 kHz showed to be
@@ -86,6 +86,7 @@ class PowerThread(BasePowerThread):
             "bin_size": bin_size,  # kHz
             "interval": interval,  # seconds
             "gain": gain,
+            "amp": bool(amp),
             "lna_gain": lna_gain,
             "vga_gain": vga_gain,
             "ppm": 0,
@@ -118,6 +119,9 @@ class PowerThread(BasePowerThread):
                     "-l", "{}".format(int(self.params["lna_gain"])),
                     "-g", "{}".format(int(self.params["vga_gain"])),
                 ])
+
+            if self.params["amp"]:
+                cmdline.extend(["-a", "1"])
 
             if self.params["single_shot"]:
                 cmdline.append("-1")

@@ -410,57 +410,62 @@ class Ui_QSpectrumAnalyzerMainWindow(object):
 
         self.gridLayout.addWidget(self.ppmSpinBox, 3, 0, 1, 1)
 
+        self.ampCheckBox = QCheckBox(self.settingsDockWidgetContents)
+        self.ampCheckBox.setObjectName(u"ampCheckBox")
+
+        self.gridLayout.addWidget(self.ampCheckBox, 4, 0, 1, 3)
+
         self.mainCurveCheckBox = QCheckBox(self.settingsDockWidgetContents)
         self.mainCurveCheckBox.setObjectName(u"mainCurveCheckBox")
         self.mainCurveCheckBox.setChecked(True)
 
-        self.gridLayout.addWidget(self.mainCurveCheckBox, 4, 0, 1, 1)
+        self.gridLayout.addWidget(self.mainCurveCheckBox, 5, 0, 1, 1)
 
         self.colorsButton = QPushButton(self.settingsDockWidgetContents)
         self.colorsButton.setObjectName(u"colorsButton")
 
-        self.gridLayout.addWidget(self.colorsButton, 4, 1, 1, 2)
+        self.gridLayout.addWidget(self.colorsButton, 5, 1, 1, 2)
 
         self.peakHoldMaxCheckBox = QCheckBox(self.settingsDockWidgetContents)
         self.peakHoldMaxCheckBox.setObjectName(u"peakHoldMaxCheckBox")
 
-        self.gridLayout.addWidget(self.peakHoldMaxCheckBox, 5, 0, 1, 1)
+        self.gridLayout.addWidget(self.peakHoldMaxCheckBox, 6, 0, 1, 1)
 
         self.peakHoldMinCheckBox = QCheckBox(self.settingsDockWidgetContents)
         self.peakHoldMinCheckBox.setObjectName(u"peakHoldMinCheckBox")
 
-        self.gridLayout.addWidget(self.peakHoldMinCheckBox, 5, 1, 1, 2)
+        self.gridLayout.addWidget(self.peakHoldMinCheckBox, 6, 1, 1, 2)
 
         self.averageCheckBox = QCheckBox(self.settingsDockWidgetContents)
         self.averageCheckBox.setObjectName(u"averageCheckBox")
 
-        self.gridLayout.addWidget(self.averageCheckBox, 6, 0, 1, 1)
+        self.gridLayout.addWidget(self.averageCheckBox, 7, 0, 1, 1)
 
         self.smoothCheckBox = QCheckBox(self.settingsDockWidgetContents)
         self.smoothCheckBox.setObjectName(u"smoothCheckBox")
 
-        self.gridLayout.addWidget(self.smoothCheckBox, 7, 0, 1, 1)
+        self.gridLayout.addWidget(self.smoothCheckBox, 8, 0, 1, 1)
 
         self.smoothButton = QToolButton(self.settingsDockWidgetContents)
         self.smoothButton.setObjectName(u"smoothButton")
         self.smoothButton.setAutoRaise(False)
 
-        self.gridLayout.addWidget(self.smoothButton, 7, 2, 1, 1)
+        self.gridLayout.addWidget(self.smoothButton, 8, 2, 1, 1)
 
         self.persistenceCheckBox = QCheckBox(self.settingsDockWidgetContents)
         self.persistenceCheckBox.setObjectName(u"persistenceCheckBox")
 
-        self.gridLayout.addWidget(self.persistenceCheckBox, 8, 0, 1, 1)
+        self.gridLayout.addWidget(self.persistenceCheckBox, 9, 0, 1, 1)
 
         self.persistenceButton = QToolButton(self.settingsDockWidgetContents)
         self.persistenceButton.setObjectName(u"persistenceButton")
         self.persistenceButton.setAutoRaise(False)
 
-        self.gridLayout.addWidget(self.persistenceButton, 8, 2, 1, 1)
+        self.gridLayout.addWidget(self.persistenceButton, 9, 2, 1, 1)
 
         self.verticalSpacer_2 = QSpacerItem(20, 1, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
 
-        self.gridLayout.addItem(self.verticalSpacer_2, 11, 0, 1, 1)
+        self.gridLayout.addItem(self.verticalSpacer_2, 12, 0, 1, 1)
 
         self.cropSpinBox = QSpinBox(self.settingsDockWidgetContents)
         self.cropSpinBox.setObjectName(u"cropSpinBox")
@@ -482,18 +487,18 @@ class Ui_QSpectrumAnalyzerMainWindow(object):
         self.baselineCheckBox = QCheckBox(self.settingsDockWidgetContents)
         self.baselineCheckBox.setObjectName(u"baselineCheckBox")
 
-        self.gridLayout.addWidget(self.baselineCheckBox, 9, 0, 1, 1)
+        self.gridLayout.addWidget(self.baselineCheckBox, 10, 0, 1, 1)
 
         self.baselineButton = QToolButton(self.settingsDockWidgetContents)
         self.baselineButton.setObjectName(u"baselineButton")
         self.baselineButton.setAutoRaise(False)
 
-        self.gridLayout.addWidget(self.baselineButton, 9, 2, 1, 1)
+        self.gridLayout.addWidget(self.baselineButton, 10, 2, 1, 1)
 
         self.subtractBaselineCheckBox = QCheckBox(self.settingsDockWidgetContents)
         self.subtractBaselineCheckBox.setObjectName(u"subtractBaselineCheckBox")
 
-        self.gridLayout.addWidget(self.subtractBaselineCheckBox, 10, 0, 1, 1)
+        self.gridLayout.addWidget(self.subtractBaselineCheckBox, 11, 0, 1, 1)
 
         self.settingsDockWidget.setWidget(self.settingsDockWidgetContents)
         QSpectrumAnalyzerMainWindow.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.settingsDockWidget)
@@ -558,7 +563,8 @@ class Ui_QSpectrumAnalyzerMainWindow(object):
         QWidget.setTabOrder(self.intervalSpinBox, self.gainSpinBox)
         QWidget.setTabOrder(self.gainSpinBox, self.ppmSpinBox)
         QWidget.setTabOrder(self.ppmSpinBox, self.cropSpinBox)
-        QWidget.setTabOrder(self.cropSpinBox, self.mainCurveCheckBox)
+        QWidget.setTabOrder(self.cropSpinBox, self.ampCheckBox)
+        QWidget.setTabOrder(self.ampCheckBox, self.mainCurveCheckBox)
         QWidget.setTabOrder(self.mainCurveCheckBox, self.colorsButton)
         QWidget.setTabOrder(self.colorsButton, self.peakHoldMaxCheckBox)
         QWidget.setTabOrder(self.peakHoldMaxCheckBox, self.peakHoldMinCheckBox)
@@ -690,6 +696,10 @@ class Ui_QSpectrumAnalyzerMainWindow(object):
         self.label_6.setText(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"&Gain [dB]:", None))
         self.label_5.setText(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Corr. [ppm]:", None))
         self.label_7.setText(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Crop [%]:", None))
+#if QT_CONFIG(tooltip)
+        self.ampCheckBox.setToolTip(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Switch on the radio's own front end amplifier, worth about 14 dB on a HackRF. It sits ahead of the gain control, so it costs headroom that gain cannot give back: leave it off near a transmitter, and on for anything faint. Backends with no such amplifier ignore it.", None))
+#endif // QT_CONFIG(tooltip)
+        self.ampCheckBox.setText(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"RF a&mp (+14 dB)", None))
         self.mainCurveCheckBox.setText(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Main curve", None))
         self.colorsButton.setText(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Colors...", None))
         self.peakHoldMaxCheckBox.setText(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Max. hold", None))
