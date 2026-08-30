@@ -252,6 +252,11 @@ class Ui_QSpectrumAnalyzerMainWindow(object):
 
         self.scopeGridLayout.addWidget(self.scopeSingleCheckBox, 7, 0, 1, 2)
 
+        self.scopeSaveButton = QPushButton(self.scopeGroupBox)
+        self.scopeSaveButton.setObjectName(u"scopeSaveButton")
+
+        self.scopeGridLayout.addWidget(self.scopeSaveButton, 9, 1, 1, 1)
+
         self.scopeArmButton = QPushButton(self.scopeGroupBox)
         self.scopeArmButton.setObjectName(u"scopeArmButton")
         self.scopeArmButton.setEnabled(False)
@@ -545,7 +550,8 @@ class Ui_QSpectrumAnalyzerMainWindow(object):
         QWidget.setTabOrder(self.scopeTriggerCheckBox, self.scopeTriggerSpinBox)
         QWidget.setTabOrder(self.scopeTriggerSpinBox, self.scopeSingleCheckBox)
         QWidget.setTabOrder(self.scopeSingleCheckBox, self.scopeArmButton)
-        QWidget.setTabOrder(self.scopeArmButton, self.startFreqSpinBox)
+        QWidget.setTabOrder(self.scopeArmButton, self.scopeSaveButton)
+        QWidget.setTabOrder(self.scopeSaveButton, self.startFreqSpinBox)
         QWidget.setTabOrder(self.startFreqSpinBox, self.stopFreqSpinBox)
         QWidget.setTabOrder(self.stopFreqSpinBox, self.binSizeSpinBox)
         QWidget.setTabOrder(self.binSizeSpinBox, self.intervalSpinBox)
@@ -655,6 +661,10 @@ class Ui_QSpectrumAnalyzerMainWindow(object):
         self.scopeSingleCheckBox.setToolTip(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Catch one sweep and hold it, instead of triggering over and over. A burst that happens once, or once a minute, cannot be read off a display that has moved on by the time you look at it. The sweep the burst arrived in stays on screen until you press Arm for the next one. This is the scope's trigger mode; it has nothing to do with the Single shot button above, which takes one measurement and stops.", None))
 #endif // QT_CONFIG(tooltip)
         self.scopeSingleCheckBox.setText(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Single s&weep", None))
+#if QT_CONFIG(tooltip)
+        self.scopeSaveButton.setToolTip(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Write the sweep on screen out as CSV, at full resolution, with the settings it was taken under and the time t=0 happened. A burst worth catching is worth keeping.", None))
+#endif // QT_CONFIG(tooltip)
+        self.scopeSaveButton.setText(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Sa&ve sweep...", None))
 #if QT_CONFIG(tooltip)
         self.scopeArmButton.setToolTip(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Let go of the sweep on screen and wait for the next burst above the level.", None))
 #endif // QT_CONFIG(tooltip)

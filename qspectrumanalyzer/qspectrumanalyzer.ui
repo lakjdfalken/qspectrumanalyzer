@@ -406,6 +406,16 @@
           </property>
          </widget>
         </item>
+        <item row="9" column="1">
+         <widget class="QPushButton" name="scopeSaveButton">
+          <property name="toolTip">
+           <string>Write the sweep on screen out as CSV, at full resolution, with the settings it was taken under and the time t=0 happened. A burst worth catching is worth keeping.</string>
+          </property>
+          <property name="text">
+           <string>Sa&amp;ve sweep...</string>
+          </property>
+         </widget>
+        </item>
         <item row="8" column="1">
          <widget class="QPushButton" name="scopeArmButton">
           <property name="enabled">
@@ -951,6 +961,7 @@
   <tabstop>scopeTriggerSpinBox</tabstop>
   <tabstop>scopeSingleCheckBox</tabstop>
   <tabstop>scopeArmButton</tabstop>
+  <tabstop>scopeSaveButton</tabstop>
   <tabstop>startFreqSpinBox</tabstop>
   <tabstop>stopFreqSpinBox</tabstop>
   <tabstop>binSizeSpinBox</tabstop>

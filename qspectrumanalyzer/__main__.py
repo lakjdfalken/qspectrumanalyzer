@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import sys, os, signal, time, argparse
+import sys, os, csv, signal, time, argparse
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
@@ -514,6 +514,92 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         self.scopeArmButton.setEnabled(checked and self.scopeTriggerCheckBox.isChecked())
         self.scopePlotWidget.set_single(checked)
         self.scopePlotWidget.redraw_now(self.data_storage)
+
+    @QtCore.Slot()
+    def on_scopeSaveButton_clicked(self):
+        """Write the sweep on screen out as CSV"""
+        sweep = self.scopePlotWidget.sweep_data()
+        if sweep is None:
+            self.show_status(self.tr("There is nothing on the scope to save"),
+                             timeout=5000)
+            return
+
+        suggested = time.strftime("sweep-%Y%m%d-%H%M%S.csv")
+        filename = QtWidgets.QFileDialog.getSaveFileName(
+            self, self.tr("Save sweep - QSpectrumAnalyzer"), suggested,
+            self.tr("Comma separated values (*.csv);;All files (*)"))[0]
+        if not filename:
+            return
+
+        try:
+            rows = self.write_sweep(filename, sweep)
+        except OSError as error:
+            self.show_status(self.tr("Could not save: {}").format(error), timeout=0)
+            return
+        self.show_status(self.tr("Saved {} readings to {}").format(
+            rows, os.path.basename(filename)), timeout=0)
+
+    def sweep_header(self, sweep):
+        """The settings a sweep was taken under, for the top of the file
+
+        Without these the numbers are unreadable a week later: a time axis
+        means nothing without knowing what it counts from, and a power means
+        nothing without the band it was measured over."""
+        settings = QtCore.QSettings()
+        step = settings.value("tap_resolution", 0, float)
+        band = sweep["band"]
+
+        lines = ["QSpectrumAnalyzer scope sweep",
+                 "saved " + time.strftime("%Y-%m-%dT%H:%M:%S%z")]
+        if sweep["started"] is not None:
+            # Carried by hand, because a fraction that rounds up to a whole
+            # second would otherwise print as .1000000 past the second before
+            whole = int(sweep["started"])
+            micros = int(round((sweep["started"] - whole) * 1e6))
+            if micros >= 1000000:
+                whole, micros = whole + 1, micros - 1000000
+            lines.append("t=0 is {}.{:06d} UTC{}".format(
+                time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(whole)), micros,
+                " (the trigger)" if sweep["trigger"] is not None else ""))
+        lines.append("backend {}, tune {:g}-{:g} MHz, bin size {:g} kHz, gain {:g} dB".format(
+            self.active_backend, self.startFreqSpinBox.value(),
+            self.stopFreqSpinBox.value(), self.binSizeSpinBox.value(),
+            self.gainSpinBox.value()))
+        lines.append("band {}".format(
+            "{:.6f}-{:.6f} MHz".format(band[0] / 1e6, band[1] / 1e6)
+            if band else "the whole tune"))
+        lines.append("sweep span {}".format(
+            "{:g} ms".format(sweep["span"] * 1e3) if sweep["span"]
+            else "the whole recording"))
+        if self.scopeFastCheckBox.isChecked():
+            lines.append("zero span step {}, {} detector".format(
+                "{:g} us".format(step) if step else "finest",
+                settings.value("tap_detector", "peak")))
+        if sweep["trigger"] is not None:
+            lines.append("trigger on a rising edge at {}{}".format(
+                "{:.1f} dB".format(sweep["level"]) if sweep["level"] is not None
+                else "a level it never reached",
+                ", held as a single sweep" if sweep["held"] else ""))
+        lines.append("time_s counts from t=0; source 'sweep' is the delivered "
+                     "sweeps, 'tap' the high rate readings")
+        return lines
+
+    def write_sweep(self, filename, sweep):
+        """Write a sweep out, and return how many readings that was"""
+        written = 0
+        with open(filename, "w", newline="") as handle:
+            for line in self.sweep_header(sweep):
+                handle.write("# {}\n".format(line))
+            out = csv.writer(handle)
+            out.writerow(("time_s", "power_db", "source"))
+            for name, x, y in sweep["traces"]:
+                # writerows over a generator, because the whole recording view
+                # can hand over a million readings and a Python loop per row
+                # would take longer than the capture did
+                out.writerows(("{:.9f}".format(t), "{:.4f}".format(p), name)
+                              for t, p in zip(x.tolist(), y.tolist()))
+                written += len(x)
+        return written
 
     @QtCore.Slot()
     def on_scopeArmButton_clicked(self):

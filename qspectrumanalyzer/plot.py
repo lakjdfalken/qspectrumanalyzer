@@ -1629,6 +1629,32 @@ class ScopePlotWidget(ThrottledPlotWidget):
             self.explaining = False
             self.posLabel.setText("")
 
+    def sweep_data(self):
+        """Everything on the pane right now, for writing out
+
+        The curves' own arrays rather than what they display: pyqtgraph hands
+        back the downsampled, clipped version from getData(), and a capture
+        worth keeping is worth keeping at full resolution.
+
+        Returns None when there is nothing drawn."""
+        traces = []
+        for name, curve in (("sweep", self.curve), ("tap", self.curve_fast)):
+            x, y = curve.xData, curve.yData
+            if x is not None and y is not None and len(x):
+                traces.append((name, np.asarray(x), np.asarray(y)))
+        if not traces:
+            return None
+
+        # When t=0 was, on the clock, so a capture can be lined up against
+        # anything else that was recorded at the time
+        started = None
+        if self.epoch is not None:
+            started = self.epoch + (self.sweep_origin or 0.0)
+
+        return {"traces": traces, "band": self.band, "span": self.time_span,
+                "started": started, "trigger": self.trigger,
+                "level": self.level_used, "held": self.single and self.captured}
+
     def hold_sweep_view(self, span, lead):
         """Keep the window exactly where it is, so nothing on it moves
 
