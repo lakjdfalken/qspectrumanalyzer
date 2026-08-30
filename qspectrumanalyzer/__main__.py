@@ -1339,6 +1339,7 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
 
     def survey_header(self, survey):
         """What the survey was, for the top of the file"""
+        settings = QtCore.QSettings()
         low, high = self.survey_range
         return [
             "QSpectrumAnalyzer survey",
@@ -1350,6 +1351,13 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
                 self.active_backend, self.binSizeSpinBox.value(),
                 self.gainSpinBox.value(),
                 "on" if self.ampCheckBox.isChecked() else "off"),
+            # The detector is what decides whether an empty survey means
+            # anything: averaging the frames of a sweep costs a microsecond
+            # pulse 14 dB, so a negative result taken that way is not one
+            "sweep detector {}, which {} a pulse shorter than a sweep".format(
+                settings.value("sweep_detector", "mean"),
+                "keeps" if settings.value("sweep_detector", "mean") == "peak"
+                else "averages away"),
             "loudest_db is the highest that bin ever reached; active_sweeps counts "
             "the sweeps in which it stood more than {:g} dB above its own median, "
             "which is what tells a signal that comes and goes from one that is "
