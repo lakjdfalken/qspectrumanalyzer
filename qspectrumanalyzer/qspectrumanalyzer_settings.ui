@@ -138,7 +138,7 @@
      <item row="8" column="0">
       <widget class="QLabel" name="label_10">
        <property name="toolTip">
-        <string>How many sweeps are kept for the history browser to step through. Costs memory: one sweep is 8 bytes per bin.</string>
+        <string>How many sweeps are kept for the history browser to step through. Costs memory: one sweep is 4 bytes per bin.</string>
        </property>
        <property name="text">
         <string>Record&amp;ing depth:</string>
@@ -151,7 +151,7 @@
      <item row="8" column="1">
       <widget class="QSpinBox" name="recordDepthSpinBox">
        <property name="toolTip">
-        <string>How many sweeps are kept for the history browser to step through. Costs memory: one sweep is 8 bytes per bin.</string>
+        <string>How many sweeps are kept for the history browser to step through. Costs memory: one sweep is 4 bytes per bin.</string>
        </property>
        <property name="suffix">
         <string> sweeps</string>
@@ -177,7 +177,92 @@
        </property>
       </widget>
      </item>
-     <item row="11" column="0" colspan="2">
+     <item row="11" column="0">
+      <widget class="QLabel" name="tapResolutionLabel">
+       <property name="toolTip">
+        <string>Seconds of signal behind each reading of the oscilloscope's high-rate tap. This is the zero span timebase: smaller resolves shorter bursts, at a higher noise floor, because fewer frames are combined into each reading.</string>
+       </property>
+       <property name="text">
+        <string>&amp;Zero span step:</string>
+       </property>
+       <property name="buddy">
+        <cstring>tapResolutionSpinBox</cstring>
+       </property>
+      </widget>
+     </item>
+     <item row="11" column="1">
+      <widget class="QDoubleSpinBox" name="tapResolutionSpinBox">
+       <property name="toolTip">
+        <string>Seconds of signal behind each reading of the oscilloscope's high-rate tap. Rounded to whole FFT frames, so what you get is shown below. Zero asks for the finest the radio can be read at, which is one frame.</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+       </property>
+       <property name="suffix">
+        <string> us</string>
+       </property>
+       <property name="decimals">
+        <number>1</number>
+       </property>
+       <property name="maximum">
+        <double>100000.000000000000000</double>
+       </property>
+       <property name="specialValueText">
+        <string>finest</string>
+       </property>
+      </widget>
+     </item>
+     <item row="12" column="0">
+      <widget class="QLabel" name="tapDetectorLabel">
+       <property name="text">
+        <string>Zero span &amp;detector:</string>
+       </property>
+       <property name="buddy">
+        <cstring>tapDetectorComboBox</cstring>
+       </property>
+      </widget>
+     </item>
+     <item row="12" column="1">
+      <widget class="QComboBox" name="tapDetectorComboBox">
+       <property name="toolTip">
+        <string>How the frames making up one reading are combined, which is the video bandwidth choice. Peak keeps the loudest frame, so a pulse shorter than the step still reads at its own height; it does not smooth. Average smooths as the square root of the number of frames, which is what makes the shape of a signal legible when it is only a few dB out of the noise. At the finest step there is one frame per reading and the two are the same.</string>
+       </property>
+       <item>
+        <property name="text">
+         <string>Peak (catch short pulses)</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>Average (smooth the shape)</string>
+        </property>
+       </item>
+      </widget>
+     </item>
+     <item row="15" column="1">
+      <widget class="QLabel" name="tapEstimateLabel">
+       <property name="text">
+        <string/>
+       </property>
+       <property name="wordWrap">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item row="17" column="0" colspan="2">
+      <widget class="QCheckBox" name="levelsMeterCheckBox">
+       <property name="toolTip">
+        <string>The colour scale beside the waterfall, which also sets its levels and gradient. It recomputes a histogram of the whole waterfall on every redraw, so turning it off is faster.</string>
+       </property>
+       <property name="text">
+        <string>Show the waterfall &amp;level meter</string>
+       </property>
+       <property name="checked">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item row="16" column="0" colspan="2">
       <widget class="QCheckBox" name="antialiasCheckBox">
        <property name="toolTip">
         <string>Smooth the curves. Turning it off is faster, but the traces look harder edged.</string>
@@ -281,7 +366,26 @@
      <item row="3" column="1">
       <layout class="QHBoxLayout" name="horizontalLayout_3">
        <item>
-        <widget class="QLineEdit" name="deviceEdit"/>
+        <widget class="QComboBox" name="deviceEdit">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="editable">
+          <bool>true</bool>
+         </property>
+         <property name="insertPolicy">
+          <enum>QComboBox::NoInsert</enum>
+         </property>
+         <property name="sizeAdjustPolicy">
+          <enum>QComboBox::AdjustToMinimumContentsLengthWithIcon</enum>
+         </property>
+         <property name="minimumContentsLength">
+          <number>28</number>
+         </property>
+        </widget>
        </item>
        <item>
         <widget class="QToolButton" name="deviceHelpButton">
@@ -416,6 +520,8 @@
   <tabstop>lnbSpinBox</tabstop>
   <tabstop>waterfallHistorySizeSpinBox</tabstop>
   <tabstop>recordDepthSpinBox</tabstop>
+  <tabstop>tapResolutionSpinBox</tabstop>
+  <tabstop>tapDetectorComboBox</tabstop>
   <tabstop>maxRefreshRateSpinBox</tabstop>
  </tabstops>
  <resources/>

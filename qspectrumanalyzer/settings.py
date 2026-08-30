@@ -1,7 +1,11 @@
+import re
+
 from PySide6 import QtCore, QtGui, QtWidgets
 
 from qspectrumanalyzer import backends
 from qspectrumanalyzer.data import HistoryBuffer
+from qspectrumanalyzer.plot import ScopePlotWidget
+from qspectrumanalyzer.utils import human_time
 
 from qspectrumanalyzer.ui_qspectrumanalyzer_settings import Ui_QSpectrumAnalyzerSettings
 from qspectrumanalyzer.ui_qspectrumanalyzer_settings_help import Ui_QSpectrumAnalyzerSettingsHelp
@@ -19,14 +23,21 @@ class QSpectrumAnalyzerSettings(QtWidgets.QDialog, Ui_QSpectrumAnalyzerSettings)
         # Load settings
         settings = QtCore.QSettings()
         self.executableEdit.setText(settings.value("executable", "soapy_power"))
-        self.deviceEdit.setText(settings.value("device", ""))
         self.lnbSpinBox.setValue(settings.value("lnb_lo", 0, float) / 1e6)
         self.waterfallHistorySizeSpinBox.setValue(settings.value("waterfall_history_size", 100, int))
         self.maxRefreshRateSpinBox.setValue(settings.value("max_refresh_rate", 60, int))
         self.recordDepthSpinBox.setValue(settings.value("record_depth", 1000, int))
         self.antialiasCheckBox.setChecked(settings.value("antialias", 1, int))
+        self.levelsMeterCheckBox.setChecked(settings.value("levels_meter", 1, int))
+        self.tapResolutionSpinBox.setValue(settings.value("tap_resolution", 0, float))
+        self.tapDetectorComboBox.setCurrentIndex(
+            1 if settings.value("tap_detector", "peak") == "mean" else 0)
         self.recordDepthSpinBox.valueChanged.connect(self.update_record_depth_estimate)
         self.update_record_depth_estimate()
+        self.tapResolutionSpinBox.valueChanged.connect(self.update_tap_estimate)
+        self.tapDetectorComboBox.currentIndexChanged.connect(self.update_tap_estimate)
+        self.sampleRateSpinBox.valueChanged.connect(self.update_tap_estimate)
+        self.backendComboBox.currentTextChanged.connect(self.update_tap_estimate)
 
         backend = settings.value("backend", "soapy_power")
         try:
@@ -35,7 +46,7 @@ class QSpectrumAnalyzerSettings(QtWidgets.QDialog, Ui_QSpectrumAnalyzerSettings)
             backend_module = backends.soapy_power
 
         self.paramsEdit.setText(settings.value("params", backend_module.Info.additional_params))
-        self.deviceHelpButton.setEnabled(bool(backend_module.Info.help_device))
+        self.populate_devices(backend_module, settings.value("device", ""))
 
         self.sampleRateSpinBox.setMinimum(backend_module.Info.sample_rate_min / 1e6)
         self.sampleRateSpinBox.setMaximum(backend_module.Info.sample_rate_max / 1e6)
@@ -56,6 +67,50 @@ class QSpectrumAnalyzerSettings(QtWidgets.QDialog, Ui_QSpectrumAnalyzerSettings)
         else:
             self.backendComboBox.setCurrentIndex(i)
         self.backendComboBox.blockSignals(False)
+
+        self.update_tap_estimate()
+
+    def populate_devices(self, backend_module, device):
+        """Offer whatever devices this backend can see, keeping `device` set
+
+        The field stays editable: a backend that cannot enumerate (or one
+        pointed at something not attached yet) still needs a device string
+        typed into it, and soapy_power's is not a serial number at all."""
+        self.deviceEdit.blockSignals(True)
+        self.deviceEdit.clear()
+
+        try:
+            devices = backend_module.Info.list_devices()
+        except Exception as error:          # noqa: BLE001 - an empty list is the answer
+            print("Could not list devices for {}: {}".format(
+                backend_module.__name__.rsplit(".", 1)[-1], error))
+            devices = []
+
+        if devices:
+            self.deviceEdit.addItem(self.tr("Any ({} found)").format(len(devices)), "")
+            for value, label in devices:
+                self.deviceEdit.addItem(label, value)
+
+        index = self.deviceEdit.findData(device)
+        if index != -1:
+            self.deviceEdit.setCurrentIndex(index)
+        else:
+            # Either nothing to choose from, or a device that is not attached
+            # right now; leave what was set rather than silently changing it
+            self.deviceEdit.setCurrentText(device)
+        self.deviceEdit.blockSignals(False)
+
+        self.deviceHelpButton.setEnabled(bool(backend_module.Info.help_device))
+
+    def current_device(self):
+        """The device string to save
+
+        Combo box entries carry the value to store as item data, because what
+        is shown for a device is not what identifies it."""
+        index = self.deviceEdit.currentIndex()
+        if index != -1 and self.deviceEdit.itemText(index) == self.deviceEdit.currentText():
+            return self.deviceEdit.itemData(index) or ""
+        return self.deviceEdit.currentText()
 
     @QtCore.Slot()
     def on_executableButton_clicked(self):
@@ -90,9 +145,13 @@ class QSpectrumAnalyzerSettings(QtWidgets.QDialog, Ui_QSpectrumAnalyzerSettings)
             backend_module = backends.soapy_power
 
         self.device_help_dialog = QSpectrumAnalyzerSettingsHelp(
-            backend_module.Info.help_device(self.executableEdit.text(), self.deviceEdit.text()),
+            backend_module.Info.help_device(self.executableEdit.text(), self.current_device()),
             parent=self
         )
+
+        # Opening the help is also the moment to rescan: it is what somebody
+        # reaches for after plugging a radio in
+        self.populate_devices(backend_module, self.current_device())
 
         self.device_help_dialog.show()
         self.device_help_dialog.raise_()
@@ -107,7 +166,6 @@ class QSpectrumAnalyzerSettings(QtWidgets.QDialog, Ui_QSpectrumAnalyzerSettings)
         QString overload is gone, so the old name silently connected to
         nothing and changing the backend stopped updating this dialog."""
         self.executableEdit.setText(text)
-        self.deviceEdit.setText("")
 
         try:
             backend_module = getattr(backends, text)
@@ -115,7 +173,9 @@ class QSpectrumAnalyzerSettings(QtWidgets.QDialog, Ui_QSpectrumAnalyzerSettings)
             backend_module = backends.soapy_power
 
         self.paramsEdit.setText(backend_module.Info.additional_params)
-        self.deviceHelpButton.setEnabled(bool(backend_module.Info.help_device))
+        # A device string belongs to the backend that was chosen, so start the
+        # new one on whatever it can actually see
+        self.populate_devices(backend_module, "")
         self.sampleRateSpinBox.setMinimum(backend_module.Info.sample_rate_min / 1e6)
         self.sampleRateSpinBox.setMaximum(backend_module.Info.sample_rate_max / 1e6)
         self.sampleRateSpinBox.setValue(backend_module.Info.sample_rate / 1e6)
@@ -143,14 +203,103 @@ class QSpectrumAnalyzerSettings(QtWidgets.QDialog, Ui_QSpectrumAnalyzerSettings)
 
         wanted = self.recordDepthSpinBox.value()
         fits = HistoryBuffer.fits(bins, wanted)
-        megabytes = fits * bins * 8 * 1.5 / (1024 * 1024)
+        megabytes = fits * bins * 4 * 1.5 / (1024 * 1024)
 
+        text = self.tr("~{:.0f} MB at {} bins").format(megabytes, bins)
         if fits < wanted:
-            self.recordDepthEstimateLabel.setText(self.tr(
-                "~{:.0f} MB at {} bins - capped at {} sweeps").format(megabytes, bins, fits))
+            text += self.tr(" - capped at {} sweeps").format(fits)
+
+        # A depth in sweeps only means something once you know how fast they
+        # arrive, and that is the number somebody recording a few minutes of
+        # signal is actually working in
+        rate, guessed = self.expected_sweep_rate()
+        if rate:
+            # A backend sweeping once every ten seconds has a rate of 0.1, and
+            # rounding that to a whole number reads as "0 sweeps/s"
+            shown = "{:.0f}".format(rate) if rate >= 1 else "{:.3g}".format(rate)
+            text += self.tr(" - {} at {}{} sweeps/s").format(
+                human_time(fits / rate), "~" if guessed else "", shown)
+
+        self.recordDepthEstimateLabel.setText(text)
+
+    def expected_sweep_rate(self):
+        """Sweeps a second to reckon the recording depth against
+
+        Returns (rate, guessed). Measured while something is running, which is
+        the only figure that is really true. Before that it has to come out of
+        the settings, so that the depth means something before the first run
+        rather than only after it: an interval names the rate outright, and a
+        backend that delivers as fast as it can names a ceiling instead."""
+        measured = getattr(self.parent(), "sweep_rate", 0)
+        if measured:
+            return measured, False
+
+        interval = getattr(self.parent(), "intervalSpinBox", None)
+        if interval is not None and interval.value() > 0:
+            return 1.0 / interval.value(), True
+
+        capped = re.search(r"--max-rate\s+(\d+(?:\.\d+)?)", self.paramsEdit.text())
+        if capped:
+            return float(capped.group(1)), True
+        return 0, False
+
+    def frame_duration(self):
+        """Seconds of signal in one FFT frame, for the backend in use
+
+        None when the backend has no band tap to have a frame rate, or when
+        the frequency settings do not yet describe one."""
+        backend = self.backendComboBox.currentText()
+        module = getattr(backends, backend, None)
+        if module is None or not hasattr(module.PowerThread, "set_band"):
+            return None
+        try:
+            from hackrf_stream import dsp
+        except ImportError:
+            return None
+
+        sample_rate = self.sampleRateSpinBox.value() * 1e6
+        bin_size = getattr(self.parent(), "binSizeSpinBox", None)
+        if not sample_rate or bin_size is None or bin_size.value() <= 0:
+            return None
+        return dsp.fast_fft_size(sample_rate, bin_size.value() * 1e3) / sample_rate
+
+    @QtCore.Slot()
+    def update_tap_estimate(self):
+        """Show what the zero span step comes out as, and how far back it reaches
+
+        The step is rounded to whole frames, and how much of it can be kept is
+        fixed, so what somebody actually wants to know — how short a burst this
+        resolves and how far back the trace goes — takes working out."""
+        frame = self.frame_duration()
+        if frame is None:
+            self.tapEstimateLabel.setText(
+                self.tr("The selected backend has no high-rate tap"))
+            return
+
+        asked = self.tapResolutionSpinBox.value() / 1e6
+        group = max(1, int(round(asked / frame))) if asked else 1
+        step = group * frame
+
+        capacity = ScopePlotWidget.FAST_CAPACITY
+        # Two float64 per reading, in a ring buffer that over-allocates by half
+        megabytes = capacity * 2 * 8 * 1.5 / (1024 * 1024)
+        frames = (self.tr("1 frame") if group == 1
+                  else self.tr("{} frames").format(group))
+
+        # How much a reading of plain noise moves about. One frame measures
+        # 3.3 dB; averaging smooths as the square root of the count, while a
+        # peak keeps the loudest frame and barely smooths at all. Both figures
+        # are measured, not derived.
+        if self.tapDetectorComboBox.currentIndex() == 1:
+            wobble = 3.3 / (group ** 0.5)
         else:
-            self.recordDepthEstimateLabel.setText(self.tr(
-                "~{:.0f} MB at {} bins").format(megabytes, bins))
+            wobble = 3.3 / (group ** 0.25)
+
+        self.tapEstimateLabel.setText(
+            self.tr("{:.1f} us per reading ({} of {:.1f} us), noise wobbles "
+                    "~{:.1f} dB - {} of it kept, ~{:.0f} MB").format(
+                        step * 1e6, frames, frame * 1e6, wobble,
+                        human_time(capacity * step), megabytes))
 
     def accept(self):
         """Save settings when dialog is accepted"""
@@ -158,14 +307,18 @@ class QSpectrumAnalyzerSettings(QtWidgets.QDialog, Ui_QSpectrumAnalyzerSettings)
         settings.setValue("backend", self.backendComboBox.currentText())
         settings.setValue("executable", self.executableEdit.text())
         settings.setValue("params", self.paramsEdit.text())
-        settings.setValue("device", self.deviceEdit.text())
+        settings.setValue("device", self.current_device())
         settings.setValue("sample_rate", self.sampleRateSpinBox.value() * 1e6)
         settings.setValue("bandwidth", self.bandwidthSpinBox.value() * 1e6)
         settings.setValue("lnb_lo", self.lnbSpinBox.value() * 1e6)
         settings.setValue("waterfall_history_size", self.waterfallHistorySizeSpinBox.value())
         settings.setValue("max_refresh_rate", self.maxRefreshRateSpinBox.value())
         settings.setValue("record_depth", self.recordDepthSpinBox.value())
+        settings.setValue("tap_resolution", self.tapResolutionSpinBox.value())
+        settings.setValue("tap_detector",
+                          "mean" if self.tapDetectorComboBox.currentIndex() == 1 else "peak")
         settings.setValue("antialias", int(self.antialiasCheckBox.isChecked()))
+        settings.setValue("levels_meter", int(self.levelsMeterCheckBox.isChecked()))
         QtWidgets.QDialog.accept(self)
 
 

@@ -108,11 +108,48 @@ class Ui_QSpectrumAnalyzerSettings(object):
 
         self.formLayout.setWidget(9, QFormLayout.ItemRole.FieldRole, self.recordDepthEstimateLabel)
 
+        self.tapResolutionLabel = QLabel(QSpectrumAnalyzerSettings)
+        self.tapResolutionLabel.setObjectName(u"tapResolutionLabel")
+
+        self.formLayout.setWidget(11, QFormLayout.ItemRole.LabelRole, self.tapResolutionLabel)
+
+        self.tapResolutionSpinBox = QDoubleSpinBox(QSpectrumAnalyzerSettings)
+        self.tapResolutionSpinBox.setObjectName(u"tapResolutionSpinBox")
+        self.tapResolutionSpinBox.setAlignment(Qt.AlignRight|Qt.AlignTrailing|Qt.AlignVCenter)
+        self.tapResolutionSpinBox.setDecimals(1)
+        self.tapResolutionSpinBox.setMaximum(100000.000000000000000)
+
+        self.formLayout.setWidget(11, QFormLayout.ItemRole.FieldRole, self.tapResolutionSpinBox)
+
+        self.tapDetectorLabel = QLabel(QSpectrumAnalyzerSettings)
+        self.tapDetectorLabel.setObjectName(u"tapDetectorLabel")
+
+        self.formLayout.setWidget(12, QFormLayout.ItemRole.LabelRole, self.tapDetectorLabel)
+
+        self.tapDetectorComboBox = QComboBox(QSpectrumAnalyzerSettings)
+        self.tapDetectorComboBox.addItem("")
+        self.tapDetectorComboBox.addItem("")
+        self.tapDetectorComboBox.setObjectName(u"tapDetectorComboBox")
+
+        self.formLayout.setWidget(12, QFormLayout.ItemRole.FieldRole, self.tapDetectorComboBox)
+
+        self.tapEstimateLabel = QLabel(QSpectrumAnalyzerSettings)
+        self.tapEstimateLabel.setObjectName(u"tapEstimateLabel")
+        self.tapEstimateLabel.setWordWrap(True)
+
+        self.formLayout.setWidget(15, QFormLayout.ItemRole.FieldRole, self.tapEstimateLabel)
+
+        self.levelsMeterCheckBox = QCheckBox(QSpectrumAnalyzerSettings)
+        self.levelsMeterCheckBox.setObjectName(u"levelsMeterCheckBox")
+        self.levelsMeterCheckBox.setChecked(True)
+
+        self.formLayout.setWidget(17, QFormLayout.ItemRole.SpanningRole, self.levelsMeterCheckBox)
+
         self.antialiasCheckBox = QCheckBox(QSpectrumAnalyzerSettings)
         self.antialiasCheckBox.setObjectName(u"antialiasCheckBox")
         self.antialiasCheckBox.setChecked(True)
 
-        self.formLayout.setWidget(11, QFormLayout.ItemRole.SpanningRole, self.antialiasCheckBox)
+        self.formLayout.setWidget(16, QFormLayout.ItemRole.SpanningRole, self.antialiasCheckBox)
 
         self.label_9 = QLabel(QSpectrumAnalyzerSettings)
         self.label_9.setObjectName(u"label_9")
@@ -160,8 +197,17 @@ class Ui_QSpectrumAnalyzerSettings(object):
 
         self.horizontalLayout_3 = QHBoxLayout()
         self.horizontalLayout_3.setObjectName(u"horizontalLayout_3")
-        self.deviceEdit = QLineEdit(QSpectrumAnalyzerSettings)
+        self.deviceEdit = QComboBox(QSpectrumAnalyzerSettings)
         self.deviceEdit.setObjectName(u"deviceEdit")
+        sizePolicy = QSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        sizePolicy.setHorizontalStretch(0)
+        sizePolicy.setVerticalStretch(0)
+        sizePolicy.setHeightForWidth(self.deviceEdit.sizePolicy().hasHeightForWidth())
+        self.deviceEdit.setSizePolicy(sizePolicy)
+        self.deviceEdit.setEditable(True)
+        self.deviceEdit.setInsertPolicy(QComboBox.NoInsert)
+        self.deviceEdit.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        self.deviceEdit.setMinimumContentsLength(28)
 
         self.horizontalLayout_3.addWidget(self.deviceEdit)
 
@@ -228,6 +274,8 @@ class Ui_QSpectrumAnalyzerSettings(object):
         self.label_4.setBuddy(self.sampleRateSpinBox)
         self.label_2.setBuddy(self.waterfallHistorySizeSpinBox)
         self.label_10.setBuddy(self.recordDepthSpinBox)
+        self.tapResolutionLabel.setBuddy(self.tapResolutionSpinBox)
+        self.tapDetectorLabel.setBuddy(self.tapDetectorComboBox)
         self.label_9.setBuddy(self.maxRefreshRateSpinBox)
         self.label_7.setBuddy(self.bandwidthSpinBox)
         self.label_8.setBuddy(self.lnbSpinBox)
@@ -244,7 +292,9 @@ class Ui_QSpectrumAnalyzerSettings(object):
         QWidget.setTabOrder(self.bandwidthSpinBox, self.lnbSpinBox)
         QWidget.setTabOrder(self.lnbSpinBox, self.waterfallHistorySizeSpinBox)
         QWidget.setTabOrder(self.waterfallHistorySizeSpinBox, self.recordDepthSpinBox)
-        QWidget.setTabOrder(self.recordDepthSpinBox, self.maxRefreshRateSpinBox)
+        QWidget.setTabOrder(self.recordDepthSpinBox, self.tapResolutionSpinBox)
+        QWidget.setTabOrder(self.tapResolutionSpinBox, self.tapDetectorComboBox)
+        QWidget.setTabOrder(self.tapDetectorComboBox, self.maxRefreshRateSpinBox)
 
         self.retranslateUi(QSpectrumAnalyzerSettings)
         self.buttonBox.accepted.connect(QSpectrumAnalyzerSettings.accept)
@@ -272,14 +322,35 @@ class Ui_QSpectrumAnalyzerSettings(object):
 #endif // QT_CONFIG(tooltip)
         self.label_2.setText(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"&Waterfall rows shown:", None))
 #if QT_CONFIG(tooltip)
-        self.label_10.setToolTip(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"How many sweeps are kept for the history browser to step through. Costs memory: one sweep is 8 bytes per bin.", None))
+        self.label_10.setToolTip(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"How many sweeps are kept for the history browser to step through. Costs memory: one sweep is 4 bytes per bin.", None))
 #endif // QT_CONFIG(tooltip)
         self.label_10.setText(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"Record&ing depth:", None))
 #if QT_CONFIG(tooltip)
-        self.recordDepthSpinBox.setToolTip(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"How many sweeps are kept for the history browser to step through. Costs memory: one sweep is 8 bytes per bin.", None))
+        self.recordDepthSpinBox.setToolTip(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"How many sweeps are kept for the history browser to step through. Costs memory: one sweep is 4 bytes per bin.", None))
 #endif // QT_CONFIG(tooltip)
         self.recordDepthSpinBox.setSuffix(QCoreApplication.translate("QSpectrumAnalyzerSettings", u" sweeps", None))
         self.recordDepthEstimateLabel.setText("")
+#if QT_CONFIG(tooltip)
+        self.tapResolutionLabel.setToolTip(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"Seconds of signal behind each reading of the oscilloscope's high-rate tap. This is the zero span timebase: smaller resolves shorter bursts, at a higher noise floor, because fewer frames are combined into each reading.", None))
+#endif // QT_CONFIG(tooltip)
+        self.tapResolutionLabel.setText(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"&Zero span step:", None))
+#if QT_CONFIG(tooltip)
+        self.tapResolutionSpinBox.setToolTip(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"Seconds of signal behind each reading of the oscilloscope's high-rate tap. Rounded to whole FFT frames, so what you get is shown below. Zero asks for the finest the radio can be read at, which is one frame.", None))
+#endif // QT_CONFIG(tooltip)
+        self.tapResolutionSpinBox.setSuffix(QCoreApplication.translate("QSpectrumAnalyzerSettings", u" us", None))
+        self.tapResolutionSpinBox.setSpecialValueText(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"finest", None))
+        self.tapDetectorLabel.setText(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"Zero span &detector:", None))
+        self.tapDetectorComboBox.setItemText(0, QCoreApplication.translate("QSpectrumAnalyzerSettings", u"Peak (catch short pulses)", None))
+        self.tapDetectorComboBox.setItemText(1, QCoreApplication.translate("QSpectrumAnalyzerSettings", u"Average (smooth the shape)", None))
+
+#if QT_CONFIG(tooltip)
+        self.tapDetectorComboBox.setToolTip(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"How the frames making up one reading are combined, which is the video bandwidth choice. Peak keeps the loudest frame, so a pulse shorter than the step still reads at its own height; it does not smooth. Average smooths as the square root of the number of frames, which is what makes the shape of a signal legible when it is only a few dB out of the noise. At the finest step there is one frame per reading and the two are the same.", None))
+#endif // QT_CONFIG(tooltip)
+        self.tapEstimateLabel.setText("")
+#if QT_CONFIG(tooltip)
+        self.levelsMeterCheckBox.setToolTip(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"The colour scale beside the waterfall, which also sets its levels and gradient. It recomputes a histogram of the whole waterfall on every redraw, so turning it off is faster.", None))
+#endif // QT_CONFIG(tooltip)
+        self.levelsMeterCheckBox.setText(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"Show the waterfall &level meter", None))
 #if QT_CONFIG(tooltip)
         self.antialiasCheckBox.setToolTip(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"Smooth the curves. Turning it off is faster, but the traces look harder edged.", None))
 #endif // QT_CONFIG(tooltip)

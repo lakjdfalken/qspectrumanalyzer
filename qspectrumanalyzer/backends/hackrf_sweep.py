@@ -32,6 +32,22 @@ class Info(BaseInfo):
     crop_max = 0
     crop = 0
 
+    @classmethod
+    def list_devices(cls):
+        """Attached HackRFs, by serial number
+
+        The same radios the hackrf_stream backend drives, so the listing is
+        shared rather than reimplemented against the hackrf_sweep executable
+        (which has no way to report them without being run)."""
+        from qspectrumanalyzer.backends.hackrf_stream import list_hackrfs
+        return list_hackrfs()
+
+    @classmethod
+    def help_device(cls, executable, device):
+        """What the Device field can be set to"""
+        from qspectrumanalyzer.backends.hackrf_stream import Info as StreamInfo
+        return StreamInfo.help_device(executable, device)
+
 
 class PowerThread(BasePowerThread):
     """Thread which runs hackrf_sweep process"""
@@ -65,7 +81,7 @@ class PowerThread(BasePowerThread):
             "start_freq": start_freq,  # MHz
             "stop_freq": stop_freq,  # MHz
             "hops": 0,
-            "device": 0,
+            "device": device,
             "sample_rate": 20e6,  # sps
             "bin_size": bin_size,  # kHz
             "interval": interval,  # seconds
@@ -94,6 +110,9 @@ class PowerThread(BasePowerThread):
                 "-B",
                 "-w", "{}".format(int(self.params["bin_size"] * 1000)),
             ])
+
+            if self.params["device"]:
+                cmdline.extend(["-d", str(self.params["device"])])
 
             if self.params["gain"] >= 0:
                 cmdline.extend([

@@ -7,7 +7,8 @@ from PySide6 import QtCore, QtGui, QtWidgets
 from qspectrumanalyzer import backends
 from qspectrumanalyzer.version import __version__
 from qspectrumanalyzer.data import DataStorage
-from qspectrumanalyzer.plot import SpectrumPlotWidget, WaterfallPlotWidget
+from qspectrumanalyzer.plot import (ScopePlotWidget, SpectrumPlotWidget,
+                                    WaterfallPlotWidget)
 from qspectrumanalyzer.utils import str_to_color, human_time
 
 from qspectrumanalyzer.settings import QSpectrumAnalyzerSettings
@@ -40,8 +41,89 @@ SPEED_OPTIONS = [
 ]
 
 
+# Ready-made settings for jobs that need several controls to agree with each
+# other. The bin size decides how short a pulse survives being measured (a 1 us
+# pulse smeared over a 25.6 us frame loses 14 dB); the detector decides whether
+# it survives at all (a mean destroys it, a peak keeps it); the zero span step
+# decides how far back the trace reaches; and the recording depth decides
+# whether a whole scan cycle fits on screen. Any one of them wrong quietly
+# wastes an evening, so the job is what gets chosen and the settings follow.
+#
+# Each entry is (label, note printed when chosen, widgets to set, settings to
+# write). Widgets are applied in order, so frequency and bin size come before
+# anything that is measured in bins.
+RADAR_PRESETS = [
+    ("Custom \u2014 leave everything alone", None, {}, {}),
+
+    ("C-band weather radar \u2014 find the channel",
+     "Sweeping 5600-5650 MHz with max hold. Leave it for fifteen minutes: the "
+     "duty cycle is tiny, so nothing but max hold will paint it. The peak that "
+     "appears is the radar's channel.",
+     {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': True, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'gainSpinBox': 40.0, 'startFreqSpinBox': 5600.0, 'stopFreqSpinBox': 5650.0, 'binSizeSpinBox': 40.0, 'waterfallCheckBox': True, 'scopeCheckBox': False, 'scopeBandCheckBox': False, 'scopeFastCheckBox': False, 'scopeTriggerCheckBox': False, 'scopeSingleCheckBox': False},
+     {"tap_resolution": 0.0, "tap_detector": "peak", "record_depth": 10000}),
+
+    ("C-band weather radar \u2014 catch a burst",
+     "625 kHz bins, so a 1 us pulse loses 2 dB instead of 14; peak detector, "
+     "because an average would destroy it; 20 ms sweep armed on a rising edge. "
+     "Put the centre on whatever the channel hunt found, press Arm, and wait "
+     "for the antenna to come round.",
+     {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': False, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'gainSpinBox': 40.0, 'startFreqSpinBox': 5615.0, 'stopFreqSpinBox': 5635.0, 'binSizeSpinBox': 625.0, 'waterfallCheckBox': False, 'scopeCheckBox': True, 'scopeBandCheckBox': True, 'scopeCentreSpinBox': 5625.0, 'scopeWidthSpinBox': 2000.0, 'scopeFastCheckBox': True, 'scopeSpanSpinBox': 20.0, 'scopeTriggerCheckBox': True, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': True},
+     {"tap_resolution": 0.0, "tap_detector": "peak", "record_depth": 10000}),
+
+    ("C-band weather radar \u2014 time the scan cycle",
+     "A 1 ms step with the peak detector keeps every pulse but reaches back "
+     "seventeen minutes, and the recording is deepened to match. Look for a "
+     "dwell every 15-22 seconds for three minutes, then two minutes of "
+     "silence: that five minute cycle is what tells a weather radar from an "
+     "airport one.",
+     {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': False, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'gainSpinBox': 40.0, 'startFreqSpinBox': 5615.0, 'stopFreqSpinBox': 5635.0, 'binSizeSpinBox': 625.0, 'waterfallCheckBox': False, 'scopeCheckBox': True, 'scopeBandCheckBox': True, 'scopeCentreSpinBox': 5625.0, 'scopeWidthSpinBox': 2000.0, 'scopeFastCheckBox': True, 'scopeSpanSpinBox': 0.0, 'scopeTriggerCheckBox': False, 'scopeSingleCheckBox': False},
+     {"tap_resolution": 1000.0, "tap_detector": "peak", "record_depth": 85000}),
+
+    ("S-band airport radar \u2014 find the channel",
+     "Sweeping 2700-2900 MHz with max hold. CHECK THE INPUT FIRST: a "
+     "surveillance radar a couple of kilometres away can put +18 dBm into the "
+     "antenna and a HackRF is linear to about -5 dBm. Gain is set to zero here, "
+     "which keeps the reading out of compression but does nothing for the front "
+     "end - only an attenuator in the lead does that.",
+     {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': True, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'gainSpinBox': 0.0, 'startFreqSpinBox': 2700.0, 'stopFreqSpinBox': 2900.0, 'binSizeSpinBox': 40.0, 'waterfallCheckBox': True, 'scopeCheckBox': False, 'scopeBandCheckBox': False, 'scopeFastCheckBox': False, 'scopeTriggerCheckBox': False, 'scopeSingleCheckBox': False},
+     {"tap_resolution": 0.0, "tap_detector": "peak", "record_depth": 10000}),
+
+    ("S-band airport radar \u2014 catch a burst",
+     "The C-band burst settings moved to the channel the hunt found. An "
+     "approach radar turns every 4-5 seconds and lights you for about 20 ms "
+     "with pulses roughly 1 ms apart, so a 20 ms sweep holds a dozen of them. "
+     "The attenuation still applies.",
+     {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': False, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'gainSpinBox': 0.0, 'startFreqSpinBox': 2790.0, 'stopFreqSpinBox': 2810.0, 'binSizeSpinBox': 625.0, 'waterfallCheckBox': False, 'scopeCheckBox': True, 'scopeBandCheckBox': True, 'scopeCentreSpinBox': 2800.0, 'scopeWidthSpinBox': 2000.0, 'scopeFastCheckBox': True, 'scopeSpanSpinBox': 20.0, 'scopeTriggerCheckBox': True, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': True},
+     {"tap_resolution": 0.0, "tap_detector": "peak", "record_depth": 10000}),
+
+    ("Wi-Fi burst \u2014 5 GHz channel 36",
+     "A Wi-Fi frame lasts tenths of a millisecond rather than a microsecond, "
+     "so this smooths instead of chasing pulses: a 100 us step with the average "
+     "detector, which drops the wobble from 3.3 dB to 1.6 and makes the shape "
+     "of a frame legible. Free running, so the traffic scrolls past.",
+     {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': False, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'gainSpinBox': 20.0, 'startFreqSpinBox': 5170.0, 'stopFreqSpinBox': 5190.0, 'binSizeSpinBox': 40.0, 'waterfallCheckBox': True, 'scopeCheckBox': True, 'scopeBandCheckBox': True, 'scopeCentreSpinBox': 5180.0, 'scopeWidthSpinBox': 20000.0, 'scopeFastCheckBox': True, 'scopeSpanSpinBox': 20.0, 'scopeTriggerCheckBox': False, 'scopeSingleCheckBox': False},
+     {"tap_resolution": 100.0, "tap_detector": "mean", "record_depth": 10000}),
+]
+
+
 class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMainWindow):
     """QSpectrumAnalyzer main window"""
+
+    #: Seconds the sweep rate is averaged over, and how long a backend that has
+    #: gone quiet is given before the footer admits to a rate of zero
+    RATE_WINDOW = 0.5
+    RATE_STALE = 3.0
+
+    #: Slowest the display will redraw itself down to when it is starving the
+    #: backend, and how long it must go without a dropped sample before taking
+    #: a step back up
+    REFRESH_FLOOR = 8
+    REFRESH_RECOVER = 15.0
+
+    #: Sweep length given to the scope when a trigger is asked for and none
+    #: has been chosen, in milliseconds
+    DEFAULT_SWEEP_MS = 10.0
+
     def __init__(self, parent=None):
         # Initialize UI
         super().__init__(parent)
@@ -50,6 +132,10 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         # Set window icon
         icon_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "qspectrumanalyzer.svg")
         self.setWindowIcon(QtGui.QIcon(icon_path))
+
+        # Splitter index -> the height that pane had when it was last on
+        # screen, so that switching it off and back on does not shrink it
+        self.pane_heights = {}
 
         # Create progress bar
         self.progressbar = QtWidgets.QProgressBar()
@@ -63,19 +149,40 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         self.spectrumPlotWidget = SpectrumPlotWidget(self.mainPlotLayout,
                                                      max_refresh_rate=max_refresh_rate,
                                                      antialias=settings.value("antialias", 1, int))
-        self.waterfallPlotWidget = WaterfallPlotWidget(self.waterfallPlotLayout,
-                                                       self.histogramPlotLayout,
-                                                       max_refresh_rate=max_refresh_rate)
+        self.waterfallPlotWidget = WaterfallPlotWidget(
+            self.waterfallPlotLayout, self.histogramPlotLayout,
+            max_refresh_rate=max_refresh_rate,
+            levels_meter=bool(settings.value("levels_meter", 1, int)))
+        self.scopePlotWidget = ScopePlotWidget(self.scopePlotLayout,
+                                               max_refresh_rate=max_refresh_rate)
+        self.spectrumPlotWidget.on_band_changed = self.on_band_dragged
+        self.scopePlotWidget.on_time_selected = self.on_scope_time_selected
+        self.scopePlotWidget.on_span_changed = self.on_scope_span_changed
+        #: Set while a control and the band region are being kept in step, so
+        #: that neither writes back to the other and starts a loop
+        self.syncing_band = False
+        # The panes the checkboxes control start where the checkboxes do, and
+        # load_settings() has the last word on both once it has run
+        self.scopePlotLayout.setVisible(False)
+        self.scopePlotWidget.set_hidden(True)
 
-        # Link main spectrum plot to waterfall plot
-        self.spectrumPlotWidget.plot.setXLink(self.waterfallPlotWidget.plot)
+        # Keep the waterfall's frequency axis on the spectrum's. The spectrum
+        # is the one that is always on screen and the one with real data to
+        # scale to, so it leads: linked the other way round, a waterfall that
+        # is switched off stops redrawing and freezes the spectrum's axis on
+        # whatever range it was showing when it went.
+        self.waterfallPlotWidget.plot.setXLink(self.spectrumPlotWidget.plot)
 
         # Setup power thread and connect signals
         self.update_status_timer = QtCore.QTimer()
         self.update_status_timer.timeout.connect(self.update_status)
-        self.prev_sweep_time = None
+        self.update_status_timer.timeout.connect(self.drain_fast_band)
         self.prev_data_timestamp = None
         self.start_timestamp = None
+        #: Sweeps counted since the rate was last worked out, and when that was
+        self.sweep_count = 0
+        self.rate_timestamp = None
+        self.sweep_rate = 0.0
         self.data_storage = None
         self.power_thread = None
         self.backend = None
@@ -86,6 +193,13 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         # (HistoryBuffer.counter of that sweep), or None while live
         self.browse_counter = None
 
+        # What the display has had to give up to keep the backend fed
+        self.refresh_rate = None
+        self.dropped_seen = 0
+        self.dropped_at = None
+        self.warned_about_drops = False
+
+        self.populate_presets()
         self.update_buttons()
         self.load_settings()
         self.setup_speed_hints()
@@ -105,6 +219,8 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         self.data_storage.data_recalculated.connect(self.spectrumPlotWidget.recalculate_persistence)
         self.data_storage.history_updated.connect(self.waterfallPlotWidget.update_plot)
         self.data_storage.history_recalculated.connect(self.waterfallPlotWidget.recalculate_plot)
+        self.data_storage.history_updated.connect(self.update_scope)
+        self.data_storage.history_recalculated.connect(self.scopePlotWidget.recalculate_plot)
         self.data_storage.average_updated.connect(self.spectrumPlotWidget.update_average)
         self.data_storage.baseline_updated.connect(self.spectrumPlotWidget.update_baseline)
         self.data_storage.peak_hold_max_updated.connect(self.spectrumPlotWidget.update_peak_hold_max)
@@ -304,7 +420,304 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         if self.data_storage.smooth:
             y = self.data_storage.smooth_data(y)
         self.spectrumPlotWidget.show_sweep(self.data_storage.x, y)
+        self.show_scope_cursor()
         self.update_history_controls()
+
+    def update_scope(self, data_storage):
+        """Queue a redraw of the power over time plot, if it is showing"""
+        if not self.scopePlotLayout.isVisible():
+            return
+        if self.scopeBandCheckBox.isChecked():
+            self.keep_band_in_span()
+        self.scopePlotWidget.throttle.schedule("plot", data_storage)
+
+    def keep_band_in_span(self):
+        """Move the band back into view if the frequency range left it behind
+
+        The band can be chosen before the first sweep has arrived, and is then
+        placed from the spin boxes; the range actually measured can turn out to
+        be somewhere else. Only a band with nothing on screen at all is moved,
+        so this never takes one back off the user."""
+        low, high = self.spectrumPlotWidget.band()
+        first, last = self.display_span()
+        if low < last and high > first:
+            return
+
+        self.spectrumPlotWidget.show_band(True, (first, last))
+        self.apply_scope_band()
+
+    def on_band_dragged(self, low, high):
+        """The band was dragged on the spectrum plot"""
+        self.show_band_in_controls()
+        self.apply_scope_band()
+
+    def show_band_in_controls(self):
+        """Put the band the region marks into the centre and width boxes"""
+        low, high = self.spectrumPlotWidget.band()
+        self.syncing_band = True
+        self.scopeCentreSpinBox.setValue((low + high) / 2 / 1e6)
+        self.scopeWidthSpinBox.setValue((high - low) / 1e3)
+        self.syncing_band = False
+
+    def set_band_from_controls(self):
+        """Move the band region to what the centre and width boxes say"""
+        if self.syncing_band:
+            return
+        centre = self.scopeCentreSpinBox.value() * 1e6
+        half = self.scopeWidthSpinBox.value() * 1e3 / 2
+        self.spectrumPlotWidget.set_band(centre - half, centre + half)
+        self.apply_scope_band()
+
+    @QtCore.Slot(float)
+    def on_scopeCentreSpinBox_valueChanged(self, value):
+        self.set_band_from_controls()
+
+    @QtCore.Slot(float)
+    def on_scopeWidthSpinBox_valueChanged(self, value):
+        self.set_band_from_controls()
+
+    @QtCore.Slot(float)
+    def on_scopeSpanSpinBox_valueChanged(self, value):
+        """Set how much time the scope shows (zero fits the whole recording)"""
+        self.scopePlotWidget.set_time_span(value / 1e3 if value > 0 else None)
+        self.scopePlotWidget.redraw_now(self.data_storage)
+
+    def on_scope_span_changed(self, seconds):
+        """The scope was zoomed by hand; show the width it ended up with"""
+        self.scopeSpanSpinBox.blockSignals(True)
+        self.scopeSpanSpinBox.setValue(seconds * 1e3)
+        self.scopeSpanSpinBox.blockSignals(False)
+        self.scopePlotWidget.time_span = seconds
+        self.scopePlotWidget.redraw_now(self.data_storage)
+
+    @QtCore.Slot(bool)
+    def on_scopeTriggerCheckBox_toggled(self, checked):
+        """Turn the triggered sweep on or off"""
+        self.scopeTriggerLabel.setEnabled(checked)
+        self.scopeTriggerSpinBox.setEnabled(checked)
+        self.scopeSingleCheckBox.setEnabled(checked)
+        self.scopeArmButton.setEnabled(checked and self.scopeSingleCheckBox.isChecked())
+        if checked and not self.scopeSpanSpinBox.value():
+            # A trigger with no sweep length to draw has nothing to do; give
+            # it one rather than leaving the control looking broken
+            self.scopeSpanSpinBox.setValue(self.DEFAULT_SWEEP_MS)
+        self.apply_scope_trigger()
+        self.scopePlotWidget.set_single(self.scopeSingleCheckBox.isChecked())
+
+    @QtCore.Slot(float)
+    def on_scopeTriggerSpinBox_valueChanged(self, value):
+        self.apply_scope_trigger()
+
+    @QtCore.Slot(bool)
+    def on_scopeSingleCheckBox_toggled(self, checked):
+        """Catch one sweep and hold it, rather than triggering repeatedly"""
+        self.scopeArmButton.setEnabled(checked and self.scopeTriggerCheckBox.isChecked())
+        self.scopePlotWidget.set_single(checked)
+        self.scopePlotWidget.redraw_now(self.data_storage)
+
+    @QtCore.Slot()
+    def on_scopeArmButton_clicked(self):
+        """Let go of the held sweep and wait for the next burst"""
+        self.scopePlotWidget.arm()
+        self.scopePlotWidget.redraw_now(self.data_storage)
+
+    def apply_scope_trigger(self):
+        """Tell the scope what to start its sweeps on"""
+        if not self.scopeTriggerCheckBox.isChecked():
+            self.scopePlotWidget.set_trigger(None)
+            self.scopePlotWidget.redraw_now(self.data_storage)
+            return
+        level = self.scopeTriggerSpinBox.value()
+        # The bottom of the range means "work it out from the trace"
+        self.scopePlotWidget.set_trigger(
+            "auto" if level <= self.scopeTriggerSpinBox.minimum() else level)
+        self.scopePlotWidget.redraw_now(self.data_storage)
+
+    @QtCore.Slot(bool)
+    def on_scopeFastCheckBox_toggled(self, checked):
+        """Turn the backend's high rate band tap on or off"""
+        if not checked:
+            self.scopePlotWidget.clear_fast()
+        self.apply_scope_band()
+
+    def apply_scope_band(self):
+        """Point the scope, and any high rate tap, at the chosen frequencies
+
+        With no band placed the scope reduces every bin, so the trace is the
+        whole spectrum over time; with one placed it covers only that stretch.
+        The high rate tap is pointed at the same frequencies either way, so
+        that the two traces are always measuring the same thing."""
+        band = (self.spectrumPlotWidget.band()
+                if self.scopeBandCheckBox.isChecked() else None)
+        self.scopePlotWidget.set_band(band)
+
+        # The high rate samples are measured for whichever band was selected
+        # at the time, so they cannot follow it backwards the way the trace
+        # reduced from the recording can. Only asked for while the scope is
+        # showing and the tap is on: a tap nobody reads is samples gathered
+        # and thrown away.
+        set_band = getattr(self.power_thread, "set_band", None)
+        if set_band is not None:
+            if self.scopeCheckBox.isChecked() and self.scopeFastCheckBox.isChecked():
+                settings = QtCore.QSettings()
+                step = settings.value("tap_resolution", 0, float)
+                set_band(*(band if band is not None else self.display_span()),
+                         resolution=(step / 1e6) if step > 0 else None,
+                         detector=settings.value("tap_detector", "peak"))
+            else:
+                set_band(None, None)
+
+        self.scopePlotWidget.throttle.schedule("plot", self.data_storage)
+
+    def on_scope_time_selected(self, index):
+        """A time was picked on the scope; browse the sweep recorded then"""
+        oldest, newest = self.history_range()
+        if newest is None:
+            return
+        if self.browse_counter is None:
+            self.browseHistoryCheckBox.setChecked(True)
+            if self.browse_counter is None:
+                return
+        self.browse_counter = min(max(oldest + index, oldest), newest)
+        self.show_browsed_sweep()
+
+    def show_scope_cursor(self):
+        """Put the scope's cursor on the sweep being browsed"""
+        oldest, newest = self.history_range()
+        if self.browse_counter is None or newest is None:
+            self.scopePlotWidget.show_cursor(None)
+        else:
+            self.scopePlotWidget.show_cursor(self.browse_counter - oldest)
+        # Browsing moves what the sweep is drawn about, so redraw it now
+        # rather than leaving the pane a step behind the controls
+        self.scopePlotWidget.redraw_now(self.data_storage)
+
+    def drain_fast_band(self):
+        """Take whatever high rate band samples the backend has gathered
+
+        Drained rather than pushed: at a reading every 25 us, a signal per
+        sample would be more traffic than the samples are worth."""
+        if not self.scopePlotLayout.isVisible():
+            return
+        take = getattr(self.power_thread, "take_band_power", None)
+        if take is None:
+            return
+        samples = take()
+        if samples is not None:
+            self.scopePlotWidget.add_fast_samples(samples)
+            self.scopePlotWidget.throttle.schedule("plot", self.data_storage)
+
+    def display_span(self):
+        """The frequency span on screen, in Hz
+
+        From the recorded axis when there is one, and from the spin boxes
+        before anything has been measured, so that the band selector can be
+        placed before the first sweep arrives."""
+        x = self.data_storage.x
+        if x is not None and len(x):
+            return float(x[0]), float(x[-1])
+        return (float(self.startFreqSpinBox.value()) * 1e6,
+                float(self.stopFreqSpinBox.value()) * 1e6)
+
+    # --- which plots are on screen ------------------------------------
+
+    @QtCore.Slot(bool)
+    def on_waterfallCheckBox_toggled(self, checked):
+        """Show or hide the waterfall"""
+        self.show_pane(self.waterfallPlotLayout, checked)
+        self.waterfallPlotWidget.set_hidden(not checked)
+        self.apply_levels_dock()
+        if checked:
+            # It was still fed while it was away, but nothing was painted, so
+            # what it holds is however far behind it was when it went
+            self.waterfallPlotWidget.update_plot(self.data_storage)
+
+    @QtCore.Slot(bool)
+    def on_scopeCheckBox_toggled(self, checked):
+        """Show or hide the power over time plot"""
+        self.show_pane(self.scopePlotLayout, checked)
+        self.scopePlotWidget.set_hidden(not checked)
+        self.scopeGroupBox.setEnabled(checked)
+        self.scopeFastCheckBox.setEnabled(checked and self.backend_has_tap())
+        self.apply_band_region()
+        self.apply_scope_band()
+
+    @QtCore.Slot(bool)
+    def on_scopeBandCheckBox_toggled(self, checked):
+        """Narrow the scope to one band, or hand it back the whole spectrum"""
+        self.apply_band_region()
+        self.apply_scope_band()
+
+    def apply_band_region(self):
+        """Show the band selector only when there is a scope to steer with it"""
+        on = self.scopeBandCheckBox.isChecked()
+        self.spectrumPlotWidget.show_band(
+            self.scopeCheckBox.isChecked() and on, self.display_span())
+        for widget in (self.scopeCentreLabel, self.scopeCentreSpinBox,
+                       self.scopeWidthLabel, self.scopeWidthSpinBox):
+            widget.setEnabled(on)
+        self.show_band_in_controls()
+
+    def backend_has_tap(self):
+        """Whether the backend in use can measure a band off its own frames"""
+        return getattr(self.power_thread, "set_band", None) is not None
+
+    def show_pane(self, pane, visible):
+        """Show or hide one pane of the plot splitter, remembering its height"""
+        index = self.plotSplitter.indexOf(pane)
+        height = self.plotSplitter.sizes()[index]
+        if height:
+            self.pane_heights[index] = height
+        pane.setVisible(visible)
+        if visible:
+            self.share_out_panes()
+
+    def share_out_panes(self):
+        """Give every plot pane that is on screen some height to be on it with
+
+        Qt leaves a pane that has been hidden with a height of zero, and the
+        saved splitter state stores that zero, so switching one back on
+        appears to do nothing at all. Hand back the height it had, or a
+        quarter of the tallest pane if it has never had one."""
+        splitter = self.plotSplitter
+        sizes = splitter.sizes()
+        changed = False
+        for index, size in enumerate(sizes):
+            if size or not splitter.widget(index).isVisible():
+                continue
+            donor = max(range(len(sizes)), key=sizes.__getitem__)
+            # Never more than half of what it comes out of: a pane being given
+            # its room back must not squeeze the one above it off the screen
+            share = min(self.pane_heights.get(index, sizes[donor] // 4),
+                        sizes[donor] // 2)
+            if share < 1:
+                # Nothing laid out yet to take a share of; the pass after the
+                # window is shown will have real heights to work with
+                continue
+            sizes[donor] -= share
+            sizes[index] = share
+            changed = True
+        if changed:
+            splitter.setSizes(sizes)
+
+    def apply_levels_dock(self):
+        """The waterfall's level meter belongs on screen only with the waterfall"""
+        self.levelsDockWidget.setVisible(
+            self.waterfallCheckBox.isChecked()
+            and bool(QtCore.QSettings().value("levels_meter", 1, int)))
+
+    def apply_plot_visibility(self):
+        """Put the panes where the checkboxes say
+
+        Run once the saved window state has been restored, because that state
+        carries the levels dock's own visibility and can disagree with a
+        waterfall that was switched off when the window was last closed."""
+        self.on_waterfallCheckBox_toggled(self.waterfallCheckBox.isChecked())
+        self.on_scopeCheckBox_toggled(self.scopeCheckBox.isChecked())
+        self.scopePlotWidget.set_time_span(
+            self.scopeSpanSpinBox.value() / 1e3 if self.scopeSpanSpinBox.value() else None)
+        self.apply_scope_trigger()
+        self.scopePlotWidget.set_single(self.scopeSingleCheckBox.isChecked())
 
     def refresh_browsing(self):
         """Keep the browsed sweep valid as the ring buffer scrolls on"""
@@ -328,6 +741,10 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         self.browse_counter = newest if browsing else None
         self.spectrumPlotWidget.set_frozen(browsing)
         self.waterfallPlotWidget.set_frozen(browsing)
+        # The scope keeps running while browsing: it is what the browsing is
+        # being steered by, so freezing it would defeat the point
+        if not browsing:
+            self.scopePlotWidget.show_cursor(None)
 
         if browsing:
             self.show_browsed_sweep()
@@ -405,12 +822,23 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         self.persistenceCheckBox.setChecked(settings.value("persistence", 0, int))
         self.baselineCheckBox.setChecked(settings.value("baseline", 0, int))
         self.subtractBaselineCheckBox.setChecked(settings.value("subtract_baseline", 0, int))
+        self.waterfallCheckBox.setChecked(settings.value("waterfall", 1, int))
+        self.scopeCheckBox.setChecked(settings.value("scope", 0, int))
+        self.scopeBandCheckBox.setChecked(settings.value("scope_band", 0, int))
+        self.scopeFastCheckBox.setChecked(settings.value("scope_fast", 0, int))
+        self.scopeSpanSpinBox.setValue(settings.value("scope_span", 0.0, float))
+        self.scopeCentreSpinBox.setValue(settings.value("scope_centre", 0.0, float))
+        self.scopeWidthSpinBox.setValue(settings.value("scope_width", 400.0, float))
+        self.scopeTriggerCheckBox.setChecked(settings.value("scope_trigger", 0, int))
+        self.scopeTriggerSpinBox.setValue(settings.value("scope_trigger_level", -200.0, float))
+        self.scopeSingleCheckBox.setChecked(settings.value("scope_single", 0, int))
 
         # Restore window state
         if settings.value("window_state"):
             self.restoreState(settings.value("window_state"))
         if settings.value("plotsplitter_state"):
             self.plotSplitter.restoreState(settings.value("plotsplitter_state"))
+        self.apply_plot_visibility()
 
         # Migration from older version of config file
         if settings.value("config_version", 1, int) < 2:
@@ -427,6 +855,9 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         self.show()
         if settings.value("window_geometry"):
             self.restoreGeometry(settings.value("window_geometry"))
+
+        # Only now does the splitter have real heights to share out
+        QtCore.QTimer.singleShot(0, self.share_out_panes)
 
     def save_settings(self):
         """Save spectrum analyzer settings and window geometry"""
@@ -446,6 +877,16 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         settings.setValue("persistence", int(self.persistenceCheckBox.isChecked()))
         settings.setValue("baseline", int(self.baselineCheckBox.isChecked()))
         settings.setValue("subtract_baseline", int(self.subtractBaselineCheckBox.isChecked()))
+        settings.setValue("waterfall", int(self.waterfallCheckBox.isChecked()))
+        settings.setValue("scope", int(self.scopeCheckBox.isChecked()))
+        settings.setValue("scope_band", int(self.scopeBandCheckBox.isChecked()))
+        settings.setValue("scope_fast", int(self.scopeFastCheckBox.isChecked()))
+        settings.setValue("scope_span", self.scopeSpanSpinBox.value())
+        settings.setValue("scope_centre", self.scopeCentreSpinBox.value())
+        settings.setValue("scope_width", self.scopeWidthSpinBox.value())
+        settings.setValue("scope_trigger", int(self.scopeTriggerCheckBox.isChecked()))
+        settings.setValue("scope_trigger_level", self.scopeTriggerSpinBox.value())
+        settings.setValue("scope_single", int(self.scopeSingleCheckBox.isChecked()))
 
         # Save window state and geometry
         settings.setValue("window_geometry", self.saveGeometry())
@@ -465,12 +906,136 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
     def update_data(self, data_storage):
         """Update GUI when new data is received
 
-        Only the sweep timing is recorded here. Redrawing the status bar and
-        the history controls is left to update_status_timer, because at a few
-        hundred sweeps a second there is no point rewriting them per sweep."""
-        timestamp = time.time()
-        self.prev_sweep_time = timestamp - self.prev_data_timestamp
-        self.prev_data_timestamp = timestamp
+        Only the arrival is recorded here. Working out the rate, and redrawing
+        the status bar and the history controls, is left to
+        update_status_timer, because at a few hundred sweeps a second there is
+        no point rewriting them per sweep."""
+        self.prev_data_timestamp = time.time()
+        self.sweep_count += 1
+
+    def update_sweep_rate(self):
+        """Work out the sweep rate, once enough time has passed to mean anything
+
+        Sweeps are counted over a window rather than taken from the gap
+        between the last two. That gap is a single sample of a quantity that
+        jitters, and it is timed when the GUI thread reaches the queued signal
+        rather than when the sweep arrived, so a busy moment delivers several
+        at once and then nothing. Reading 1/gap on top of that also comes out
+        high, because the short gaps within a burst outnumber the long one
+        that follows it: a steady 100 sweeps/s used to show as anything from
+        50 to 270."""
+        now = time.monotonic()
+        if self.rate_timestamp is None:
+            # Opening the first window. Anything already counted arrived before
+            # it began, so it would be a count without a time to divide it by
+            self.rate_timestamp = now
+            self.sweep_count = 0
+            return
+
+        elapsed = now - self.rate_timestamp
+        if elapsed < self.RATE_WINDOW:
+            return
+        if not self.sweep_count and elapsed < self.RATE_STALE:
+            # A backend sweeping once a second has not necessarily finished
+            # one yet; wait for it rather than reporting a rate of zero
+            return
+
+        self.sweep_rate = self.sweep_count / elapsed
+        self.sweep_count = 0
+        self.rate_timestamp = now
+
+    # --- ready-made settings for a particular job ---------------------
+
+    def populate_presets(self):
+        """Offer the jobs, without applying one"""
+        self.presetComboBox.blockSignals(True)
+        for label, note, _widgets, _settings in RADAR_PRESETS:
+            self.presetComboBox.addItem(label)
+            if note:
+                self.presetComboBox.setItemData(
+                    self.presetComboBox.count() - 1, note, QtCore.Qt.ToolTipRole)
+        self.presetComboBox.setCurrentIndex(0)
+        self.presetComboBox.blockSignals(False)
+
+    @QtCore.Slot(int)
+    def on_presetComboBox_currentIndexChanged(self, index):
+        """Set every control at once for the chosen job"""
+        if not 0 < index < len(RADAR_PRESETS):
+            return
+        label, note, widgets, values = RADAR_PRESETS[index]
+
+        settings = QtCore.QSettings()
+        deepened = ("record_depth" in values
+                    and values["record_depth"] != settings.value("record_depth", 1000, int))
+        for key, value in values.items():
+            settings.setValue(key, value)
+
+        for name, value in widgets.items():
+            widget = getattr(self, name)
+            if isinstance(widget, QtWidgets.QCheckBox):
+                widget.setChecked(bool(value))
+            else:
+                widget.setValue(value)
+
+        print("{}\n  {}".format(label, note))
+        if deepened:
+            # The recording is allocated when the run starts, so a new depth
+            # needs the data storage built again
+            self.setup_power_thread()
+            print("  Recording deepened, so acquisition has been reset - press Start.")
+        self.apply_scope_band()
+        self.apply_scope_trigger()
+        self.show_status(self.tr("{} - press Start").format(label), timeout=0)
+
+    def configured_refresh_rate(self):
+        """The redraw rate the settings ask for"""
+        return QtCore.QSettings().value("max_refresh_rate", 60, int)
+
+    def set_refresh_rate(self, rate):
+        """Redraw every plot at this rate"""
+        self.refresh_rate = rate
+        for widget in (self.spectrumPlotWidget, self.waterfallPlotWidget,
+                       self.scopePlotWidget):
+            widget.set_max_refresh_rate(rate)
+
+    def adapt_refresh_rate(self):
+        """Give frames back to the backend when it is losing samples
+
+        Drawing and demodulating share one interpreter lock, so a display
+        redrawing as fast as it can can starve a backend that has to keep up
+        with a radio in real time. The two are not worth the same: a frame
+        that is never drawn is a frame nobody was going to see anyway, while a
+        sample that arrived with nowhere to put it is gone for good. So when
+        the backend reports drops the display stands down, halving its rate
+        until they stop, and creeps back up once they have."""
+        dropped = getattr(self.power_thread, "dropped", 0)
+        if self.refresh_rate is None:
+            self.set_refresh_rate(self.configured_refresh_rate())
+
+        ceiling = self.configured_refresh_rate()
+        if ceiling <= 0:
+            # No limit asked for; there is nothing to step down from
+            return
+
+        now = time.monotonic()
+        if dropped > self.dropped_seen:
+            self.dropped_seen = dropped
+            self.dropped_at = now
+            if self.refresh_rate > self.REFRESH_FLOOR:
+                self.set_refresh_rate(max(self.REFRESH_FLOOR, self.refresh_rate // 2))
+                if not self.warned_about_drops:
+                    self.warned_about_drops = True
+                    print("Redrawing at {} Hz instead of {}: the backend was losing "
+                          "samples while the display held the interpreter lock."
+                          .format(self.refresh_rate, ceiling))
+            return
+
+        if (self.dropped_at is not None and self.refresh_rate < ceiling
+                and now - self.dropped_at > self.REFRESH_RECOVER):
+            # Clean for a while, so try a little more drawing again
+            self.dropped_at = now
+            self.set_refresh_rate(min(ceiling, max(self.refresh_rate + 1,
+                                                   int(self.refresh_rate * 1.5))))
 
     def update_status(self):
         """Update status bar"""
@@ -487,6 +1052,8 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
 
         timestamp = time.time()
         status = []
+        self.update_sweep_rate()
+        self.adapt_refresh_rate()
 
         selected = QtCore.QSettings().value("backend", "soapy_power")
         if self.active_backend and self.active_backend != selected:
@@ -495,15 +1062,19 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         if self.power_thread.params["hops"]:
             status.append(self.tr("Frequency hops: {}").format(self.power_thread.params["hops"]))
 
-        status.append(self.tr("Total time: {} | Sweep time: {:.2f} s ({:.2f} FPS)").format(
+        status.append(self.tr("Total time: {} | Sweep time: {:.3f} s ({:.1f} sweeps/s)").format(
             human_time(timestamp - self.start_timestamp),
-            self.prev_sweep_time,
-            (1 / self.prev_sweep_time) if self.prev_sweep_time else 0
+            (1 / self.sweep_rate) if self.sweep_rate else 0,
+            self.sweep_rate
         ))
 
         slower = self.slower_than_fastest()
         if slower:
             status.append(self.tr("{} option(s) slower than fastest").format(len(slower)))
+
+        if self.refresh_rate is not None and self.refresh_rate < self.configured_refresh_rate():
+            status.append(self.tr("redrawing at {} Hz to keep the backend fed")
+                          .format(self.refresh_rate))
 
         if self.browse_counter is not None:
             self.refresh_browsing()
@@ -551,9 +1122,11 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         # at which we can tell whether the chosen backend can measure it
         self.apply_backend_for_range()
 
-        self.prev_sweep_time = 0
         self.prev_data_timestamp = time.time()
         self.start_timestamp = self.prev_data_timestamp
+        self.sweep_count = 0
+        self.rate_timestamp = None
+        self.sweep_rate = 0.0
 
         if self.intervalSpinBox.value() >= 1:
             self.progressbar.setRange(0, int(self.intervalSpinBox.value() * 1000))
@@ -561,6 +1134,13 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
             self.progressbar.setRange(0, 0)
         self.update_progress(0)
         self.update_status_timer.start(100)
+        # A new run starts from the rate that was asked for, not from whatever
+        # the last one had to stand down to
+        self.dropped_seen = 0
+        self.dropped_at = None
+        self.warned_about_drops = False
+        self.set_refresh_rate(self.configured_refresh_rate())
+        self.scopePlotWidget.clear_plot()
 
         self.waterfallPlotWidget.history_size = settings.value("waterfall_history_size", 100, int)
         self.waterfallPlotWidget.plot.setYRange(-self.waterfallPlotWidget.history_size, 0)
@@ -591,6 +1171,7 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
             self.browseHistoryCheckBox.setChecked(False)
 
         self.data_storage.reset()
+
         self.data_storage.set_smooth(
             bool(self.smoothCheckBox.isChecked()),
             settings.value("smooth_length", 11, int),
@@ -601,7 +1182,8 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
             settings.value("baseline_file", None)
         )
 
-        if not self.power_thread.alive:
+        starting = not self.power_thread.alive
+        if starting:
             self.power_thread.setup(
                 float(self.startFreqSpinBox.value()),
                 float(self.stopFreqSpinBox.value()),
@@ -616,6 +1198,15 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
                 bandwidth=settings.value("bandwidth", 0, float),
                 lnb_lo=settings.value("lnb_lo", 0, float)
             )
+
+        # After setup(), which clears whatever band the backend was watching.
+        # Asked for before it, the high rate tap is switched straight back off
+        # and never starts, which leaves the scope drawing only the delivered
+        # sweeps — one point every 10 ms, which in a 10 ms window is a straight
+        # line. The thread has not begun yet, so nothing else is touching it.
+        self.apply_scope_band()
+
+        if starting:
             self.power_thread.start()
 
     def stop(self):
@@ -735,6 +1326,9 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
             self.spectrumPlotWidget.set_max_refresh_rate(max_refresh_rate)
             self.waterfallPlotWidget.set_max_refresh_rate(max_refresh_rate)
             self.spectrumPlotWidget.set_antialias(bool(settings.value("antialias", 1, int)))
+            self.waterfallPlotWidget.set_levels_meter(
+                bool(settings.value("levels_meter", 1, int)))
+            self.apply_levels_dock()
             self.setup_power_thread()
 
     @QtCore.Slot()
@@ -754,6 +1348,15 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
 
 def main():
     global debug
+
+    # Hand the interpreter lock round more often than the default 5 ms. A
+    # backend that transforms samples on its own thread needs the lock in
+    # short bursts and needs them on time; the drawing wants it in long ones.
+    # At the default a redraw can hold it for a whole slice while the radio
+    # fills the buffer that has nowhere to go, and the samples in it are lost
+    # for good. Rotating faster costs a little switching overhead and buys
+    # back the thing that cannot be recovered.
+    sys.setswitchinterval(0.001)
 
     # Parse command line arguments
     parser = argparse.ArgumentParser(

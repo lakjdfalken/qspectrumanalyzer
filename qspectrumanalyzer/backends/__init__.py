@@ -42,6 +42,15 @@ class BaseInfo:
     fallback = None
 
     @classmethod
+    def list_devices(cls):
+        """Devices this backend can see right now, as (value, label) pairs
+
+        `value` is what belongs in the device setting, `label` is what to show
+        for it. An empty list means this backend cannot enumerate, and the
+        device field stays a plain text box."""
+        return []
+
+    @classmethod
     def covers(cls, start_freq, stop_freq, sample_rate):
         """Can this backend measure the requested range?
 

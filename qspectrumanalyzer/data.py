@@ -23,12 +23,17 @@ class HistoryBuffer:
     max_bytes = 256 * 1024 * 1024
 
     @classmethod
-    def fits(cls, data_size, max_history_size, itemsize=8):
-        """Largest requested depth that stays inside the memory budget"""
+    def fits(cls, data_size, max_history_size, itemsize=4):
+        """Largest requested depth that stays inside the memory budget
+
+        itemsize defaults to what the recording actually stores, which is
+        float32: these are powers in dB, where the seventh significant digit
+        is far below the noise, and halving the row halves what a recording
+        costs and doubles how long a one can be."""
         per_row = data_size * itemsize * 1.5  # 1.5: the slack in the buffer
         return max(1, min(max_history_size, int(cls.max_bytes / per_row)))
 
-    def __init__(self, data_size, max_history_size, dtype=float):
+    def __init__(self, data_size, max_history_size, dtype=np.float32):
         self.data_size = data_size
         self.max_history_size = max_history_size
         self.history_size = 0
@@ -50,6 +55,36 @@ class HistoryBuffer:
 
         self.buffer[self.end] = data
         self.end += 1
+
+    def extend(self, rows):
+        """Append many rows at once
+
+        The bulk form of append(), for a source that produces far faster than
+        it is read: the high rate band monitor hands over a few hundred
+        samples at a time, and doing that a row at a time would be all Python
+        and no copying."""
+        rows = np.asarray(rows, dtype=self.buffer.dtype)
+        if rows.ndim == 1:
+            rows = rows.reshape(-1, self.data_size)
+        # Rows beyond the buffer's depth still happened, so they still count
+        # towards the counter that numbers the sweeps; they just cannot be kept
+        total = len(rows)
+        if not total:
+            return
+        rows = rows[-self.max_history_size:]
+        count = len(rows)
+
+        if self.end + count > len(self.buffer):
+            # Out of slack, move back what will still be wanted afterwards
+            keep = max(0, min(self.history_size, self.max_history_size - count))
+            if keep:
+                self.buffer[:keep] = self.buffer[self.end - keep:self.end]
+            self.end = keep
+
+        self.buffer[self.end:self.end + count] = rows
+        self.end += count
+        self.counter += total
+        self.history_size = min(self.max_history_size, self.history_size + total)
 
     def get_buffer(self):
         """Return buffer stripped to size of actual data"""
@@ -114,6 +149,7 @@ class DataStorage(QtCore.QObject):
         self.wait()
         self.x = None
         self.history = None
+        self.timestamps = None
         self.reset_data()
 
     def reset_data(self):
@@ -139,6 +175,15 @@ class DataStorage(QtCore.QObject):
         if self.y is not None and len(data["y"]) != len(self.y):
             print("{:d} bins coming from backend, expected {:d}".format(len(data["y"]), len(self.y)))
             return
+
+        # When this sweep was measured, for the band power plot's time axis.
+        # A backend that reports a number knows better than we do — it can say
+        # when the signal arrived rather than when the sweep reached us, which
+        # is later by however long delivery took. Several report a formatted
+        # date string instead, and those fall back to arrival time.
+        measured = data.get("timestamp")
+        data["received"] = (float(measured) if isinstance(measured, (int, float))
+                            else time.time())
 
         self.average_counter += 1
 
@@ -175,9 +220,20 @@ class DataStorage(QtCore.QObject):
                                           HistoryBuffer.max_bytes // (1024 * 1024),
                                           len(data["y"])))
             self.history = HistoryBuffer(len(data["y"]), depth)
+            # One arrival time per recorded sweep, kept in step with it, so
+            # that the recording can be plotted against time rather than
+            # against sweep number. A sweep of powers dwarfs it.
+            self.timestamps = HistoryBuffer(1, depth, dtype=np.float64)
 
         self.history.append(data["y"])
+        self.timestamps.append(data["received"])
         self.history_updated.emit(self)
+
+    def recorded_times(self):
+        """When each recorded sweep arrived, aligned with history.get_buffer()"""
+        if self.timestamps is None:
+            return None
+        return self.timestamps.get_buffer()[:, 0]
 
     def update_average(self, data):
         """Update average data"""
