@@ -353,7 +353,7 @@ class Ui_QSpectrumAnalyzerMainWindow(object):
         self.surveyDwellSpinBox.setAlignment(Qt.AlignRight|Qt.AlignTrailing|Qt.AlignVCenter)
         self.surveyDwellSpinBox.setMinimum(1)
         self.surveyDwellSpinBox.setMaximum(3600)
-        self.surveyDwellSpinBox.setValue(60)
+        self.surveyDwellSpinBox.setValue(30)
 
         self.formLayout.setWidget(3, QFormLayout.ItemRole.FieldRole, self.surveyDwellSpinBox)
 

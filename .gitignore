@@ -16,3 +16,7 @@ pyvenv.cfg
 
 # setup.py data_files, installed into the venv that shares this directory
 share/
+
+# Survey and sweep captures, which are measurements rather than source
+survey-*.csv
+sweep-*.csv
