@@ -1119,7 +1119,14 @@ class ScopePlotWidget(ThrottledPlotWidget):
                 elif self.level_used is None:
                     reason = "nothing in the trace stands clear of the noise"
                 else:
-                    reason = "level {:+.1f} dB".format(self.level_used)
+                    # Say where the trace sits as well as where the level is:
+                    # a level a decibel above the floor catches noise within
+                    # seconds, and there is nothing else on screen to judge it
+                    # against
+                    reason = "level {:+.1f} dB, trace floor {:+.1f}".format(
+                        self.level_used,
+                        self.level_trough if self.level_trough is not None
+                        else float("nan"))
                 if self.single and self.armed:
                     return "Armed, waiting for a burst \u2014 {}".format(reason)
                 return "Waiting for a burst \u2014 {}".format(reason)
