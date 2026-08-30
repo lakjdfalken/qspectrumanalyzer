@@ -102,8 +102,7 @@ class PowerThread(BasePowerThread):
     def process_start(self):
         """Start hackrf_sweep process"""
         if not self.process and self.params:
-            settings = QtCore.QSettings()
-            cmdline = shlex.split(settings.value("executable", "hackrf_sweep"))
+            cmdline = shlex.split(self.executable("hackrf_sweep"))
             cmdline.extend([
                 "-f", "{}:{}".format(int(self.params["start_freq"] - self.lnb_lo / 1e6),
                                      int(self.params["stop_freq"] - self.lnb_lo / 1e6)),

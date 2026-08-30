@@ -128,8 +128,7 @@ class PowerThread(BasePowerThread):
                 self.pipe_write_handle = subprocess.make_inheritable_handle(self.pipe_write_fd)
 
             # Prepare soapy_power cmdline parameters
-            settings = QtCore.QSettings()
-            cmdline = shlex.split(settings.value("executable", "soapy_power"))
+            cmdline = shlex.split(self.executable("soapy_power"))
             cmdline.extend([
                 "-f", "{}M:{}M".format(self.params["start_freq"],
                                        self.params["stop_freq"]),

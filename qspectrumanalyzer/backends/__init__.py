@@ -98,6 +98,19 @@ class BasePowerThread(QtCore.QThread):
             return info.additional_params
         return QtCore.QSettings().value("params", info.additional_params)
 
+    def executable(self, default):
+        """The program this backend runs
+
+        Like additional_params(), the executable setting belongs to the backend
+        the user selected: the settings dialog writes the backend's name into
+        it whenever the backend changes. So a substituted backend would be
+        handed the name of the one it stood in for — and hackrf_stream, which
+        has no executable at all because it drives the radio in process, would
+        hand over the name of a program that does not exist."""
+        if self.substituted:
+            return default
+        return QtCore.QSettings().value("executable", default)
+
     def stop(self):
         """Stop power process thread"""
         self.process_stop()

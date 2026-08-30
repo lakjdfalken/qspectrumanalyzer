@@ -46,8 +46,7 @@ class PowerThread(BasePowerThread):
     def process_start(self):
         """Start rx_power process"""
         if not self.process and self.params:
-            settings = QtCore.QSettings()
-            cmdline = shlex.split(settings.value("executable", "rx_power"))
+            cmdline = shlex.split(self.executable("rx_power"))
             cmdline.extend([
                 "-f", "{}M:{}M:{}k".format(self.params["start_freq"] - self.lnb_lo / 1e6,
                                            self.params["stop_freq"] - self.lnb_lo / 1e6,
