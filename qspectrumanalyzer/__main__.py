@@ -80,7 +80,12 @@ RADAR_PRESETS = [
      {"tap_resolution": 1000.0, "tap_detector": "peak", "record_depth": 85000}),
 
     ("S-band airport radar \u2014 find the channel",
-     "Sweeping 2700-2900 MHz with max hold. CHECK THE INPUT FIRST: a "
+     "Sweeping 2700-2900 MHz with max hold. That is the band air traffic "
+     "primary radar uses, which is not a fact about any particular airport: "
+     "plenty of regional fields have no primary radar at all, and a radar head "
+     "is often sited miles from the runway. Try the 1030 MHz interrogator "
+     "first; it is far easier to catch and it proves there is a radar to look "
+     "for. CHECK THE INPUT FIRST: a "
      "surveillance radar a couple of kilometres away can put +18 dBm into the "
      "antenna and a HackRF is linear to about -5 dBm. Gain is set to zero here, "
      "which keeps the reading out of compression but does nothing for the front "
@@ -94,6 +99,26 @@ RADAR_PRESETS = [
      "with pulses roughly 1 ms apart, so a 20 ms sweep holds a dozen of them. "
      "The attenuation still applies.",
      {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': False, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'gainSpinBox': 0.0, 'startFreqSpinBox': 2790.0, 'stopFreqSpinBox': 2810.0, 'binSizeSpinBox': 625.0, 'waterfallCheckBox': False, 'scopeCheckBox': True, 'scopeBandCheckBox': True, 'scopeCentreSpinBox': 2800.0, 'scopeWidthSpinBox': 2000.0, 'scopeFastCheckBox': True, 'scopeSpanSpinBox': 20.0, 'scopeTriggerCheckBox': True, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': True},
+     {"tap_resolution": 0.0, "tap_detector": "peak", "record_depth": 10000}),
+
+    ("Airport transponder replies \u2014 1090 MHz",
+     "Every aircraft with a transponder answers on 1090 MHz, and near an "
+     "airport that is constant. Catch this first: it is the easiest signal in "
+     "the sky, and it proves the antenna, the radio and these settings all "
+     "work before you go hunting something that is only there for a few "
+     "millionths of the time. An ADS-B frame lasts 120 us, so a 1 ms sweep "
+     "holds one comfortably.",
+     {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': False, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'gainSpinBox': 24.0, 'startFreqSpinBox': 1080.0, 'stopFreqSpinBox': 1100.0, 'binSizeSpinBox': 40.0, 'waterfallCheckBox': False, 'scopeCheckBox': True, 'scopeBandCheckBox': True, 'scopeCentreSpinBox': 1090.0, 'scopeWidthSpinBox': 4000.0, 'scopeFastCheckBox': True, 'scopeSpanSpinBox': 1.0, 'scopeTriggerCheckBox': True, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': False},
+     {"tap_resolution": 0.0, "tap_detector": "peak", "record_depth": 10000}),
+
+    ("Airport radar interrogator \u2014 1030 MHz",
+     "Secondary radar interrogates on 1030 MHz from an antenna that turns with "
+     "the primary one, so this finds the radar and times its rotation without "
+     "needing to know what band the primary uses. Expect a burst every 4-12 "
+     "seconds as the beam comes round. Much easier than 2.8 GHz: lower "
+     "frequency, longer pulses, and it transmits all the time rather than only "
+     "when pointing at you.",
+     {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': False, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'gainSpinBox': 8.0, 'startFreqSpinBox': 1020.0, 'stopFreqSpinBox': 1040.0, 'binSizeSpinBox': 40.0, 'waterfallCheckBox': False, 'scopeCheckBox': True, 'scopeBandCheckBox': True, 'scopeCentreSpinBox': 1030.0, 'scopeWidthSpinBox': 4000.0, 'scopeFastCheckBox': True, 'scopeSpanSpinBox': 0.0, 'scopeTriggerCheckBox': False, 'scopeSingleCheckBox': False},
      {"tap_resolution": 0.0, "tap_detector": "peak", "record_depth": 10000}),
 
     ("Wi-Fi burst \u2014 5 GHz channel 36",
