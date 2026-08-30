@@ -71,11 +71,12 @@ class PowerThread(BasePowerThread):
         total_bandwidth = step_count * step_bandwidth
         stop_freq = start_freq + total_bandwidth
 
-        # distribute gain between two analog gain stages
-        if gain > 102:
-            gain = 102
-        lna_gain = 8 * (gain // 18) if gain >= 0 else 0
-        vga_gain = 2 * ((gain - lna_gain) // 2) if gain >= 0 else 0
+        # Fill the LNA before the VGA. The LNA sets what the receiver can
+        # hear; the VGA is at baseband and lifts the noise with the signal.
+        # Shared with the streaming backend so the two agree about what a
+        # gain figure means.
+        from hackrf_stream.dsp import split_gain
+        lna_gain, vga_gain = split_gain(gain)
 
         self.params = {
             "start_freq": start_freq,  # MHz
