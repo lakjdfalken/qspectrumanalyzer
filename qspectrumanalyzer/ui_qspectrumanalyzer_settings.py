@@ -133,6 +133,18 @@ class Ui_QSpectrumAnalyzerSettings(object):
 
         self.formLayout.setWidget(12, QFormLayout.ItemRole.FieldRole, self.tapDetectorComboBox)
 
+        self.sweepDetectorLabel = QLabel(QSpectrumAnalyzerSettings)
+        self.sweepDetectorLabel.setObjectName(u"sweepDetectorLabel")
+
+        self.formLayout.setWidget(13, QFormLayout.ItemRole.LabelRole, self.sweepDetectorLabel)
+
+        self.sweepDetectorComboBox = QComboBox(QSpectrumAnalyzerSettings)
+        self.sweepDetectorComboBox.addItem("")
+        self.sweepDetectorComboBox.addItem("")
+        self.sweepDetectorComboBox.setObjectName(u"sweepDetectorComboBox")
+
+        self.formLayout.setWidget(13, QFormLayout.ItemRole.FieldRole, self.sweepDetectorComboBox)
+
         self.tapEstimateLabel = QLabel(QSpectrumAnalyzerSettings)
         self.tapEstimateLabel.setObjectName(u"tapEstimateLabel")
         self.tapEstimateLabel.setWordWrap(True)
@@ -276,6 +288,7 @@ class Ui_QSpectrumAnalyzerSettings(object):
         self.label_10.setBuddy(self.recordDepthSpinBox)
         self.tapResolutionLabel.setBuddy(self.tapResolutionSpinBox)
         self.tapDetectorLabel.setBuddy(self.tapDetectorComboBox)
+        self.sweepDetectorLabel.setBuddy(self.sweepDetectorComboBox)
         self.label_9.setBuddy(self.maxRefreshRateSpinBox)
         self.label_7.setBuddy(self.bandwidthSpinBox)
         self.label_8.setBuddy(self.lnbSpinBox)
@@ -294,7 +307,8 @@ class Ui_QSpectrumAnalyzerSettings(object):
         QWidget.setTabOrder(self.waterfallHistorySizeSpinBox, self.recordDepthSpinBox)
         QWidget.setTabOrder(self.recordDepthSpinBox, self.tapResolutionSpinBox)
         QWidget.setTabOrder(self.tapResolutionSpinBox, self.tapDetectorComboBox)
-        QWidget.setTabOrder(self.tapDetectorComboBox, self.maxRefreshRateSpinBox)
+        QWidget.setTabOrder(self.tapDetectorComboBox, self.sweepDetectorComboBox)
+        QWidget.setTabOrder(self.sweepDetectorComboBox, self.maxRefreshRateSpinBox)
 
         self.retranslateUi(QSpectrumAnalyzerSettings)
         self.buttonBox.accepted.connect(QSpectrumAnalyzerSettings.accept)
@@ -345,6 +359,13 @@ class Ui_QSpectrumAnalyzerSettings(object):
 
 #if QT_CONFIG(tooltip)
         self.tapDetectorComboBox.setToolTip(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"How the frames making up one reading are combined, which is the video bandwidth choice. Peak keeps the loudest frame, so a pulse shorter than the step still reads at its own height; it does not smooth. Average smooths as the square root of the number of frames, which is what makes the shape of a signal legible when it is only a few dB out of the noise. At the finest step there is one frame per reading and the two are the same.", None))
+#endif // QT_CONFIG(tooltip)
+        self.sweepDetectorLabel.setText(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"S&weep detector:", None))
+        self.sweepDetectorComboBox.setItemText(0, QCoreApplication.translate("QSpectrumAnalyzerSettings", u"Average (quieter floor)", None))
+        self.sweepDetectorComboBox.setItemText(1, QCoreApplication.translate("QSpectrumAnalyzerSettings", u"Peak (keeps short pulses)", None))
+
+#if QT_CONFIG(tooltip)
+        self.sweepDetectorComboBox.setToolTip(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"How the frames making up one delivered sweep are combined. Average pulls the noise floor down by the square root of the count and is right for a signal that is always there. Peak keeps the loudest frame instead, so a pulse far shorter than a sweep survives at its own height rather than being spread across the whole average: worth 14 dB on a microsecond pulse, at the cost of a noise floor a few dB higher. Backends that deliver sweeps whole ignore it.", None))
 #endif // QT_CONFIG(tooltip)
         self.tapEstimateLabel.setText("")
 #if QT_CONFIG(tooltip)

@@ -285,7 +285,11 @@ class PowerThread(BasePowerThread):
             dc_bins=options.dc_bins,
             amp=self.amp,
             serial=self.params["device"] or None,
-            mode='peak' if options.peak else 'mean',
+            # --peak in the params still works; the setting is the way to
+            # reach it without editing a command line
+            mode='peak' if (options.peak
+                            or settings.value("sweep_detector", "mean") == "peak")
+                 else 'mean',
         )
         self.source.open()
         self.prepare_axis()

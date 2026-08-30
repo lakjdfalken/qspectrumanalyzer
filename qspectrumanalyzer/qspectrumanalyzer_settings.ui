@@ -239,6 +239,33 @@
        </item>
       </widget>
      </item>
+     <item row="13" column="0">
+      <widget class="QLabel" name="sweepDetectorLabel">
+       <property name="text">
+        <string>S&amp;weep detector:</string>
+       </property>
+       <property name="buddy">
+        <cstring>sweepDetectorComboBox</cstring>
+       </property>
+      </widget>
+     </item>
+     <item row="13" column="1">
+      <widget class="QComboBox" name="sweepDetectorComboBox">
+       <property name="toolTip">
+        <string>How the frames making up one delivered sweep are combined. Average pulls the noise floor down by the square root of the count and is right for a signal that is always there. Peak keeps the loudest frame instead, so a pulse far shorter than a sweep survives at its own height rather than being spread across the whole average: worth 14 dB on a microsecond pulse, at the cost of a noise floor a few dB higher. Backends that deliver sweeps whole ignore it.</string>
+       </property>
+       <item>
+        <property name="text">
+         <string>Average (quieter floor)</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>Peak (keeps short pulses)</string>
+        </property>
+       </item>
+      </widget>
+     </item>
      <item row="15" column="1">
       <widget class="QLabel" name="tapEstimateLabel">
        <property name="text">
@@ -522,6 +549,7 @@
   <tabstop>recordDepthSpinBox</tabstop>
   <tabstop>tapResolutionSpinBox</tabstop>
   <tabstop>tapDetectorComboBox</tabstop>
+  <tabstop>sweepDetectorComboBox</tabstop>
   <tabstop>maxRefreshRateSpinBox</tabstop>
  </tabstops>
  <resources/>
