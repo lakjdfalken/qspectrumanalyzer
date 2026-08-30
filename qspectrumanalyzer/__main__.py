@@ -42,7 +42,9 @@ SPEED_OPTIONS = [
 
 
 # Ready-made settings for jobs that need several controls to agree with each
-# other. The bin size decides how short a pulse survives being measured (a 1 us
+# other. One control is deliberately left out: the RF amp. It sits ahead of the
+# gain and can overload a receiver near a transmitter, so nothing switches it
+# on but a person. The bin size decides how short a pulse survives being measured (a 1 us
 # pulse smeared over a 25.6 us frame loses 14 dB); the detector decides whether
 # it survives at all (a mean destroys it, a peak keeps it); the zero span step
 # decides how far back the trace reaches; and the recording depth decides
@@ -62,14 +64,14 @@ RADAR_PRESETS = [
      "waterfall and lifts the scope, which is reading the peak across the "
      "whole 19 MHz. If this shows nothing, the problem is the radio or the "
      "lead, not the frequency you were hunting.",
-     {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': True, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'ampCheckBox': True, 'gainSpinBox': 40.0, 'startFreqSpinBox': 118.0, 'stopFreqSpinBox': 137.0, 'binSizeSpinBox': 25.0, 'waterfallCheckBox': True, 'scopeCheckBox': True, 'scopeBandCheckBox': False, 'scopeCentreSpinBox': 127.5, 'scopeWidthSpinBox': 25.0, 'scopeFastCheckBox': True, 'scopeSpanSpinBox': 2000.0, 'scopeTriggerCheckBox': False, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': False},
+     {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': True, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'gainSpinBox': 40.0, 'startFreqSpinBox': 118.0, 'stopFreqSpinBox': 137.0, 'binSizeSpinBox': 25.0, 'waterfallCheckBox': True, 'scopeCheckBox': True, 'scopeBandCheckBox': False, 'scopeCentreSpinBox': 127.5, 'scopeWidthSpinBox': 25.0, 'scopeFastCheckBox': True, 'scopeSpanSpinBox': 2000.0, 'scopeTriggerCheckBox': False, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': False},
      {"tap_resolution": 1000.0, "tap_detector": "mean", "record_depth": 10000}),
 
     ("C-band weather radar \u2014 find the channel",
      "Sweeping 5600-5650 MHz with max hold. Leave it for fifteen minutes: the "
      "duty cycle is tiny, so nothing but max hold will paint it. The peak that "
      "appears is the radar's channel.",
-     {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': True, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'ampCheckBox': True, 'gainSpinBox': 40.0, 'startFreqSpinBox': 5600.0, 'stopFreqSpinBox': 5650.0, 'binSizeSpinBox': 40.0, 'waterfallCheckBox': True, 'scopeCheckBox': False, 'scopeBandCheckBox': False, 'scopeCentreSpinBox': 5625.0, 'scopeWidthSpinBox': 2000.0, 'scopeFastCheckBox': False, 'scopeSpanSpinBox': 0.0, 'scopeTriggerCheckBox': False, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': False},
+     {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': True, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'gainSpinBox': 40.0, 'startFreqSpinBox': 5600.0, 'stopFreqSpinBox': 5650.0, 'binSizeSpinBox': 40.0, 'waterfallCheckBox': True, 'scopeCheckBox': False, 'scopeBandCheckBox': False, 'scopeCentreSpinBox': 5625.0, 'scopeWidthSpinBox': 2000.0, 'scopeFastCheckBox': False, 'scopeSpanSpinBox': 0.0, 'scopeTriggerCheckBox': False, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': False},
      {"tap_resolution": 0.0, "tap_detector": "peak", "record_depth": 10000}),
 
     ("C-band weather radar \u2014 catch a burst",
@@ -77,7 +79,7 @@ RADAR_PRESETS = [
      "because an average would destroy it; 20 ms sweep armed on a rising edge. "
      "Put the centre on whatever the channel hunt found, press Arm, and wait "
      "for the antenna to come round.",
-     {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': False, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'ampCheckBox': True, 'gainSpinBox': 40.0, 'startFreqSpinBox': 5615.0, 'stopFreqSpinBox': 5635.0, 'binSizeSpinBox': 625.0, 'waterfallCheckBox': False, 'scopeCheckBox': True, 'scopeBandCheckBox': True, 'scopeCentreSpinBox': 5625.0, 'scopeWidthSpinBox': 2000.0, 'scopeFastCheckBox': True, 'scopeSpanSpinBox': 20.0, 'scopeTriggerCheckBox': True, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': True},
+     {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': False, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'gainSpinBox': 40.0, 'startFreqSpinBox': 5615.0, 'stopFreqSpinBox': 5635.0, 'binSizeSpinBox': 625.0, 'waterfallCheckBox': False, 'scopeCheckBox': True, 'scopeBandCheckBox': True, 'scopeCentreSpinBox': 5625.0, 'scopeWidthSpinBox': 2000.0, 'scopeFastCheckBox': True, 'scopeSpanSpinBox': 20.0, 'scopeTriggerCheckBox': True, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': True},
      {"tap_resolution": 0.0, "tap_detector": "peak", "record_depth": 10000}),
 
     ("C-band weather radar \u2014 time the scan cycle",
@@ -86,7 +88,7 @@ RADAR_PRESETS = [
      "dwell every 15-22 seconds for three minutes, then two minutes of "
      "silence: that five minute cycle is what tells a weather radar from an "
      "airport one.",
-     {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': False, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'ampCheckBox': True, 'gainSpinBox': 40.0, 'startFreqSpinBox': 5615.0, 'stopFreqSpinBox': 5635.0, 'binSizeSpinBox': 625.0, 'waterfallCheckBox': False, 'scopeCheckBox': True, 'scopeBandCheckBox': True, 'scopeCentreSpinBox': 5625.0, 'scopeWidthSpinBox': 2000.0, 'scopeFastCheckBox': True, 'scopeSpanSpinBox': 0.0, 'scopeTriggerCheckBox': False, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': False},
+     {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': False, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'gainSpinBox': 40.0, 'startFreqSpinBox': 5615.0, 'stopFreqSpinBox': 5635.0, 'binSizeSpinBox': 625.0, 'waterfallCheckBox': False, 'scopeCheckBox': True, 'scopeBandCheckBox': True, 'scopeCentreSpinBox': 5625.0, 'scopeWidthSpinBox': 2000.0, 'scopeFastCheckBox': True, 'scopeSpanSpinBox': 0.0, 'scopeTriggerCheckBox': False, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': False},
      {"tap_resolution": 1000.0, "tap_detector": "peak", "record_depth": 85000}),
 
     ("S-band airport radar \u2014 find the channel",
@@ -100,7 +102,7 @@ RADAR_PRESETS = [
      "antenna and a HackRF is linear to about -5 dBm. Gain is set to zero here, "
      "which keeps the reading out of compression but does nothing for the front "
      "end - only an attenuator in the lead does that.",
-     {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': True, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'ampCheckBox': False, 'gainSpinBox': 0.0, 'startFreqSpinBox': 2700.0, 'stopFreqSpinBox': 2900.0, 'binSizeSpinBox': 40.0, 'waterfallCheckBox': True, 'scopeCheckBox': False, 'scopeBandCheckBox': False, 'scopeCentreSpinBox': 2800.0, 'scopeWidthSpinBox': 2000.0, 'scopeFastCheckBox': False, 'scopeSpanSpinBox': 0.0, 'scopeTriggerCheckBox': False, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': False},
+     {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': True, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'gainSpinBox': 0.0, 'startFreqSpinBox': 2700.0, 'stopFreqSpinBox': 2900.0, 'binSizeSpinBox': 40.0, 'waterfallCheckBox': True, 'scopeCheckBox': False, 'scopeBandCheckBox': False, 'scopeCentreSpinBox': 2800.0, 'scopeWidthSpinBox': 2000.0, 'scopeFastCheckBox': False, 'scopeSpanSpinBox': 0.0, 'scopeTriggerCheckBox': False, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': False},
      {"tap_resolution": 0.0, "tap_detector": "peak", "record_depth": 10000}),
 
     ("S-band airport radar \u2014 catch a burst",
@@ -108,7 +110,7 @@ RADAR_PRESETS = [
      "approach radar turns every 4-5 seconds and lights you for about 20 ms "
      "with pulses roughly 1 ms apart, so a 20 ms sweep holds a dozen of them. "
      "The attenuation still applies.",
-     {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': False, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'ampCheckBox': False, 'gainSpinBox': 0.0, 'startFreqSpinBox': 2790.0, 'stopFreqSpinBox': 2810.0, 'binSizeSpinBox': 625.0, 'waterfallCheckBox': False, 'scopeCheckBox': True, 'scopeBandCheckBox': True, 'scopeCentreSpinBox': 2800.0, 'scopeWidthSpinBox': 2000.0, 'scopeFastCheckBox': True, 'scopeSpanSpinBox': 20.0, 'scopeTriggerCheckBox': True, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': True},
+     {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': False, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'gainSpinBox': 0.0, 'startFreqSpinBox': 2790.0, 'stopFreqSpinBox': 2810.0, 'binSizeSpinBox': 625.0, 'waterfallCheckBox': False, 'scopeCheckBox': True, 'scopeBandCheckBox': True, 'scopeCentreSpinBox': 2800.0, 'scopeWidthSpinBox': 2000.0, 'scopeFastCheckBox': True, 'scopeSpanSpinBox': 20.0, 'scopeTriggerCheckBox': True, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': True},
      {"tap_resolution": 0.0, "tap_detector": "peak", "record_depth": 10000}),
 
     ("Airport transponder replies \u2014 1090 MHz",
@@ -119,7 +121,7 @@ RADAR_PRESETS = [
      "DC offset lands in the middle of a tune and 1090 is what we came for. "
      "Needs an antenna that works at 1090: a telescopic whip is cut for VHF "
      "and is a poor match eight times up.",
-     {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': True, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'ampCheckBox': True, 'gainSpinBox': 40.0, 'startFreqSpinBox': 1082.0, 'stopFreqSpinBox': 1102.0, 'binSizeSpinBox': 40.0, 'waterfallCheckBox': True, 'scopeCheckBox': True, 'scopeBandCheckBox': True, 'scopeCentreSpinBox': 1090.0, 'scopeWidthSpinBox': 4000.0, 'scopeFastCheckBox': True, 'scopeSpanSpinBox': 5.0, 'scopeTriggerCheckBox': True, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': False},
+     {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': True, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'gainSpinBox': 40.0, 'startFreqSpinBox': 1082.0, 'stopFreqSpinBox': 1102.0, 'binSizeSpinBox': 40.0, 'waterfallCheckBox': True, 'scopeCheckBox': True, 'scopeBandCheckBox': True, 'scopeCentreSpinBox': 1090.0, 'scopeWidthSpinBox': 4000.0, 'scopeFastCheckBox': True, 'scopeSpanSpinBox': 5.0, 'scopeTriggerCheckBox': True, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': False},
      {"tap_resolution": 0.0, "tap_detector": "peak", "record_depth": 10000}),
 
     ("Airport radar interrogator \u2014 1030 MHz",
@@ -129,7 +131,7 @@ RADAR_PRESETS = [
      "seconds as the beam comes round. Much easier than 2.8 GHz: lower "
      "frequency, longer pulses, and it transmits all the time rather than only "
      "when pointing at you.",
-     {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': True, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'ampCheckBox': False, 'gainSpinBox': 8.0, 'startFreqSpinBox': 1022.0, 'stopFreqSpinBox': 1042.0, 'binSizeSpinBox': 40.0, 'waterfallCheckBox': True, 'scopeCheckBox': True, 'scopeBandCheckBox': True, 'scopeCentreSpinBox': 1030.0, 'scopeWidthSpinBox': 4000.0, 'scopeFastCheckBox': True, 'scopeSpanSpinBox': 0.0, 'scopeTriggerCheckBox': False, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': False},
+     {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': True, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'gainSpinBox': 8.0, 'startFreqSpinBox': 1022.0, 'stopFreqSpinBox': 1042.0, 'binSizeSpinBox': 40.0, 'waterfallCheckBox': True, 'scopeCheckBox': True, 'scopeBandCheckBox': True, 'scopeCentreSpinBox': 1030.0, 'scopeWidthSpinBox': 4000.0, 'scopeFastCheckBox': True, 'scopeSpanSpinBox': 0.0, 'scopeTriggerCheckBox': False, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': False},
      {"tap_resolution": 0.0, "tap_detector": "peak", "record_depth": 10000}),
 
     ("Wi-Fi burst \u2014 5 GHz channel 36",
@@ -137,7 +139,7 @@ RADAR_PRESETS = [
      "so this smooths instead of chasing pulses: a 100 us step with the average "
      "detector, which drops the wobble from 3.3 dB to 1.6 and makes the shape "
      "of a frame legible. Free running, so the traffic scrolls past.",
-     {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': False, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'ampCheckBox': False, 'gainSpinBox': 20.0, 'startFreqSpinBox': 5170.0, 'stopFreqSpinBox': 5190.0, 'binSizeSpinBox': 40.0, 'waterfallCheckBox': True, 'scopeCheckBox': True, 'scopeBandCheckBox': True, 'scopeCentreSpinBox': 5180.0, 'scopeWidthSpinBox': 20000.0, 'scopeFastCheckBox': True, 'scopeSpanSpinBox': 20.0, 'scopeTriggerCheckBox': False, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': False},
+     {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': False, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'gainSpinBox': 20.0, 'startFreqSpinBox': 5170.0, 'stopFreqSpinBox': 5190.0, 'binSizeSpinBox': 40.0, 'waterfallCheckBox': True, 'scopeCheckBox': True, 'scopeBandCheckBox': True, 'scopeCentreSpinBox': 5180.0, 'scopeWidthSpinBox': 20000.0, 'scopeFastCheckBox': True, 'scopeSpanSpinBox': 20.0, 'scopeTriggerCheckBox': False, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': False},
      {"tap_resolution": 100.0, "tap_detector": "mean", "record_depth": 10000}),
 ]
 
@@ -152,9 +154,13 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
 
     #: Slowest the display will redraw itself down to when it is starving the
     #: backend, and how long it must go without a dropped sample before taking
-    #: a step back up
+    #: a step back up. The first seconds of a run are the expensive ones — a
+    #: waterfall image to build, curves to fill, axis caches to fill — so it
+    #: starts low and climbs quickly while nothing has gone wrong, rather than
+    #: starting at full rate and losing samples on the way down.
     REFRESH_FLOOR = 8
     REFRESH_RECOVER = 15.0
+    REFRESH_CLIMB = 2.0
 
     #: Sweep length given to the scope when a trigger is asked for and none
     #: has been chosen, in milliseconds
@@ -172,6 +178,8 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         # Splitter index -> the height that pane had when it was last on
         # screen, so that switching it off and back on does not shrink it
         self.pane_heights = {}
+
+        self.make_docks_scrollable()
 
         # Create progress bar
         self.progressbar = QtWidgets.QProgressBar()
@@ -901,6 +909,28 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
             self.browse_counter = value
             self.show_browsed_sweep()
 
+    def make_docks_scrollable(self):
+        """Let a dock be shorter than the controls inside it
+
+        Qt gives a dock a minimum height that fits everything it holds, and a
+        main window a minimum height that fits its docks. These two hold enough
+        now that the window could not be made short enough for a laptop screen,
+        so it stuck to the full height of the display and sprang back to the
+        top whenever it was moved. Inside a scroll area a dock can be any
+        height and its contents scroll."""
+        for dock in (self.controlsDockWidget, self.settingsDockWidget):
+            contents = dock.widget()
+            if contents is None:
+                continue
+            area = QtWidgets.QScrollArea(dock)
+            area.setWidgetResizable(True)
+            area.setFrameShape(QtWidgets.QFrame.NoFrame)
+            area.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
+            # Detach before re-attaching, so the dock is never holding both
+            contents.setParent(None)
+            dock.setWidget(area)
+            area.setWidget(contents)
+
     def set_dock_size(self, dock, width, height):
         """Ugly hack for resizing QDockWidget (because it doesn't respect minimumSize / sizePolicy set in Designer)
            Link: https://stackoverflow.com/questions/2722939/c-resize-a-docked-qt-qdockwidget-programmatically"""
@@ -1154,8 +1184,12 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
                           .format(self.refresh_rate, ceiling))
             return
 
+        # Quick to climb while nothing has been lost yet, slow once something
+        # has: the first is a display warming up, the second is a display that
+        # already knows it can starve the backend
+        patience = self.REFRESH_RECOVER if self.warned_about_drops else self.REFRESH_CLIMB
         if (self.dropped_at is not None and self.refresh_rate < ceiling
-                and now - self.dropped_at > self.REFRESH_RECOVER):
+                and now - self.dropped_at > patience):
             # Clean for a while, so try a little more drawing again
             self.dropped_at = now
             self.set_refresh_rate(min(ceiling, max(self.refresh_rate + 1,
@@ -1261,9 +1295,13 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         # A new run starts from the rate that was asked for, not from whatever
         # the last one had to stand down to
         self.dropped_seen = 0
-        self.dropped_at = None
+        self.dropped_at = time.monotonic()
         self.warned_about_drops = False
-        self.set_refresh_rate(self.configured_refresh_rate())
+        # Start gently and climb, so the backend gets the first second to
+        # itself instead of paying for the display's most expensive frames
+        ceiling = self.configured_refresh_rate()
+        self.set_refresh_rate(max(self.REFRESH_FLOOR, ceiling // 4) if ceiling > 0
+                              else ceiling)
         self.scopePlotWidget.clear_plot()
 
         self.waterfallPlotWidget.history_size = settings.value("waterfall_history_size", 100, int)
