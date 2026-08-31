@@ -47,7 +47,7 @@ class Info(BaseInfo):
     crop_min = 0
     crop_max = 0
     crop = 0
-    additional_params = '--average 26 --max-rate 100'
+    additional_params = '--average auto --max-rate 100'
 
     #: One tune cannot be widened, so anything wider goes to the sweeping backend
     fallback = 'hackrf_sweep'
@@ -56,6 +56,13 @@ class Info(BaseInfo):
     def list_devices(cls):
         """Attached HackRFs, by serial number"""
         return list_hackrfs()
+
+    @classmethod
+    def stage_gains(cls, gain=-1, lna=None, vga=None):
+        """The LNA and VGA the radio would actually be set to"""
+        if hackrf_stream is None:
+            return None
+        return hackrf_stream.stage_gains(gain, lna, vga)
 
     @classmethod
     def help_device(cls, executable, device):
@@ -114,8 +121,15 @@ class Info(BaseInfo):
             '                 them costs enough time that the radio starts\n'
             '                 dropping samples.\n\n'
             '  --dc-bins N    Bins interpolated across the centre of the band\n'
-            '                 (default 2), where the receiver\'s own DC offset\n'
+            '                 either side (default: what the window needs, 1\n'
+            '                 for hann), where the receiver\'s own DC offset\n'
             '                 sits. 0 leaves it visible.\n\n'
+            '  --offset-tune  auto (default) tunes off to one side so that the\n'
+            '                 span asked for misses the DC spike entirely and\n'
+            '                 every bin on screen is measured. It needs half\n'
+            '                 the tune to spend, so it happens only for a span\n'
+            '                 under half the sample rate; wider spans flatten\n'
+            '                 the spike instead. off always centres the span.\n\n'
             '  --window NAME  hann (default), hamming, blackman, bartlett or\n'
             '                 boxcar.\n\n'
             '  --peak         Keep the loudest of the frames making up each\n'
@@ -127,7 +141,9 @@ class Info(BaseInfo):
             '                 and buries it. With --peak a long --average\n'
             '                 becomes a wider net to catch a pulse in rather\n'
             '                 than a deeper hole to lose it down, and costs no\n'
-            '                 more to deliver.\n'
+            '                 more to deliver.\n\n'
+            'The gain stages are not parameters: the LNA and VGA have a box\n'
+            'each in the Adjustments panel, beside the total they add up to.\n'
         ).format(hackrf_stream.__version__, hackrf_stream.library_version())
 
 
@@ -162,9 +178,11 @@ def parse_params(text):
     argparse rather than hand-rolled splitting, so a typo is reported instead
     of quietly ignored; anything unparseable falls back to the defaults."""
     parser = argparse.ArgumentParser(prog='hackrf_stream', add_help=False)
-    parser.add_argument('--average', type=int, default=26)
+    parser.add_argument('--average', default='auto')
     parser.add_argument('--max-rate', dest='max_rate', type=int, default=100)
-    parser.add_argument('--dc-bins', dest='dc_bins', type=int, default=2)
+    parser.add_argument('--dc-bins', dest='dc_bins', type=int, default=None)
+    parser.add_argument('--offset-tune', dest='offset_tune', default='auto',
+                        choices=('auto', 'off'))
     parser.add_argument('--window', default='hann')
     parser.add_argument('--peak', action='store_true')
 
@@ -177,9 +195,18 @@ def parse_params(text):
     if unknown:
         print('hackrf_stream: ignoring unknown parameters {}'.format(' '.join(unknown)))
 
-    options.average = max(1, options.average)
+    if str(options.average).strip().lower() in ('auto', ''):
+        options.average = None
+    else:
+        try:
+            options.average = max(1, int(options.average))
+        except ValueError:
+            print('hackrf_stream: --average {!r} is not a number, using auto'
+                  .format(options.average))
+            options.average = None
     options.max_rate = max(1, options.max_rate)
-    options.dc_bins = max(0, options.dc_bins)
+    if options.dc_bins is not None:
+        options.dc_bins = max(0, options.dc_bins)
     return options
 
 
@@ -190,17 +217,23 @@ class PowerThread(BasePowerThread):
     # to exist before setup() has run
     source = None
     amp = False
+    lna = None
+    vga = None
     band = None
     band_resolution = None
     band_detector = "peak"
     reported_band_error = None
     lnb_lo = 0
+    offset_tuned = False
 
     def setup(self, start_freq, stop_freq, bin_size, interval=0.0, gain=-1, ppm=0, crop=0,
-              single_shot=False, device="", sample_rate=20000000, bandwidth=0, lnb_lo=0, amp=False):
+              single_shot=False, device="", sample_rate=20000000, bandwidth=0, lnb_lo=0,
+              amp=False, lna=None, vga=None):
         """Setup hackrf_stream params"""
         sample_rate = min(max(float(sample_rate), Info.sample_rate_min), Info.sample_rate_max)
 
+        # Provisional: process_start() may tune off to one side of the span
+        # once the bin size is known, to keep the DC spike out of it
         center_freq = (start_freq + stop_freq) / 2 * 1e6 - lnb_lo
 
         self.params = {
@@ -218,6 +251,9 @@ class PowerThread(BasePowerThread):
             "crop": 0,
             "single_shot": single_shot,
         }
+        # What the two analogue stages will actually be set to. Settled here so
+        # that the startup message and the radio cannot disagree.
+        self.lna, self.vga = hackrf_stream.stage_gains(gain, lna, vga)
         self.amp = bool(amp)
         self.lnb_lo = lnb_lo
         self.interval = interval
@@ -231,11 +267,188 @@ class PowerThread(BasePowerThread):
         self.delivered = 0
         self.reported_drops = 0
         self.reported_band_error = None
+        self.offset_tuned = False
         #: Band being watched in the time domain, in display frequencies, and
         #: the seconds per reading asked for (None for as fine as it goes)
         self.band = None
         self.band_resolution = None
         self.band_detector = "peak"
+
+    #: How long a finished spectrum should cover when the frame count is left
+    #: to work itself out. It is what 26 frames came to at the old default of
+    #: 40 kHz bins, so nothing changes there; what changes is the fine bins,
+    #: where 26 frames is 42 us and finishes twenty-four thousand spectra a
+    #: second for a display that is shown a hundred.
+    SPECTRUM_SECONDS = 26 * 512 / 20e6
+
+    def frames_averaged(self, asked, fft_size):
+        """How many frames go into one delivered spectrum
+
+        A frame count is the wrong thing to hold constant across bin sizes.
+        The FFTs cost the same either way, but finishing a spectrum allocates
+        an array, calls back into Python and wakes the delivery loop, and at
+        625 kHz bins a count meant for 40 kHz bins does that twenty-four
+        thousand times a second so that a hundred can be drawn. Measured: the
+        DSP falls from 38.4% of a core to 12.3% for the same FFTs, and the
+        radio stops losing blocks to a thread that cannot get the lock.
+
+        Nothing is thrown away by averaging more - every sample is in the
+        spectrum either way - and the high rate tap is not affected at all,
+        because it reads the frames rather than the finished spectra."""
+        if asked is not None:
+            return asked
+        return max(1, int(round(self.SPECTRUM_SECONDS
+                                * self.params["sample_rate"] / fft_size)))
+
+    def describe_radio(self, options, average):
+        """Every setting the measurement depends on, as lines of text
+
+        Written out in full because this program has half a dozen settings
+        that decide what a measurement can possibly show, they live in three
+        different windows, and each of them fails silently: a detector on
+        average cannot see a microsecond pulse at all, a zero span step left
+        at the finest reaches back a second where a rotating antenna comes
+        round every ten, and the DC spike is flattened across a number of
+        *bins*, so widening the bins to catch a short pulse quietly widens the
+        hole in the middle of the spectrum with them. Every one of those cost
+        an hour before it was noticed. None of them can hide from here."""
+        rate = self.params["sample_rate"]
+        source = self.source
+        span = (self.params["start_freq"], self.params["stop_freq"])
+        frame = source.fft_size / rate
+        spectrum = frame * average
+
+        lines = ["Starting hackrf_stream backend:"]
+
+        def say(label, text):
+            lines.append("  {:<10} {}".format(label, text))
+
+        say("radio", "{}, {:.1f} MHz sample rate{}".format(
+            self.params["device"] or "the first HackRF found", rate / 1e6,
+            ", baseband filter {:.1f} MHz".format(source.filter_bandwidth / 1e6)
+            if source.filter_bandwidth else ""))
+        say("tuned to", "{:.3f} MHz, covering {:g}-{:g} MHz{}".format(
+            (self.params["center_freq"] + self.lnb_lo) / 1e6, span[0], span[1],
+            ", LNB LO {:g} MHz".format(self.lnb_lo / 1e6) if self.lnb_lo else ""))
+        if self.offset_tuned:
+            say("", "off to one side on purpose, so the DC spike and the IQ "
+                    "images fall outside the span and every bin shown is "
+                    "measured")
+
+        gain = hackrf_stream.describe_gain(source.lna, source.vga, self.amp)
+        say("gain", gain[0])
+        for line in gain[1:]:
+            say("", line.strip())
+
+        say("bins", "{} of {:.2f} kHz kept from a {}-point FFT, {} window".format(
+            len(self.x), source.bin_size / 1e3, source.fft_size, options.window))
+        say("frames", "{:.2f} us each, so a pulse shorter than that is spread "
+                      "over one".format(frame * 1e6))
+        say("sweeps", "{} {} frames = {:.1f} us each, {:.0f} a second made, "
+                      "up to {} delivered".format(
+                          "peak of" if source.mode == "peak" else "the average of",
+                          average, spectrum * 1e6, 1.0 / spectrum, options.max_rate))
+        say("", "peak keeps a pulse shorter than a sweep at its own height"
+                if source.mode == "peak" else
+                "the average spreads a pulse over the whole sweep: a 1 us one "
+                "loses {:.0f} dB here".format(10 * np.log10(spectrum / 1e-6)))
+
+        low_dc, high_dc = self.dc_band
+        inside = low_dc < self.params["stop_freq"] * 1e6 and \
+            high_dc > self.params["start_freq"] * 1e6
+        if not inside:
+            say("dc spike", "at {:.3f} MHz, outside the span - nothing on "
+                            "screen is interpolated".format(
+                                (self.params["center_freq"] + self.lnb_lo) / 1e6))
+        elif source.dc_bins > 0:
+            flattened = 2 * source.dc_bins + 1
+            say("dc spike", "{} bins flattened, {:.3f}-{:.3f} MHz ({:.3f} MHz, "
+                            "{:.0f}% of the span) - drawn as a straight line, "
+                            "and shaded on the plot to say so".format(
+                                flattened, low_dc / 1e6, high_dc / 1e6,
+                                (high_dc - low_dc) / 1e6,
+                                100 * (high_dc - low_dc)
+                                / ((span[1] - span[0]) * 1e6)))
+        else:
+            say("dc spike", "left alone, so the receiver's own carrier is on "
+                            "screen at the centre of the tune")
+        if inside:
+            say("", "the band tap reads raw bins, so a zero span watch over "
+                    "there measures the receiver and not the air")
+
+        if source.band is None:
+            say("zero span", "no band being watched, so the scope has only the "
+                             "delivered sweeps to draw")
+        else:
+            low, high = source.band
+            step = source.band_resolution
+            say("zero span", "{:.3f}-{:.3f} MHz, {:.1f} us a reading ({} frame{}), "
+                             "{} detector".format(
+                                 (low + self.lnb_lo) / 1e6, (high + self.lnb_lo) / 1e6,
+                                 step * 1e6, int(round(step / frame)),
+                                 "" if round(step / frame) == 1 else "s",
+                                 source.band_detector))
+        return lines
+
+    def choose_tune(self, options, fft_size):
+        """Settle the centre frequency, offsetting it to dodge the DC spike
+
+        The spike is at the centre of the tune because the centre of the tune
+        is zero hertz at baseband. Centring the span on what you want to look
+        at therefore puts the one part of the spectrum that is not a
+        measurement exactly on it, which is the wrong way round. Tuning off to
+        one side instead costs half the tune and buys back every bin on
+        screen — and folds the IQ image of everything shown into the half
+        being discarded, so mirrors stop appearing too.
+
+        It only works when the span fits in one half of the tune. There is no
+        offset that helps a span wider than that, because half of it is always
+        on the far side of the centre, and narrowing the span to make it fit
+        would answer a different question than the one that was asked. Those
+        fall back to flattening, and say so."""
+        rate = self.params["sample_rate"]
+        centre = None
+        if options.offset_tune != "off":
+            # Clear of the flattened bins with a bin to spare, and never so
+            # tight a guard that the offset is spent for nothing
+            bin_size = rate / fft_size
+            guard = max((hackrf_stream.dc_spike_bins(options.window) + 1) * bin_size,
+                        0.002 * rate)
+            centre = hackrf_stream.offset_tune(
+                self.params["start_freq"] * 1e6 - self.lnb_lo,
+                self.params["stop_freq"] * 1e6 - self.lnb_lo, rate, guard)
+
+        self.offset_tuned = centre is not None
+        if centre is not None:
+            self.params["center_freq"] = centre
+
+    def set_gain(self, gain=None, lna=None, vga=None, amp=None):
+        """Change the gain on a radio that is already running
+
+        Kept in step whether or not the radio is open: the stages settled here
+        are the ones a later start will use, so a gain changed while stopped
+        is not lost and a gain changed while running is not deferred."""
+        if gain is not None or lna is not None or vga is not None:
+            self.lna, self.vga = hackrf_stream.stage_gains(
+                -1 if gain is None else gain,
+                self.lna if lna is None else lna,
+                self.vga if vga is None else vga)
+        if amp is not None:
+            self.amp = bool(amp)
+        if self.source is not None:
+            self.source.set_gain(self.lna, self.vga, self.amp)
+        return self.lna, self.vga, self.amp
+
+    @property
+    def dc_band(self):
+        """Where the receiver's own carrier is, in the frequencies shown
+
+        None before the radio is open. Outside the span when the tune has been
+        offset, which is the point of offsetting it."""
+        if self.source is None:
+            return None
+        low, high = self.source.dc_band
+        return (low + self.lnb_lo, high + self.lnb_lo)
 
     def prepare_axis(self):
         """Work out which bins to keep, and their frequencies once the LNB is added"""
@@ -275,12 +488,18 @@ class PowerThread(BasePowerThread):
         # went through the averaging that produced them.
         self.delivery_interval = max(self.interval, 1.0 / options.max_rate)
 
+        fft_size = hackrf_stream.fast_fft_size(self.params["sample_rate"],
+                                               self.params["bin_size"] * 1e3)
+        average = self.frames_averaged(options.average, fft_size)
+        self.choose_tune(options, fft_size)
+
         self.source = hackrf_stream.SpectrumSource(
             center_freq=self.params["center_freq"],
             sample_rate=self.params["sample_rate"],
             bin_size=self.params["bin_size"] * 1e3,
-            average=options.average,
-            gain=self.params["gain"],
+            average=average,
+            lna=self.lna,
+            vga=self.vga,
             window=options.window,
             dc_bins=options.dc_bins,
             amp=self.amp,
@@ -297,15 +516,8 @@ class PowerThread(BasePowerThread):
             self.source.set_band(self.band[0] - self.lnb_lo, self.band[1] - self.lnb_lo,
                                  self.band_resolution, self.band_detector)
 
-        print('Starting hackrf_stream backend:')
-        print('  {:.3f} MHz centre, {:.1f} MHz sample rate, {} bins of {:.2f} kHz, '
-              '{} {} frames, up to {} spectra/s to the display'
-              .format(self.params["center_freq"] / 1e6, self.params["sample_rate"] / 1e6,
-                      len(self.x), self.source.bin_size / 1e3,
-                      'peak of' if options.peak else 'averaging',
-                      options.average, options.max_rate))
-        print('  {:.1f} us per frame, so a pulse shorter than that is spread over one'
-              .format(self.source.fft_size / self.params["sample_rate"] * 1e6))
+        for line in self.describe_radio(options, average):
+            print(line)
         print()
         self.source.start(self.on_spectrum)
 
@@ -359,6 +571,7 @@ class PowerThread(BasePowerThread):
         """Sample blocks lost because the DSP could not be given the CPU"""
         return self.source.dropped if self.source is not None else 0
 
+    @property
     def tap_resolution(self):
         """Seconds each band reading covers, once snapped to whole frames"""
         if self.source is None:
@@ -398,6 +611,10 @@ class PowerThread(BasePowerThread):
         busy = self.source.busy_fraction
         cpu = self.source.cpu_fraction
         lost = dropped * self.source.transfer_seconds
+        # Since the last message, not since the run began: the queue fills
+        # while the display builds itself, and a lifetime peak would report
+        # that first second for the rest of the evening
+        peak = self.source.take_queue_peak()
         if cpu > 0.7:
             advice = ('the DSP cannot keep up. Raise the bin size (fewer, '
                       'shorter FFTs) or lower the sample rate.')
@@ -412,8 +629,8 @@ class PowerThread(BasePowerThread):
                       'was somewhere else - a resize, or the machine sleeping.')
         print('hackrf_stream: dropped {} blocks ({:.1f} s of signal). FFT thread '
               'on the CPU {:.0f}% of real time, inside its work {:.0f}%, queue '
-              'peaked at {}/{} - {}'.format(
-                  dropped, lost, cpu * 100, busy * 100, self.source.queue_peak,
+              'peaked at {}/{} since the last of these - {}'.format(
+                  dropped, lost, cpu * 100, busy * 100, peak,
                   self.source.statistics().get("queue_depth", 0), advice))
 
     def report_band_error(self):
