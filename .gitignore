@@ -20,3 +20,4 @@ share/
 # Survey and sweep captures, which are measurements rather than source
 survey-*.csv
 sweep-*.csv
+recording-*.csv

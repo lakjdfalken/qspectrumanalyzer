@@ -30,6 +30,8 @@ class Ui_QSpectrumAnalyzerMainWindow(object):
         if not QSpectrumAnalyzerMainWindow.objectName():
             QSpectrumAnalyzerMainWindow.setObjectName(u"QSpectrumAnalyzerMainWindow")
         QSpectrumAnalyzerMainWindow.resize(1200, 892)
+        self.action_SaveRecording = QAction(QSpectrumAnalyzerMainWindow)
+        self.action_SaveRecording.setObjectName(u"action_SaveRecording")
         self.action_Settings = QAction(QSpectrumAnalyzerMainWindow)
         self.action_Settings.setObjectName(u"action_Settings")
         self.action_Quit = QAction(QSpectrumAnalyzerMainWindow)
@@ -246,22 +248,42 @@ class Ui_QSpectrumAnalyzerMainWindow(object):
 
         self.scopeGridLayout.addWidget(self.scopeTriggerLabel, 6, 0, 1, 1)
 
+        self.scopePreTriggerLabel = QLabel(self.scopeGroupBox)
+        self.scopePreTriggerLabel.setObjectName(u"scopePreTriggerLabel")
+
+        self.scopeGridLayout.addWidget(self.scopePreTriggerLabel, 7, 0, 1, 1)
+
+        self.scopePreTriggerSpinBox = QSpinBox(self.scopeGroupBox)
+        self.scopePreTriggerSpinBox.setObjectName(u"scopePreTriggerSpinBox")
+        self.scopePreTriggerSpinBox.setEnabled(False)
+        self.scopePreTriggerSpinBox.setAlignment(Qt.AlignRight|Qt.AlignTrailing|Qt.AlignVCenter)
+        self.scopePreTriggerSpinBox.setMaximum(90)
+        self.scopePreTriggerSpinBox.setSingleStep(5)
+        self.scopePreTriggerSpinBox.setValue(10)
+
+        self.scopeGridLayout.addWidget(self.scopePreTriggerSpinBox, 7, 1, 1, 1)
+
         self.scopeSingleCheckBox = QCheckBox(self.scopeGroupBox)
         self.scopeSingleCheckBox.setObjectName(u"scopeSingleCheckBox")
         self.scopeSingleCheckBox.setEnabled(False)
 
-        self.scopeGridLayout.addWidget(self.scopeSingleCheckBox, 7, 0, 1, 2)
+        self.scopeGridLayout.addWidget(self.scopeSingleCheckBox, 8, 0, 1, 2)
+
+        self.rhythmButton = QPushButton(self.scopeGroupBox)
+        self.rhythmButton.setObjectName(u"rhythmButton")
+
+        self.scopeGridLayout.addWidget(self.rhythmButton, 11, 1, 1, 1)
 
         self.scopeSaveButton = QPushButton(self.scopeGroupBox)
         self.scopeSaveButton.setObjectName(u"scopeSaveButton")
 
-        self.scopeGridLayout.addWidget(self.scopeSaveButton, 9, 1, 1, 1)
+        self.scopeGridLayout.addWidget(self.scopeSaveButton, 10, 1, 1, 1)
 
         self.scopeArmButton = QPushButton(self.scopeGroupBox)
         self.scopeArmButton.setObjectName(u"scopeArmButton")
         self.scopeArmButton.setEnabled(False)
 
-        self.scopeGridLayout.addWidget(self.scopeArmButton, 8, 1, 1, 1)
+        self.scopeGridLayout.addWidget(self.scopeArmButton, 9, 1, 1, 1)
 
         self.scopeTriggerSpinBox = QDoubleSpinBox(self.scopeGroupBox)
         self.scopeTriggerSpinBox.setObjectName(u"scopeTriggerSpinBox")
@@ -417,15 +439,41 @@ class Ui_QSpectrumAnalyzerMainWindow(object):
 
         self.gridLayout.addWidget(self.intervalSpinBox, 1, 0, 1, 1)
 
+        self.label_lna = QLabel(self.settingsDockWidgetContents)
+        self.label_lna.setObjectName(u"label_lna")
+
+        self.gridLayout.addWidget(self.label_lna, 2, 0, 1, 1)
+
+        self.label_vga = QLabel(self.settingsDockWidgetContents)
+        self.label_vga.setObjectName(u"label_vga")
+
+        self.gridLayout.addWidget(self.label_vga, 2, 1, 1, 1)
+
+        self.lnaSpinBox = QSpinBox(self.settingsDockWidgetContents)
+        self.lnaSpinBox.setObjectName(u"lnaSpinBox")
+        self.lnaSpinBox.setAlignment(Qt.AlignRight|Qt.AlignTrailing|Qt.AlignVCenter)
+        self.lnaSpinBox.setMaximum(40)
+        self.lnaSpinBox.setSingleStep(8)
+
+        self.gridLayout.addWidget(self.lnaSpinBox, 3, 0, 1, 1)
+
+        self.vgaSpinBox = QSpinBox(self.settingsDockWidgetContents)
+        self.vgaSpinBox.setObjectName(u"vgaSpinBox")
+        self.vgaSpinBox.setAlignment(Qt.AlignRight|Qt.AlignTrailing|Qt.AlignVCenter)
+        self.vgaSpinBox.setMaximum(62)
+        self.vgaSpinBox.setSingleStep(2)
+
+        self.gridLayout.addWidget(self.vgaSpinBox, 3, 1, 1, 2)
+
         self.label_5 = QLabel(self.settingsDockWidgetContents)
         self.label_5.setObjectName(u"label_5")
 
-        self.gridLayout.addWidget(self.label_5, 2, 0, 1, 1)
+        self.gridLayout.addWidget(self.label_5, 4, 0, 1, 1)
 
         self.label_7 = QLabel(self.settingsDockWidgetContents)
         self.label_7.setObjectName(u"label_7")
 
-        self.gridLayout.addWidget(self.label_7, 2, 1, 1, 1)
+        self.gridLayout.addWidget(self.label_7, 4, 1, 1, 1)
 
         self.ppmSpinBox = QSpinBox(self.settingsDockWidgetContents)
         self.ppmSpinBox.setObjectName(u"ppmSpinBox")
@@ -433,70 +481,70 @@ class Ui_QSpectrumAnalyzerMainWindow(object):
         self.ppmSpinBox.setMinimum(-999)
         self.ppmSpinBox.setMaximum(999)
 
-        self.gridLayout.addWidget(self.ppmSpinBox, 3, 0, 1, 1)
+        self.gridLayout.addWidget(self.ppmSpinBox, 5, 0, 1, 1)
 
         self.ampCheckBox = QCheckBox(self.settingsDockWidgetContents)
         self.ampCheckBox.setObjectName(u"ampCheckBox")
 
-        self.gridLayout.addWidget(self.ampCheckBox, 4, 0, 1, 3)
+        self.gridLayout.addWidget(self.ampCheckBox, 6, 0, 1, 3)
 
         self.mainCurveCheckBox = QCheckBox(self.settingsDockWidgetContents)
         self.mainCurveCheckBox.setObjectName(u"mainCurveCheckBox")
         self.mainCurveCheckBox.setChecked(True)
 
-        self.gridLayout.addWidget(self.mainCurveCheckBox, 5, 0, 1, 1)
+        self.gridLayout.addWidget(self.mainCurveCheckBox, 7, 0, 1, 1)
 
         self.colorsButton = QPushButton(self.settingsDockWidgetContents)
         self.colorsButton.setObjectName(u"colorsButton")
 
-        self.gridLayout.addWidget(self.colorsButton, 5, 1, 1, 2)
+        self.gridLayout.addWidget(self.colorsButton, 7, 1, 1, 2)
 
         self.peakHoldMaxCheckBox = QCheckBox(self.settingsDockWidgetContents)
         self.peakHoldMaxCheckBox.setObjectName(u"peakHoldMaxCheckBox")
 
-        self.gridLayout.addWidget(self.peakHoldMaxCheckBox, 6, 0, 1, 1)
+        self.gridLayout.addWidget(self.peakHoldMaxCheckBox, 8, 0, 1, 1)
 
         self.peakHoldMinCheckBox = QCheckBox(self.settingsDockWidgetContents)
         self.peakHoldMinCheckBox.setObjectName(u"peakHoldMinCheckBox")
 
-        self.gridLayout.addWidget(self.peakHoldMinCheckBox, 6, 1, 1, 2)
+        self.gridLayout.addWidget(self.peakHoldMinCheckBox, 8, 1, 1, 2)
 
         self.averageCheckBox = QCheckBox(self.settingsDockWidgetContents)
         self.averageCheckBox.setObjectName(u"averageCheckBox")
 
-        self.gridLayout.addWidget(self.averageCheckBox, 7, 0, 1, 1)
+        self.gridLayout.addWidget(self.averageCheckBox, 9, 0, 1, 1)
 
         self.smoothCheckBox = QCheckBox(self.settingsDockWidgetContents)
         self.smoothCheckBox.setObjectName(u"smoothCheckBox")
 
-        self.gridLayout.addWidget(self.smoothCheckBox, 8, 0, 1, 1)
+        self.gridLayout.addWidget(self.smoothCheckBox, 10, 0, 1, 1)
 
         self.smoothButton = QToolButton(self.settingsDockWidgetContents)
         self.smoothButton.setObjectName(u"smoothButton")
         self.smoothButton.setAutoRaise(False)
 
-        self.gridLayout.addWidget(self.smoothButton, 8, 2, 1, 1)
+        self.gridLayout.addWidget(self.smoothButton, 10, 2, 1, 1)
 
         self.persistenceCheckBox = QCheckBox(self.settingsDockWidgetContents)
         self.persistenceCheckBox.setObjectName(u"persistenceCheckBox")
 
-        self.gridLayout.addWidget(self.persistenceCheckBox, 9, 0, 1, 1)
+        self.gridLayout.addWidget(self.persistenceCheckBox, 11, 0, 1, 1)
 
         self.persistenceButton = QToolButton(self.settingsDockWidgetContents)
         self.persistenceButton.setObjectName(u"persistenceButton")
         self.persistenceButton.setAutoRaise(False)
 
-        self.gridLayout.addWidget(self.persistenceButton, 9, 2, 1, 1)
+        self.gridLayout.addWidget(self.persistenceButton, 11, 2, 1, 1)
 
         self.verticalSpacer_2 = QSpacerItem(20, 1, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
 
-        self.gridLayout.addItem(self.verticalSpacer_2, 12, 0, 1, 1)
+        self.gridLayout.addItem(self.verticalSpacer_2, 14, 0, 1, 1)
 
         self.cropSpinBox = QSpinBox(self.settingsDockWidgetContents)
         self.cropSpinBox.setObjectName(u"cropSpinBox")
         self.cropSpinBox.setAlignment(Qt.AlignRight|Qt.AlignTrailing|Qt.AlignVCenter)
 
-        self.gridLayout.addWidget(self.cropSpinBox, 3, 1, 1, 2)
+        self.gridLayout.addWidget(self.cropSpinBox, 5, 1, 1, 2)
 
         self.gainSpinBox = QDoubleSpinBox(self.settingsDockWidgetContents)
         self.gainSpinBox.setObjectName(u"gainSpinBox")
@@ -512,18 +560,18 @@ class Ui_QSpectrumAnalyzerMainWindow(object):
         self.baselineCheckBox = QCheckBox(self.settingsDockWidgetContents)
         self.baselineCheckBox.setObjectName(u"baselineCheckBox")
 
-        self.gridLayout.addWidget(self.baselineCheckBox, 10, 0, 1, 1)
+        self.gridLayout.addWidget(self.baselineCheckBox, 12, 0, 1, 1)
 
         self.baselineButton = QToolButton(self.settingsDockWidgetContents)
         self.baselineButton.setObjectName(u"baselineButton")
         self.baselineButton.setAutoRaise(False)
 
-        self.gridLayout.addWidget(self.baselineButton, 10, 2, 1, 1)
+        self.gridLayout.addWidget(self.baselineButton, 12, 2, 1, 1)
 
         self.subtractBaselineCheckBox = QCheckBox(self.settingsDockWidgetContents)
         self.subtractBaselineCheckBox.setObjectName(u"subtractBaselineCheckBox")
 
-        self.gridLayout.addWidget(self.subtractBaselineCheckBox, 11, 0, 1, 1)
+        self.gridLayout.addWidget(self.subtractBaselineCheckBox, 13, 0, 1, 1)
 
         self.settingsDockWidget.setWidget(self.settingsDockWidgetContents)
         QSpectrumAnalyzerMainWindow.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.settingsDockWidget)
@@ -553,12 +601,15 @@ class Ui_QSpectrumAnalyzerMainWindow(object):
         self.scopeCentreLabel.setBuddy(self.scopeCentreSpinBox)
         self.scopeWidthLabel.setBuddy(self.scopeWidthSpinBox)
         self.scopeTriggerLabel.setBuddy(self.scopeTriggerSpinBox)
+        self.scopePreTriggerLabel.setBuddy(self.scopePreTriggerSpinBox)
         self.label_2.setBuddy(self.startFreqSpinBox)
         self.label_3.setBuddy(self.stopFreqSpinBox)
         self.label.setBuddy(self.binSizeSpinBox)
         self.surveyDwellLabel.setBuddy(self.surveyDwellSpinBox)
         self.label_4.setBuddy(self.intervalSpinBox)
         self.label_6.setBuddy(self.gainSpinBox)
+        self.label_lna.setBuddy(self.lnaSpinBox)
+        self.label_vga.setBuddy(self.vgaSpinBox)
         self.label_5.setBuddy(self.ppmSpinBox)
         self.label_7.setBuddy(self.cropSpinBox)
 #endif // QT_CONFIG(shortcut)
@@ -579,17 +630,21 @@ class Ui_QSpectrumAnalyzerMainWindow(object):
         QWidget.setTabOrder(self.scopeWidthSpinBox, self.scopeFastCheckBox)
         QWidget.setTabOrder(self.scopeFastCheckBox, self.scopeTriggerCheckBox)
         QWidget.setTabOrder(self.scopeTriggerCheckBox, self.scopeTriggerSpinBox)
-        QWidget.setTabOrder(self.scopeTriggerSpinBox, self.scopeSingleCheckBox)
+        QWidget.setTabOrder(self.scopeTriggerSpinBox, self.scopePreTriggerSpinBox)
+        QWidget.setTabOrder(self.scopePreTriggerSpinBox, self.scopeSingleCheckBox)
         QWidget.setTabOrder(self.scopeSingleCheckBox, self.scopeArmButton)
         QWidget.setTabOrder(self.scopeArmButton, self.scopeSaveButton)
-        QWidget.setTabOrder(self.scopeSaveButton, self.startFreqSpinBox)
+        QWidget.setTabOrder(self.scopeSaveButton, self.rhythmButton)
+        QWidget.setTabOrder(self.rhythmButton, self.startFreqSpinBox)
         QWidget.setTabOrder(self.startFreqSpinBox, self.stopFreqSpinBox)
         QWidget.setTabOrder(self.stopFreqSpinBox, self.binSizeSpinBox)
         QWidget.setTabOrder(self.binSizeSpinBox, self.surveyDwellSpinBox)
         QWidget.setTabOrder(self.surveyDwellSpinBox, self.surveyButton)
         QWidget.setTabOrder(self.surveyButton, self.intervalSpinBox)
         QWidget.setTabOrder(self.intervalSpinBox, self.gainSpinBox)
-        QWidget.setTabOrder(self.gainSpinBox, self.ppmSpinBox)
+        QWidget.setTabOrder(self.gainSpinBox, self.lnaSpinBox)
+        QWidget.setTabOrder(self.lnaSpinBox, self.vgaSpinBox)
+        QWidget.setTabOrder(self.vgaSpinBox, self.ppmSpinBox)
         QWidget.setTabOrder(self.ppmSpinBox, self.cropSpinBox)
         QWidget.setTabOrder(self.cropSpinBox, self.ampCheckBox)
         QWidget.setTabOrder(self.ampCheckBox, self.mainCurveCheckBox)
@@ -611,6 +666,8 @@ class Ui_QSpectrumAnalyzerMainWindow(object):
 
         self.menubar.addAction(self.menu_File.menuAction())
         self.menubar.addAction(self.menu_Help.menuAction())
+        self.menu_File.addAction(self.action_SaveRecording)
+        self.menu_File.addSeparator()
         self.menu_File.addAction(self.action_Settings)
         self.menu_File.addSeparator()
         self.menu_File.addAction(self.action_Quit)
@@ -623,6 +680,13 @@ class Ui_QSpectrumAnalyzerMainWindow(object):
 
     def retranslateUi(self, QSpectrumAnalyzerMainWindow):
         QSpectrumAnalyzerMainWindow.setWindowTitle(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"QSpectrumAnalyzer", None))
+        self.action_SaveRecording.setText(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Save &recording...", None))
+#if QT_CONFIG(tooltip)
+        self.action_SaveRecording.setToolTip(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Write every bin of every recorded sweep out as CSV: a row per sweep, a column per bin. The scope's Save sweep keeps one number per sweep, which answers questions about time and none about frequency; this keeps the recording itself, so a run can be asked afterwards which bin something was in.", None))
+#endif // QT_CONFIG(tooltip)
+#if QT_CONFIG(shortcut)
+        self.action_SaveRecording.setShortcut(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Ctrl+S", None))
+#endif // QT_CONFIG(shortcut)
         self.action_Settings.setText(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"&Settings...", None))
         self.action_Quit.setText(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"&Quit", None))
 #if QT_CONFIG(shortcut)
@@ -691,10 +755,19 @@ class Ui_QSpectrumAnalyzerMainWindow(object):
 #endif // QT_CONFIG(tooltip)
         self.scopeTriggerCheckBox.setText(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Tri&gger on a rising edge", None))
         self.scopeTriggerLabel.setText(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Le&vel:", None))
+        self.scopePreTriggerLabel.setText(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"&Pre-trigger:", None))
+#if QT_CONFIG(tooltip)
+        self.scopePreTriggerSpinBox.setToolTip(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"How much of the window is drawn before the edge that started the sweep. A rising edge is where a burst says how it begins - whether it steps up in one reading or climbs over hundreds - and with no lead at all it is the very first reading on screen, with nothing behind it to be read against. The lead is taken from the same recorded trace as the rest of the sweep, so it costs nothing but window: at 40% a 20 ms sweep shows 8 ms of what led in and 12 ms of what followed.", None))
+#endif // QT_CONFIG(tooltip)
+        self.scopePreTriggerSpinBox.setSuffix(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u" %", None))
 #if QT_CONFIG(tooltip)
         self.scopeSingleCheckBox.setToolTip(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Catch one sweep and hold it, instead of triggering over and over. A burst that happens once, or once a minute, cannot be read off a display that has moved on by the time you look at it. The sweep the burst arrived in stays on screen until you press Arm for the next one. This is the scope's trigger mode; it has nothing to do with the Single shot button above, which takes one measurement and stops.", None))
 #endif // QT_CONFIG(tooltip)
         self.scopeSingleCheckBox.setText(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Single s&weep", None))
+#if QT_CONFIG(tooltip)
+        self.rhythmButton.setToolTip(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Look through the recorded high-rate trace for anything that repeats, rather than for anything loud. A trigger can only find a pulse that stands above the noise, and with six hundred thousand readings a second the noise itself reaches five or six decibels above its own floor - so a pulse below that cannot be caught however the level is set. A pulse train can still be found, because it comes back: a thousand pulses stacked in step stand thirty times clear of noise stacked out of step. Reports the interval between pulses, how wide they are and how far the stack stands above the noise.", None))
+#endif // QT_CONFIG(tooltip)
+        self.rhythmButton.setText(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Look for a repeating &pulse...", None))
 #if QT_CONFIG(tooltip)
         self.scopeSaveButton.setToolTip(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Write the sweep on screen out as CSV, at full resolution, with the settings it was taken under and the time t=0 happened. A burst worth catching is worth keeping.", None))
 #endif // QT_CONFIG(tooltip)
@@ -729,9 +802,17 @@ class Ui_QSpectrumAnalyzerMainWindow(object):
         self.surveyButton.setText(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Sur&vey the range...", None))
         self.surveyProgressLabel.setText("")
         self.binSizeSpinBox.setSuffix(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u" kHz", None))
-        self.settingsDockWidget.setWindowTitle(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Settings", None))
+        self.settingsDockWidget.setWindowTitle(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Adjustments", None))
         self.label_4.setText(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"&Interval [s]:", None))
         self.label_6.setText(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"&Gain [dB]:", None))
+        self.label_lna.setText(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"&LNA [dB]:", None))
+        self.label_vga.setText(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"VG&A [dB]:", None))
+#if QT_CONFIG(tooltip)
+        self.lnaSpinBox.setToolTip(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"The first amplifier the signal meets, in 8 dB steps to 40. This is the stage that decides what the receiver can hear: gain here lifts the signal above the noise of everything after it, so it is the one to fill first. Gain sets it for you; change it to overrule that.", None))
+#endif // QT_CONFIG(tooltip)
+#if QT_CONFIG(tooltip)
+        self.vgaSpinBox.setToolTip(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Baseband gain, after the mixer, in 2 dB steps to 62. It amplifies whatever the LNA already let through, noise and all, so it makes the trace bigger without making the radio more sensitive. Worth raising only when the trace sits so low that the 8 bit converter, rather than the air, is setting the noise floor.", None))
+#endif // QT_CONFIG(tooltip)
         self.label_5.setText(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Corr. [ppm]:", None))
         self.label_7.setText(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Crop [%]:", None))
 #if QT_CONFIG(tooltip)
@@ -747,6 +828,9 @@ class Ui_QSpectrumAnalyzerMainWindow(object):
         self.smoothButton.setText(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"...", None))
         self.persistenceCheckBox.setText(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Persistence", None))
         self.persistenceButton.setText(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"...", None))
+#if QT_CONFIG(tooltip)
+        self.gainSpinBox.setToolTip(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"How much the radio amplifies what it hears. On a HackRF this one figure is divided across two stages, and the boxes below show the division: it fills the LNA first, because that is the stage that decides what the receiver can hear. Set either box to overrule that. Too much gain overloads the front end and invents signals that are not on the air, which shows as a trace that stops moving when the gain does.", None))
+#endif // QT_CONFIG(tooltip)
         self.gainSpinBox.setSpecialValueText(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"auto", None))
         self.baselineCheckBox.setText(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Baseline", None))
         self.baselineButton.setText(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"...", None))

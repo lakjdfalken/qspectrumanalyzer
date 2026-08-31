@@ -8,7 +8,7 @@ from PySide6 import QtCore, QtGui, QtWidgets
 from qspectrumanalyzer import backends
 from qspectrumanalyzer.version import __version__
 from qspectrumanalyzer.data import DataStorage
-from qspectrumanalyzer import findings
+from qspectrumanalyzer import findings, periodicity
 from qspectrumanalyzer.plot import (ScopePlotWidget, SpectrumPlotWidget,
                                     WaterfallPlotWidget)
 from qspectrumanalyzer.utils import str_to_color, human_time
@@ -289,6 +289,39 @@ class SurveyFindings(QtWidgets.QDialog):
         return self.found[row] if 0 <= row < len(self.found) else None
 
 
+class RepeatingPulse(QtWidgets.QDialog):
+    """What the high rate trace turned out to have a rhythm at
+
+    A page of text rather than a table, because the answer is one paragraph
+    long and every number in it needs its neighbours to mean anything: an
+    interval without the count that was stacked at it, or a height without the
+    width it was measured over, is a number to be misled by."""
+
+    def __init__(self, lines, found, parent=None):
+        super().__init__(parent)
+        self.found = found
+        self.setWindowTitle(self.tr("Repeating pulses"))
+        self.resize(700, 420)
+
+        layout = QtWidgets.QVBoxLayout(self)
+        text = QtWidgets.QPlainTextEdit(self)
+        text.setReadOnly(True)
+        text.setLineWrapMode(QtWidgets.QPlainTextEdit.NoWrap)
+        text.setFont(QtGui.QFontDatabase.systemFont(QtGui.QFontDatabase.FixedFont))
+        text.setPlainText("\n".join(lines))
+        layout.addWidget(text)
+
+        buttons = QtWidgets.QDialogButtonBox()
+        if found:
+            self.look = buttons.addButton(
+                self.tr("&Set the scope to this period"),
+                QtWidgets.QDialogButtonBox.AcceptRole)
+        buttons.addButton(QtWidgets.QDialogButtonBox.Close)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+
 class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMainWindow):
     """QSpectrumAnalyzer main window"""
 
@@ -310,6 +343,11 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
     #: Sweep length given to the scope when a trigger is asked for and none
     #: has been chosen, in milliseconds
     DEFAULT_SWEEP_MS = 10.0
+
+    #: True while the backend divides its gain across two analogue stages, so
+    #: the LNA and VGA boxes are on show. Set before the first spin box can
+    #: change, because setupUi connects the slots that read it.
+    gain_stages = False
 
     def __init__(self, parent=None):
         # Initialize UI
@@ -433,6 +471,7 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
             self.gainSpinBox.setMinimum(backend_module.Info.gain_min)
             self.gainSpinBox.setMaximum(backend_module.Info.gain_max)
             self.gainSpinBox.setValue(backend_module.Info.gain)
+            self.show_gain_stages(backend_module.Info.stage_gains(backend_module.Info.gain))
             self.startFreqSpinBox.setMinimum(backend_module.Info.start_freq_min)
             self.startFreqSpinBox.setMaximum(backend_module.Info.start_freq_max)
             self.startFreqSpinBox.setValue(backend_module.Info.start_freq)
@@ -690,6 +729,8 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         """Turn the triggered sweep on or off"""
         self.scopeTriggerLabel.setEnabled(checked)
         self.scopeTriggerSpinBox.setEnabled(checked)
+        self.scopePreTriggerLabel.setEnabled(checked)
+        self.scopePreTriggerSpinBox.setEnabled(checked)
         self.scopeSingleCheckBox.setEnabled(checked)
         self.scopeArmButton.setEnabled(checked and self.scopeSingleCheckBox.isChecked())
         if checked and not self.scopeSpanSpinBox.value():
@@ -701,6 +742,10 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
 
     @QtCore.Slot(float)
     def on_scopeTriggerSpinBox_valueChanged(self, value):
+        self.apply_scope_trigger()
+
+    @QtCore.Slot(int)
+    def on_scopePreTriggerSpinBox_valueChanged(self, value):
         self.apply_scope_trigger()
 
     @QtCore.Slot(bool)
@@ -756,10 +801,10 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
             lines.append("t=0 is {}.{:06d} UTC{}".format(
                 time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(whole)), micros,
                 " (the trigger)" if sweep["trigger"] is not None else ""))
-        lines.append("backend {}, tune {:g}-{:g} MHz, bin size {:g} kHz, gain {:g} dB".format(
+        lines.append("backend {}, tune {:g}-{:g} MHz, bin size {:g} kHz, {}".format(
             self.active_backend, self.startFreqSpinBox.value(),
             self.stopFreqSpinBox.value(), self.binSizeSpinBox.value(),
-            self.gainSpinBox.value()))
+            self.gain_summary()))
         lines.append("band {}".format(
             "{:.6f}-{:.6f} MHz".format(band[0] / 1e6, band[1] / 1e6)
             if band else "the whole tune"))
@@ -796,6 +841,148 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
                 written += len(x)
         return written
 
+    def recording_header(self, rows, bins):
+        """The settings a recording was taken under, for the top of the file"""
+        settings = QtCore.QSettings()
+        lines = ["QSpectrumAnalyzer recording",
+                 "saved " + time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+                 "{} sweeps x {} bins".format(rows, bins),
+                 "backend {}, tune {:g}-{:g} MHz, bin size {:g} kHz, {}".format(
+                     self.active_backend, self.startFreqSpinBox.value(),
+                     self.stopFreqSpinBox.value(), self.binSizeSpinBox.value(),
+                     self.gain_summary()),
+                 "sweep detector {}".format(settings.value("sweep_detector", "mean"))]
+        return lines
+
+    @QtCore.Slot()
+    def on_action_SaveRecording_triggered(self):
+        """Write every bin of every recorded sweep out, to look at offline
+
+        The scope's Save sweep writes one number per sweep — the band reduced
+        to a power — which answers questions about time and none about
+        frequency. This writes the recording itself: a row per sweep, a column
+        per bin, so a run can be asked afterwards which bin something was in
+        without going outside again to take it a second time.
+
+        Times are seconds from the first sweep with the absolute clock in the
+        header, rather than absolute seconds in every row. Unix time in float
+        is only good to a quarter of a microsecond in this decade, which is
+        coarser than the readings a fast backend produces."""
+        storage = self.data_storage
+        if storage.history is None or not storage.history.history_size \
+                or storage.x is None:
+            self.show_status(self.tr("There is no recording to save"), timeout=5000)
+            return
+
+        history = storage.history.get_buffer()
+        stamps = storage.timestamps.get_buffer()[:, 0]
+        rows = min(len(history), len(stamps))
+        history, stamps = history[:rows], stamps[:rows]
+        x = np.asarray(storage.x)
+
+        suggested = time.strftime("recording-%Y%m%d-%H%M%S.csv")
+        filename = QtWidgets.QFileDialog.getSaveFileName(
+            self, self.tr("Save recording - QSpectrumAnalyzer"), suggested,
+            self.tr("Comma separated values (*.csv);;All files (*)"))[0]
+        if not filename:
+            return
+
+        try:
+            with open(filename, "w", newline="") as handle:
+                for line in self.recording_header(rows, len(x)):
+                    handle.write("# {}\n".format(line))
+                whole = int(stamps[0])
+                micros = int(round((stamps[0] - whole) * 1e6))
+                if micros >= 1000000:
+                    whole, micros = whole + 1, micros - 1000000
+                handle.write("# t=0 is {}.{:06d} UTC\n".format(
+                    time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(whole)), micros))
+                handle.write("# time_s counts from t=0; every other column is a "
+                             "bin, headed by its frequency in Hz\n")
+                out = csv.writer(handle)
+                out.writerow(["time_s"] + ["{:.0f}".format(f) for f in x.tolist()])
+                offsets = (stamps - stamps[0]).tolist()
+                # A generator, because a deep recording is millions of numbers
+                # and a Python loop per row would take longer than the run did
+                out.writerows(
+                    [format(t, ".6f")] + [format(v, ".2f") for v in row]
+                    for t, row in zip(offsets, history.tolist()))
+        except OSError as error:
+            self.show_status(self.tr("Could not write {}: {}").format(
+                filename, error), timeout=8000)
+            return
+
+        self.show_status(self.tr("Saved {} sweeps x {} bins to {}").format(
+            rows, len(x), os.path.basename(filename)), timeout=5000)
+
+    @QtCore.Slot()
+    def on_rhythmButton_clicked(self):
+        """Search the recorded high rate trace for a pulse train
+
+        Deliberately on the spot rather than in a thread. It takes a second or
+        two of arithmetic, and doing it beside a radio delivering six hundred
+        thousand readings a second would cost either the search or the samples;
+        a block or two of signal is the cheaper of the two, and the status bar
+        says so before it starts."""
+        buffer = self.scopePlotWidget.fast
+        if buffer is None or buffer.history_size < 4096:
+            self.show_status(self.tr(
+                "Nothing to search yet - the high-rate tap has to be on, and "
+                "it needs a second of recording"), timeout=8000)
+            return
+
+        rows = np.array(buffer.get_buffer(), copy=True)
+        self.show_status(self.tr("Looking for a rhythm in {:.2f} s of trace...")
+                         .format((rows[-1, 0] - rows[0, 0])), timeout=0)
+        QtWidgets.QApplication.processEvents()
+        QtWidgets.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
+        try:
+            found, covered, step = periodicity.search(rows[:, 0], rows[:, 1])
+            lines = periodicity.report(rows[:, 0], rows[:, 1], self.rhythm_header())
+        except (ValueError, MemoryError) as error:
+            QtWidgets.QApplication.restoreOverrideCursor()
+            self.show_status(self.tr("Could not search: {}").format(error), timeout=0)
+            return
+        QtWidgets.QApplication.restoreOverrideCursor()
+        print("\n".join(lines))
+
+        self.show_status(
+            self.tr("Nothing repeats in that trace") if not found
+            else self.tr("A pulse every {:.4f} ms, {:.0f} times over").format(
+                found[0].period * 1e3, found[0].repeats), timeout=0)
+
+        dialog = RepeatingPulse(lines, found, self)
+        if dialog.exec() and found:
+            # Four periods on screen, which shows the interval as an interval
+            # rather than as a single pulse with nothing to measure it against
+            self.scopeSpanSpinBox.setValue(found[0].period * 4e3)
+
+    def rhythm_header(self):
+        """What the trace being searched was, for the top of the report
+
+        The zero span step is in here because it is the one setting that
+        decides whether this search can work at all, it lives in another
+        window, and a step that has not taken effect looks from the outside
+        exactly like one that has."""
+        band = self.scopePlotWidget.band
+        asked = QtCore.QSettings().value("tap_resolution", 0, float)
+        got = getattr(self.power_thread, "tap_resolution", None)
+        return [
+            "QSpectrumAnalyzer repeating pulse search",
+            time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+            "backend {}, tune {:g}-{:g} MHz, bin size {:g} kHz, {}".format(
+                self.active_backend, self.startFreqSpinBox.value(),
+                self.stopFreqSpinBox.value(), self.binSizeSpinBox.value(),
+                self.gain_summary()),
+            "band {}".format("{:.6f}-{:.6f} MHz".format(band[0] / 1e6, band[1] / 1e6)
+                             if band else "the whole tune"),
+            "zero span step {}, {} detector{}".format(
+                "{:g} us as asked for".format(asked) if asked else "the finest, as asked for",
+                QtCore.QSettings().value("tap_detector", "peak"),
+                "" if got is None else
+                " - the tap is delivering one reading every {:.2f} us".format(got * 1e6)),
+        ]
+
     @QtCore.Slot()
     def on_scopeArmButton_clicked(self):
         """Let go of the held sweep and wait for the next burst"""
@@ -810,6 +997,7 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
             return
         level = self.scopeTriggerSpinBox.value()
         # The bottom of the range means "work it out from the trace"
+        self.scopePlotWidget.trigger_lead = self.scopePreTriggerSpinBox.value() / 100.0
         self.scopePlotWidget.set_trigger(
             "auto" if level <= self.scopeTriggerSpinBox.minimum() else level)
         self.scopePlotWidget.redraw_now(self.data_storage)
@@ -820,6 +1008,30 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         if not checked:
             self.scopePlotWidget.clear_fast()
         self.apply_scope_band()
+
+    def mark_dc_band(self, band=None):
+        """Say where the receiver's own carrier is, on both plots
+
+        Two different warnings about one place. The spectrum interpolates
+        across it, so the trace there is drawn rather than measured and the
+        shading is what says so. The band tap does not interpolate — it reads
+        raw bins — so a zero span watch over the centre has the carrier in
+        every reading at full height, which a peak detector will hold on to
+        and a trigger can sit on for ever.
+
+        Both go quiet when the tune has been offset clear of the span, which
+        is the case worth arriving at."""
+        dc = getattr(self.power_thread, "dc_band", None)
+        if band is None and self.scopeBandCheckBox.isChecked():
+            band = self.spectrumPlotWidget.band()
+
+        self.scopePlotWidget.band_at_dc = bool(
+            dc and band is not None and band[1] > band[0]
+            and min(band[1], dc[1]) > max(band[0], dc[0]))
+
+        first, last = self.display_span()
+        self.spectrumPlotWidget.set_dc_band(
+            dc if dc is not None and dc[1] > first and dc[0] < last else None)
 
     def apply_scope_band(self):
         """Point the scope, and any high rate tap, at the chosen frequencies
@@ -842,6 +1054,8 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         if band is not None and band[1] > band[0]:
             overlap = max(0.0, min(band[1], last) - max(band[0], first))
             self.scopePlotWidget.band_outside = overlap < (band[1] - band[0]) / 2
+
+        self.mark_dc_band(band)
 
         # The high rate samples are measured for whichever band was selected
         # at the time, so they cannot follow it backwards the way the trace
@@ -1071,6 +1285,118 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
             self.browse_counter = value
             self.show_browsed_sweep()
 
+    # --- the radio's two gain stages ----------------------------------
+
+    def show_gain_stages(self, stages):
+        """Offer a box per stage, or hide them for a radio with one gain"""
+        self.gain_stages = stages is not None
+        for widget in (self.label_lna, self.lnaSpinBox, self.label_vga, self.vgaSpinBox):
+            widget.setVisible(self.gain_stages)
+        if stages is not None:
+            self.set_gain_stages(*stages)
+
+    def set_gain_stages(self, lna, vga):
+        """Put the stages in their boxes without splitting the total again"""
+        for box, value in ((self.lnaSpinBox, lna), (self.vgaSpinBox, vga)):
+            box.blockSignals(True)
+            box.setValue(value)
+            box.blockSignals(False)
+        self.apply_gain()
+
+    def apply_gain(self):
+        """Push the gain controls at a radio that is already running
+
+        Gain is the control you reach for when a signal will not show, so a
+        gain control that does nothing until the run is restarted is worse
+        than none: it reads exactly like a signal that is not there. Backends
+        that cannot change gain mid-run simply do not offer set_gain, and
+        those keep the old behaviour of applying it at the next start."""
+        push = getattr(self.power_thread, "set_gain", None)
+        if push is None or not self.power_thread.alive:
+            return
+        push(gain=float(self.gainSpinBox.value()) if not self.gain_stages else None,
+             lna=int(self.lnaSpinBox.value()) if self.gain_stages else None,
+             vga=int(self.vgaSpinBox.value()) if self.gain_stages else None,
+             amp=bool(self.ampCheckBox.isChecked()))
+
+    @QtCore.Slot(bool)
+    def on_ampCheckBox_toggled(self, checked):
+        """The RF amp, which the radio can switch while it is streaming"""
+        self.apply_gain()
+
+    def backend_stage_gains(self, gain=None, lna=None, vga=None):
+        """What the backend would set the two stages to, or None for one gain"""
+        module = getattr(backends, QtCore.QSettings().value("backend", "soapy_power"),
+                         backends.soapy_power)
+        return module.Info.stage_gains(
+            self.gainSpinBox.value() if gain is None else gain, lna, vga)
+
+    @QtCore.Slot(float)
+    def on_gainSpinBox_valueChanged(self, value):
+        """A total is a request; the backend decides how it is divided"""
+        # Asked of the backend rather than of self.gain_stages: this fires
+        # while the backend is being changed, when the boxes on screen still
+        # belong to the one before it
+        stages = self.backend_stage_gains(value)
+        if stages is not None:
+            self.set_gain_stages(*stages)      # applies the gain itself
+        else:
+            self.apply_gain()
+
+    @QtCore.Slot(int)
+    def on_lnaSpinBox_valueChanged(self, value):
+        self.total_from_gain_stages()
+
+    @QtCore.Slot(int)
+    def on_vgaSpinBox_valueChanged(self, value):
+        self.total_from_gain_stages()
+
+    @QtCore.Slot()
+    def on_lnaSpinBox_editingFinished(self):
+        self.snap_gain_stages()
+
+    @QtCore.Slot()
+    def on_vgaSpinBox_editingFinished(self):
+        self.snap_gain_stages()
+
+    def snap_gain_stages(self):
+        """Round a typed stage to a step the radio has
+
+        The arrows already step by 8 and 2 dB, but a number can be typed, and
+        24 dB of VGA is not a setting the radio owns. Done when the box is
+        left rather than as it is typed, so that entering 24 does not fight
+        the 2 that appears on the way."""
+        stages = self.backend_stage_gains(lna=self.lnaSpinBox.value(),
+                                          vga=self.vgaSpinBox.value())
+        if stages is not None:
+            self.set_gain_stages(*stages)
+            self.total_from_gain_stages()
+
+    def total_from_gain_stages(self):
+        """Add the stages back up into the gain figure
+
+        Left alone while the stages are exactly what the total already asks
+        for, so that "auto" survives being looked at."""
+        split = self.backend_stage_gains()
+        stages = (self.lnaSpinBox.value(), self.vgaSpinBox.value())
+        if split is None or stages == split:
+            return
+        self.gainSpinBox.blockSignals(True)
+        self.gainSpinBox.setValue(sum(stages))
+        self.gainSpinBox.blockSignals(False)
+        self.apply_gain()
+
+    def gain_summary(self):
+        """The gain as it will reach the radio, for the top of a saved file"""
+        if self.gainSpinBox.value() < 0:
+            # The special value: the backend is left to choose, and on
+            # hackrf_sweep that is not the same as nothing
+            return "gain auto"
+        if not self.gain_stages:
+            return "gain {:g} dB".format(self.gainSpinBox.value())
+        return "gain {:g} dB (LNA {} + VGA {})".format(
+            self.gainSpinBox.value(), self.lnaSpinBox.value(), self.vgaSpinBox.value())
+
     def make_docks_scrollable(self):
         """Let a dock be shorter than the controls inside it
 
@@ -1090,8 +1416,44 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
             area.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
             # Detach before re-attaching, so the dock is never holding both
             contents.setParent(None)
-            dock.setWidget(area)
             area.setWidget(contents)
+
+            header = self.pinned_controls(dock, contents)
+            if header is None:
+                dock.setWidget(area)
+                continue
+            holder = QtWidgets.QWidget(dock)
+            column = QtWidgets.QVBoxLayout(holder)
+            column.setContentsMargins(0, 0, 0, 0)
+            column.setSpacing(0)
+            column.addWidget(header)
+            column.addWidget(area)
+            dock.setWidget(holder)
+
+    def pinned_controls(self, dock, contents):
+        """The buttons that stay on screen while the rest of the dock scrolls
+
+        Start and Stop are no use at the bottom of a scroll. By the time there
+        is a reason to stop a run it is on the plots, and the button has been
+        pushed off the end of the panel by everything that has been added
+        above it. Returns None for a dock with nothing worth pinning."""
+        if dock is not self.controlsDockWidget:
+            return None
+
+        header = QtWidgets.QWidget(dock)
+        grid = QtWidgets.QGridLayout(header)
+        # The dock's own margins, minus the bottom one, so the pinned row and
+        # the scrolling part below it line up as one panel rather than two
+        margins = contents.layout().contentsMargins()
+        grid.setContentsMargins(margins.left(), margins.top(), margins.right(), 0)
+        for button, position in ((self.startButton, (0, 0, 1, 1)),
+                                 (self.stopButton, (0, 1, 1, 1)),
+                                 (self.singleShotButton, (1, 0, 1, 2))):
+            # Out of the scrolling layout before into this one, or the cell it
+            # came from is left behind holding it
+            contents.layout().removeWidget(button)
+            grid.addWidget(button, *position)
+        return header
 
     def set_dock_size(self, dock, width, height):
         """Ugly hack for resizing QDockWidget (because it doesn't respect minimumSize / sizePolicy set in Designer)
@@ -1126,6 +1488,16 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         self.binSizeSpinBox.setValue(settings.value("bin_size", 10.0, float))
         self.intervalSpinBox.setValue(settings.value("interval", 10.0, float))
         self.gainSpinBox.setValue(settings.value("gain", 0, float))
+        # After the gain, which splits itself across the stages: these are
+        # restored only when they are not that split, so that a hand-made
+        # division survives and an untouched one does not overwrite "auto"
+        stages = self.backend_stage_gains()
+        if stages is not None:
+            stored = (settings.value("lna", stages[0], int),
+                      settings.value("vga", stages[1], int))
+            if stored != stages:
+                self.set_gain_stages(*self.backend_stage_gains(lna=stored[0], vga=stored[1]))
+                self.total_from_gain_stages()
         self.ppmSpinBox.setValue(settings.value("ppm", 0, int))
         self.cropSpinBox.setValue(settings.value("crop", 0, int))
         self.ampCheckBox.setChecked(settings.value("amp", 0, int))
@@ -1146,6 +1518,7 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         self.scopeWidthSpinBox.setValue(settings.value("scope_width", 400.0, float))
         self.scopeTriggerCheckBox.setChecked(settings.value("scope_trigger", 0, int))
         self.scopeTriggerSpinBox.setValue(settings.value("scope_trigger_level", -200.0, float))
+        self.scopePreTriggerSpinBox.setValue(settings.value("scope_pre_trigger", 10, int))
         self.scopeSingleCheckBox.setChecked(settings.value("scope_single", 0, int))
 
         # Restore window state
@@ -1182,6 +1555,8 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         settings.setValue("bin_size", self.binSizeSpinBox.value())
         settings.setValue("interval", self.intervalSpinBox.value())
         settings.setValue("gain", self.gainSpinBox.value())
+        settings.setValue("lna", self.lnaSpinBox.value())
+        settings.setValue("vga", self.vgaSpinBox.value())
         settings.setValue("ppm", self.ppmSpinBox.value())
         settings.setValue("crop", self.cropSpinBox.value())
         settings.setValue("amp", int(self.ampCheckBox.isChecked()))
@@ -1202,6 +1577,7 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         settings.setValue("scope_width", self.scopeWidthSpinBox.value())
         settings.setValue("scope_trigger", int(self.scopeTriggerCheckBox.isChecked()))
         settings.setValue("scope_trigger_level", self.scopeTriggerSpinBox.value())
+        settings.setValue("scope_pre_trigger", self.scopePreTriggerSpinBox.value())
         settings.setValue("scope_single", int(self.scopeSingleCheckBox.isChecked()))
 
         # Save window state and geometry
@@ -1466,9 +1842,9 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
             "{:g}-{:g} MHz in {:g} MHz steps, {} s on each, {} of {} tunes done".format(
                 low / 1e6, high / 1e6, survey.width / 1e6, survey.dwell,
                 min(survey.index, len(survey.edges)), len(survey.edges)),
-            "backend {}, bin size {:g} kHz, gain {:g} dB, RF amp {}".format(
+            "backend {}, bin size {:g} kHz, {}, RF amp {}".format(
                 self.active_backend, self.binSizeSpinBox.value(),
-                self.gainSpinBox.value(),
+                self.gain_summary(),
                 "on" if self.ampCheckBox.isChecked() else "off"),
             # The detector is what decides whether an empty survey means
             # anything: averaging the frames of a sweep costs a microsecond
@@ -1554,6 +1930,11 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         status = []
         self.update_sweep_rate()
         self.adapt_refresh_rate()
+        # Where the DC spike is depends on the tune the backend settled on,
+        # which it does on its own thread after the radio opens — later than
+        # anything that could have marked it at start. Cheap, and it skips
+        # the plot work itself when nothing moved.
+        self.mark_dc_band()
 
         selected = QtCore.QSettings().value("backend", "soapy_power")
         if self.active_backend and self.active_backend != selected:
@@ -1694,6 +2075,8 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
                 float(self.binSizeSpinBox.value()),
                 interval=float(self.intervalSpinBox.value()),
                 gain=float(self.gainSpinBox.value()),
+                lna=int(self.lnaSpinBox.value()) if self.gain_stages else None,
+                vga=int(self.vgaSpinBox.value()) if self.gain_stages else None,
                 ppm=int(self.ppmSpinBox.value()),
                 crop=int(self.cropSpinBox.value()) / 100.0,
                 single_shot=single_shot,
@@ -1835,6 +2218,11 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
                 bool(settings.value("levels_meter", 1, int)))
             self.apply_levels_dock()
             self.setup_power_thread()
+            # The zero span step and the tap's detector live in here, and the
+            # tap is told them when the band is pointed. Without this they wait
+            # for the next Start, which looks exactly like a setting that does
+            # nothing: the readings keep arriving at the rate they had.
+            self.apply_scope_band()
 
     @QtCore.Slot()
     def on_action_About_triggered(self):
