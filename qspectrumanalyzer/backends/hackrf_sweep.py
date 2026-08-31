@@ -48,12 +48,19 @@ class Info(BaseInfo):
         from qspectrumanalyzer.backends.hackrf_stream import Info as StreamInfo
         return StreamInfo.help_device(executable, device)
 
+    @classmethod
+    def stage_gains(cls, gain=-1, lna=None, vga=None):
+        """The LNA and VGA passed to hackrf_sweep as -l and -g"""
+        from qspectrumanalyzer.backends.hackrf_stream import Info as StreamInfo
+        return StreamInfo.stage_gains(gain, lna, vga)
+
 
 class PowerThread(BasePowerThread):
     """Thread which runs hackrf_sweep process"""
     def setup(self, start_freq=0, stop_freq=6000, bin_size=1000,
               interval=0.0, gain=40, ppm=0, crop=0, single_shot=False,
-              device=0, sample_rate=20000000, bandwidth=0, lnb_lo=0, amp=False):
+              device=0, sample_rate=20000000, bandwidth=0, lnb_lo=0, amp=False,
+              lna=None, vga=None):
         """Setup hackrf_sweep params"""
         # Small bin sizes (<40 kHz) are only suitable with an arbitrarily
         # reduced sweep interval. Bin sizes smaller than 3 kHz showed to be
@@ -71,12 +78,12 @@ class PowerThread(BasePowerThread):
         total_bandwidth = step_count * step_bandwidth
         stop_freq = start_freq + total_bandwidth
 
-        # Fill the LNA before the VGA. The LNA sets what the receiver can
-        # hear; the VGA is at baseband and lifts the noise with the signal.
-        # Shared with the streaming backend so the two agree about what a
-        # gain figure means.
-        from hackrf_stream.dsp import split_gain
-        lna_gain, vga_gain = split_gain(gain)
+        # Fill the LNA before the VGA unless the two were set apart from each
+        # other. The LNA sets what the receiver can hear; the VGA is at
+        # baseband and lifts the noise with the signal. Shared with the
+        # streaming backend so the two agree about what a gain figure means.
+        from hackrf_stream.dsp import stage_gains
+        lna_gain, vga_gain = stage_gains(gain, lna, vga)
 
         self.params = {
             "start_freq": start_freq,  # MHz
@@ -133,6 +140,16 @@ class PowerThread(BasePowerThread):
 
             print('HackRF Starting backend:')
             print(' '.join(cmdline))
+            # Only when -l/-g were passed above; without them hackrf_sweep
+            # picks its own LNA and VGA and saying otherwise would be a guess
+            if self.params["gain"] >= 0:
+                from hackrf_stream.dsp import describe_gain
+                for line in describe_gain(self.params["lna_gain"], self.params["vga_gain"],
+                                          self.params["amp"]):
+                    print('  ' + line)
+            else:
+                print('  gain not set, so hackrf_sweep chooses the LNA and VGA itself; '
+                      'RF amp {}'.format('on' if self.params["amp"] else 'off'))
             print()
             self.process = subprocess.Popen(cmdline, stdout=subprocess.PIPE,
                                             universal_newlines=False, console=False)

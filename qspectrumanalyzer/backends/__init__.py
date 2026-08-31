@@ -51,6 +51,17 @@ class BaseInfo:
         return []
 
     @classmethod
+    def stage_gains(cls, gain=-1, lna=None, vga=None):
+        """The separate analogue stages this backend would set, or None
+
+        Most radios take one gain figure and that is the end of it. A HackRF
+        has two stages that are not interchangeable, and answering here is
+        what makes the main window offer a box for each: given a total, say
+        how it would be divided; given a stage, say what the radio can
+        actually be put to."""
+        return None
+
+    @classmethod
     def covers(cls, start_freq, stop_freq, sample_rate):
         """Can this backend measure the requested range?
 
@@ -118,8 +129,13 @@ class BasePowerThread(QtCore.QThread):
         self.wait()
 
     def setup(self, start_freq, stop_freq, bin_size, interval=10.0, gain=-1, ppm=0, crop=0,
-              single_shot=False, device=0, sample_rate=2560000, bandwidth=0, lnb_lo=0):
-        """Setup power process params"""
+              single_shot=False, device=0, sample_rate=2560000, bandwidth=0, lnb_lo=0,
+              amp=False, lna=None, vga=None):
+        """Setup power process params
+
+        `lna` and `vga` are the two analogue stages of a backend whose
+        stage_gains() answers with a pair; None means take them from `gain`.
+        Backends without such stages ignore them, as they do `amp`."""
         raise NotImplementedError
 
     def process_start(self):
