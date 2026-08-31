@@ -183,6 +183,50 @@ class RedrawThrottle:
         self._last_draw = 0.0
 
 
+#: Candidate frame counts for noise_ceiling(), and the quantile ratio each
+#: one produces. Built once: it is the same table for every call.
+_CEILING_GRID = np.exp(np.linspace(0.0, np.log(4096.0), 200))
+_CEILING_RATIO = (np.log1p(-0.5 ** (1.0 / _CEILING_GRID))
+                  / np.log1p(-0.16 ** (1.0 / _CEILING_GRID)))
+
+
+def noise_ceiling(body_db, count):
+    """How high the noise on its own gets in `count` readings, in dB
+
+    A trigger level has to clear the noise's own maximum, and that maximum is
+    not a fixed number of decibels above the noise floor: it depends both on
+    how many readings there are to get lucky in and on how many frames were
+    reduced into each one. One frame of bin noise wobbles by about 6 dB from
+    its median to its 16th percentile; the peak of 25 frames wobbles by 1.3,
+    because taking the largest of 25 draws throws away most of the spread.
+    A level set at a fixed multiple of that spread is therefore wrong by tens
+    of decibels at one end of the range or the other.
+
+    So measure the shape instead of assuming it. A reading is the peak of some
+    number of exponentially distributed frames — the frames in the reading
+    times the bins in the band, and it does not matter which — and that number
+    fixes the ratio between any two of its quantiles. Read the ratio off the
+    16th and the 50th, both of which are below anything a burst does to the
+    trace, recover the frame count and the mean frame power from it, and put
+    the ceiling where the distribution says one reading in `count` will reach.
+
+    Checked against simulation for 1 to 125 frames a reading and 12,500 to
+    312,500 readings: within about a decibel throughout. A burst in the window
+    lifts it, since it lifts the median, but slowly — 4.7 dB at a duty cycle
+    of 60%, which is far more than a radar dwell ever is, and still 15 dB
+    under the burst itself."""
+    low = 10.0 ** (float(np.percentile(body_db, 16.0)) / 10.0)
+    mid = 10.0 ** (float(np.percentile(body_db, 50.0)) / 10.0)
+    if not low > 0.0 or not mid >= low:
+        return float(np.max(body_db))
+    # The ratio falls monotonically with the frame count, so interpolate on a
+    # reversed table
+    frames = float(np.interp(mid / low, _CEILING_RATIO[::-1], _CEILING_GRID[::-1]))
+    mean_frame = -low / np.log1p(-0.16 ** (1.0 / frames))
+    reach = -mean_frame * np.log1p(-(1.0 - 1.0 / max(count, 2)) ** (1.0 / frames))
+    return 10.0 * np.log10(max(reach, 1e-30))
+
+
 class ThrottledPlotWidget:
     """A plot whose redraws are coalesced by a RedrawThrottle
 
@@ -460,6 +504,7 @@ class SpectrumPlotWidget(ThrottledPlotWidget):
         self.cache_axes()
 
         self.create_band_region()
+        self.create_dc_region()
 
     def create_band_region(self):
         """The stretch of spectrum the scope pane narrows itself to
@@ -484,6 +529,35 @@ class SpectrumPlotWidget(ThrottledPlotWidget):
         """The selected frequency band, low first"""
         low, high = self.band_region.getRegion()
         return (low, high) if low <= high else (high, low)
+
+    def create_dc_region(self):
+        """Shade the bins that are interpolated rather than measured
+
+        A straight line drawn across five bins looks exactly like five bins of
+        quiet, so the one part of the trace that is not a measurement is also
+        the one part that cannot be told from one. Under everything else and
+        not draggable: it marks where the radio cannot see, it is not a
+        control."""
+        self.dc_region = pg.LinearRegionItem(brush=(255, 70, 70, 30),
+                                             movable=False)
+        self.dc_region.setZValue(-110)
+        self.dc_region.setVisible(False)
+        self.plot.addItem(self.dc_region, ignoreBounds=True)
+
+    def set_dc_band(self, band):
+        """Shade where the receiver's own carrier is, or hide it when it is
+        off screen
+
+        Hidden is the good case: it means the tune was offset far enough that
+        the spike is outside the span and no bin on screen is a guess."""
+        if band is None:
+            if self.dc_region.isVisible():
+                self.dc_region.setVisible(False)
+            return
+        if tuple(self.dc_region.getRegion()) != tuple(band):
+            self.dc_region.setRegion(band)
+        if not self.dc_region.isVisible():
+            self.dc_region.setVisible(True)
 
     def set_band(self, low, high):
         """Move the band without reporting it back as a drag"""
@@ -897,6 +971,23 @@ class ScopePlotWidget(ThrottledPlotWidget):
     #: a fraction of a second is normal; a whole second means it stopped.
     FAST_LAG_LIMIT = 1.0
 
+    #: Readings the trigger's noise statistics are taken from. They describe
+    #: the shape of the noise, not the burst, so a regular sample of the
+    #: search window is as good as all of it and costs a fraction as much.
+    LEVEL_SAMPLE = 4096
+
+    #: How far above the noise's own ceiling the automatic level sits. The
+    #: ceiling is where noise reaches about once per search window, so a level
+    #: on it fires about once per window on nothing at all; a few decibels
+    #: over turns that into a trigger that waits.
+    LEVEL_MARGIN = 3.0
+
+    #: Most points worth handing to a curve. The pane is at most a couple of
+    #: thousand pixels wide, and a sweep at the finest step holds twelve
+    #: thousand readings for a 20 ms window - so most of them are drawn on
+    #: top of each other, at full price.
+    CURVE_POINTS = 2000
+
     #: Fewest delivered sweeps worth joining up inside a sweep window. Two
     #: samples 13 ms apart joined by a straight line say nothing whatever
     #: about the 13 ms in between, and a straight line is exactly what it
@@ -934,9 +1025,18 @@ class ScopePlotWidget(ThrottledPlotWidget):
         self.trigger = None
         #: Where the last sweep was triggered, in recording coordinates
         self.trigger_time = None
+        #: What fraction of a triggered window comes before the edge. A rising
+        #: edge is the one part of a burst that says how it starts, and with
+        #: no lead at all it is the very first reading drawn — on the axis but
+        #: with nothing before it to be read against.
+        self.trigger_lead = self.TRIGGER_LEAD
         #: Set when the band being watched is not inside what the radio is
         #: tuned to, which is silent otherwise: the tap simply hears nothing
         self.band_outside = False
+        #: Set when the band sits over the centre of the tune. The tap reads
+        #: raw bins, so unlike the spectrum it is not flattened there — the
+        #: receiver's own carrier is in every reading, at full height
+        self.band_at_dc = False
         #: The lowest reading in the last search, for saying when a level is
         #: under the whole trace and so has no rising edge to find
         self.level_trough = None
@@ -959,6 +1059,12 @@ class ScopePlotWidget(ThrottledPlotWidget):
         self.armed_at = None
         #: Called with the trigger time when a single shot fires
         self.on_capture = None
+        #: Set when a single shot has just fired, so that the draw which
+        #: follows can say what it actually caught, then cleared
+        self.caught = None
+        #: The tap trace at full resolution, which is what a saved sweep is
+        #: written from - the curve itself may be holding an envelope of it
+        self.fast_points = None
         #: Time each recorded sweep sits at, counted from the epoch
         self.offsets = None
         #: What the sweep currently on screen is drawn relative to, and where
@@ -1096,6 +1202,13 @@ class ScopePlotWidget(ThrottledPlotWidget):
             return ("The band lies outside what the radio is tuned to \u2014 "
                     "move it inside the frequency range, or the range around it")
 
+        if self.band_at_dc:
+            return ("The band covers the centre of the tune, where the "
+                    "receiver's own carrier is \u2014 the tap reads raw bins, "
+                    "so that carrier is in every reading. Move the band off "
+                    "the centre, or narrow the frequency range so the tune "
+                    "steps aside")
+
         if self.trigger is not None:
             if self.single and self.captured:
                 return "Caught one \u2014 press Arm to wait for the next"
@@ -1190,15 +1303,24 @@ class ScopePlotWidget(ThrottledPlotWidget):
         if self.trigger != "auto":
             return float(self.trigger)
 
-        floor, peak = float(np.median(values)), float(np.max(values))
-        # A robust width for the noise: the 84th percentile is one standard
-        # deviation up for anything roughly bell shaped, and unlike the real
-        # standard deviation it is not dragged upwards by the burst itself
-        spread = float(np.percentile(values, 84.0)) - floor
-        # Five widths, not four: the search window holds thousands of readings
-        # and the loudest of that many samples of noise is already about four
-        # widths up, so a level at four is one the noise itself reaches
-        least = floor + max(5.0 * spread, 3.0)
+        # The peak is every reading: it is the burst being looked for, and a
+        # burst can be one reading wide. The floor and the width only describe
+        # the noise, which is the same shape in a few thousand readings as in
+        # the hundred and fifty thousand a quarter second of the tap holds -
+        # and sorting all of them, thirty times a second, for numbers that
+        # move by hundredths of a decibel between frames was the most
+        # expensive thing this pane did.
+        peak = float(np.max(values))
+        body = values[::max(1, len(values) // self.LEVEL_SAMPLE)]
+        floor = float(np.median(body))
+        # Where the noise alone gets to, worked out from the shape of the
+        # readings rather than from a multiple of their spread. The spread is
+        # not a fixed thing: it is 6 dB at one frame a reading and 1.3 dB at
+        # twenty-five, so a level set at a fixed number of spreads asks for
+        # +15 dB above the floor at the coarse end and +92 at the fine end,
+        # and the fine end can then never trigger on anything at all.
+        least = max(noise_ceiling(body, len(values)) + self.LEVEL_MARGIN,
+                    floor + 4.0)
         if peak < least:
             return None
         return max(floor + (peak - floor) * 0.5, least)
@@ -1226,9 +1348,11 @@ class ScopePlotWidget(ThrottledPlotWidget):
         if not len(rising):
             return None
 
-        # The window opens a little before the edge, so that the edge itself
-        # is on screen rather than hard against the left of it
-        lead = width * 0.1
+        # The window opens before the edge by however much the pre-trigger
+        # asks for, and the same fraction sweep_plan() draws about: an edge
+        # can only be shown with a lead if there is that much measurement
+        # behind it and a window's worth still to come after it.
+        lead = width * self.trigger_lead
         latest = self.newest - (width - lead)
         usable = rising[times[rising] <= latest]
         if after is not None:
@@ -1456,7 +1580,55 @@ class ScopePlotWidget(ThrottledPlotWidget):
         self.fast = None
         self.fast_dirty = False
         self.fast_bounds = None
+        self.fast_points = None
         self.curve_fast.clear()
+
+    def show_fast(self, x, power):
+        """Draw the high rate trace, reduced to something worth drawing
+
+        The readings are kept whole for saving and measuring; what goes to the
+        curve is their outline. A 20 ms sweep at the finest step is twelve
+        thousand readings across a pane a couple of thousand pixels wide, and
+        a whole recording is a million, so most of them are drawn on top of
+        one another at full price.
+
+        Copied, not referred to. The readings arrive as a slice of the ring
+        buffer the tap is still being written into, so a held sweep that keeps
+        the slice does not keep the measurement: the buffer comes round, writes
+        new readings into those same slots, and the sweep silently becomes
+        whatever the radio heard later. A capture would be drawn correctly,
+        report itself correctly, and then save something else entirely."""
+        x, power = np.array(x), np.array(power)
+        self.fast_points = (x, power)
+        self.curve_fast.setData(*self.envelope(x, power, self.CURVE_POINTS // 2))
+
+    @staticmethod
+    def envelope(x, y, columns):
+        """A trace reduced to its lowest and highest reading per column
+
+        What a scope does with more measurements than it has pixels. An
+        average would smooth away the pulse that is the whole reason for
+        looking, and taking every nth reading would miss it just as surely;
+        keeping both extremes of each column draws the same outline the full
+        trace does, from two points per column instead of hundreds."""
+        count = len(x)
+        if count <= columns * 2:
+            return x, y
+        per = count // columns
+        used = per * columns
+        block = y[:used].reshape(columns, per)
+        # Both points of a column sit at its middle, so the trace keeps its
+        # place on the time axis; lowest first, then highest
+        out_x = np.repeat(x[:used].reshape(columns, per)[:, per // 2], 2)
+        out_y = np.empty(columns * 2, dtype=y.dtype)
+        out_y[0::2] = block.min(axis=1)
+        out_y[1::2] = block.max(axis=1)
+        if used < count:
+            # Whatever did not divide into a column still happened, and at the
+            # end of a sweep it is the newest thing on screen
+            out_x = np.append(out_x, x[-1])
+            out_y = np.append(out_y, y[-1])
+        return out_x, out_y
 
     def draw(self, data_storage, dirty=None):
         """Redraw the power over time trace"""
@@ -1518,8 +1690,9 @@ class ScopePlotWidget(ThrottledPlotWidget):
         view_low, view_high = self.plot.vb.viewRange()[0]
         self.time_axis.configure(self.reference_time(), view_high - view_low)
 
-    #: How much of a triggered window comes before the edge, so that the rise
-    #: itself is on screen rather than hard against the left of it
+    #: How much of a triggered window comes before the edge by default, so
+    #: that the rise itself is on screen rather than hard against the left of
+    #: it. `trigger_lead` overrides it from the scope controls.
     TRIGGER_LEAD = 0.1
 
     def sweep_plan(self, span):
@@ -1536,7 +1709,7 @@ class ScopePlotWidget(ThrottledPlotWidget):
         if self.browse_offset is not None:
             return self.browse_offset, span / 2
 
-        lead = span * self.TRIGGER_LEAD
+        lead = span * self.trigger_lead
         if self.trigger is None:
             self.triggered_view = False
             return self.newest, span            # free running: now, at the right
@@ -1566,6 +1739,7 @@ class ScopePlotWidget(ThrottledPlotWidget):
         if self.single:
             self.armed = False
             self.captured = True
+            self.caught = edge
             if self.on_capture is not None:
                 self.on_capture(edge)
         self.triggered_view = True
@@ -1604,6 +1778,9 @@ class ScopePlotWidget(ThrottledPlotWidget):
             self.curve.clear()
 
         low, high = self.draw_fast_sweep(origin, start, end, low, high)
+        if self.caught is not None:
+            self.caught = None
+            self.report_capture()
         if low is not None:
             if self.level_used is not None and self.trigger is not None:
                 # Keep the level on screen, so a level set above everything is
@@ -1623,6 +1800,53 @@ class ScopePlotWidget(ThrottledPlotWidget):
             self.cursor.blockSignals(True)
             self.cursor.setValue(self.browse_offset - origin)
             self.cursor.blockSignals(False)
+
+    def report_capture(self):
+        """Say on the terminal what a single shot has just caught
+
+        A held sweep is the one measurement here that cannot simply be taken
+        again, so it is worth a line saying what was in it. The pane fills
+        itself with whatever it has, so a window holding nothing but noise
+        looks exactly like one holding a burst until the numbers are read: the
+        two that matter are how far the window's own peak stands above its
+        floor, and whether the reading that fired the trigger is in the window
+        at all, where a triggered sweep puts it at zero."""
+        x, y = self.fast_points if self.fast_points is not None else (None, None)
+        source = "the tap"
+        if x is None or y is None or not len(x):
+            x, y = self.curve.xData, self.curve.yData
+            source = "the delivered sweeps"
+        if x is None or y is None or not len(x):
+            print("scope: caught a sweep, but nothing is drawn in it")
+            return
+
+        floor, peak = float(np.median(y)), float(np.max(y))
+        if self.level_used is None:
+            where = "no level was in use"
+        else:
+            above = np.asarray(y) >= self.level_used
+            crossed = np.flatnonzero(above)
+            if not len(crossed):
+                where = "NOTHING in the window reaches the level"
+            else:
+                # How wide the thing that fired it was. One reading is a spike,
+                # and the noise makes those all day; a burst lasts. This is the
+                # number that tells a catch worth keeping from a catch worth
+                # discarding, and it cannot be read off a trace drawn to fill
+                # the pane.
+                run = 1
+                while (crossed[0] + run < len(above)) and above[crossed[0] + run]:
+                    run += 1
+                step = float(np.median(np.diff(x))) if len(x) > 1 else 0.0
+                where = ("the first reading at the level is at {:+.4f} ms and it "
+                         "stays there for {} reading{} ({:.2f} us)"
+                         .format(float(x[crossed[0]]) * 1e3, run,
+                                 "" if run == 1 else "s", run * step * 1e6))
+        print("scope: caught a sweep on {} - {} readings, floor {:+.1f} dB, peak "
+              "{:+.1f} dB ({:+.1f} above the floor), level {}, {}"
+              .format(source, len(x), floor, peak, peak - floor,
+                      "{:+.1f} dB".format(self.level_used)
+                      if self.level_used is not None else "none", where))
 
     def draw_fast_sweep(self, origin, start, end, low, high):
         """Draw the high rate trace across this sweep, and widen the bounds
@@ -1644,7 +1868,7 @@ class ScopePlotWidget(ThrottledPlotWidget):
             return low, high
 
         power = rows[first:last, 1]
-        self.curve_fast.setData(stamps[first:last] - self.epoch - origin, power)
+        self.show_fast(stamps[first:last] - self.epoch - origin, power)
         bottom, top = float(np.min(power)), float(np.max(power))
         if low is None:
             return bottom, top
@@ -1667,6 +1891,9 @@ class ScopePlotWidget(ThrottledPlotWidget):
         traces = []
         for name, curve in (("sweep", self.curve), ("tap", self.curve_fast)):
             x, y = curve.xData, curve.yData
+            if name == "tap" and self.fast_points is not None and x is not None:
+                # What the curve is drawing is an outline of these
+                x, y = self.fast_points
             if x is not None and y is not None and len(x):
                 traces.append((name, np.asarray(x), np.asarray(y)))
         if not traces:
@@ -1717,7 +1944,7 @@ class ScopePlotWidget(ThrottledPlotWidget):
                 return low, high
 
             power = samples[first:, 1]
-            self.curve_fast.setData(samples[first:, 0] - self.epoch, power)
+            self.show_fast(samples[first:, 0] - self.epoch, power)
             self.fast_bounds = (float(np.min(power)), float(np.max(power)))
 
         if self.fast_bounds is None:
