@@ -1076,6 +1076,10 @@ class ScopePlotWidget(ThrottledPlotWidget):
         self.on_span_changed = None
         #: (time, power) read off the radio's frames, when a backend can
         self.fast = None
+        #: The clock time the tap's readings are counted from. Zero means they
+        #: are already on the wall clock, which is what a backend that does not
+        #: say otherwise is taken to mean.
+        self.fast_epoch = 0.0
         self.fast_dirty = False
         self.fast_bounds = None
         #: What time zero on the axis means. Fixed for the run, so that the
@@ -1273,9 +1277,10 @@ class ScopePlotWidget(ThrottledPlotWidget):
 
         if self.fast is not None and self.fast.history_size and self.epoch is not None:
             rows = self.fast.get_buffer()
-            first = int(np.searchsorted(rows[:, 0], oldest + self.epoch, side="left"))
+            shift = self.fast_shift
+            first = int(np.searchsorted(rows[:, 0], oldest - shift, side="left"))
             if len(rows) - first > 2:
-                return rows[first:, 0] - self.epoch, rows[first:, 1]
+                return rows[first:, 0] + shift, rows[first:, 1]
 
         if self.times is None or self.trace is None:
             return None, None
@@ -1566,10 +1571,38 @@ class ScopePlotWidget(ThrottledPlotWidget):
         self.trace_bins = bins
         self.trace_counter = history.counter
 
-    def add_fast_samples(self, samples):
-        """Add band power read off the radio's frames, as (time, power) rows"""
+    @property
+    def fast_shift(self):
+        """Seconds to add to a tap reading to put it on the recording's clock
+
+        The tap counts from when its stream began and the recording counts
+        from its first sweep, so the two need one constant between them. It is
+        applied to a window's edges rather than to every reading, which is the
+        whole point: seconds since 1970 in a float are quantised to 0.24 us,
+        and a tap reading is 0.8 us wide. Shifting by a quantised constant
+        moves the whole trace by up to a quarter of a microsecond and leaves
+        the spacing between readings exact; stamping each reading on that
+        clock would not."""
+        return self.fast_epoch - (self.epoch or 0.0)
+
+    def add_fast_samples(self, samples, epoch=None):
+        """Add band power read off the radio's frames, as (time, power) rows
+
+        `epoch` is the clock time those times are counted from; None means
+        they are already on the wall clock. A stream that restarts counts from
+        a new zero, so whatever was gathered before it belongs to a different
+        clock and is dropped rather than drawn in the wrong place."""
         if samples is None or not len(samples):
             return
+        # None leaves the clock as it is rather than resetting it: a backend
+        # that never names one keeps the wall clock it started with, and one
+        # that has not opened its radio yet is not a reason to throw away what
+        # has already been gathered
+        if epoch is not None and float(epoch) != self.fast_epoch:
+            self.fast = None
+            self.fast_bounds = None
+            self.fast_points = None
+            self.fast_epoch = float(epoch)
         if self.fast is None:
             self.fast = HistoryBuffer(2, self.FAST_CAPACITY, dtype=np.float64)
         self.fast.extend(samples)
@@ -1668,7 +1701,7 @@ class ScopePlotWidget(ThrottledPlotWidget):
         like the tap not working — so the window ends where both have data."""
         if self.fast is None or not self.fast.history_size or self.epoch is None:
             return recorded
-        tip = float(self.fast.get_buffer()[-1, 0] - self.epoch)
+        tip = float(self.fast.get_buffer()[-1, 0] + self.fast_shift)
         if 0.0 < recorded - tip < self.FAST_LAG_LIMIT:
             return tip
         return recorded
@@ -1861,14 +1894,15 @@ class ScopePlotWidget(ThrottledPlotWidget):
 
         rows = self.fast.get_buffer()
         stamps = rows[:, 0]
-        first = int(np.searchsorted(stamps, start + self.epoch, side="left"))
-        last = int(np.searchsorted(stamps, end + self.epoch, side="right"))
+        shift = self.fast_shift
+        first = int(np.searchsorted(stamps, start - shift, side="left"))
+        last = int(np.searchsorted(stamps, end - shift, side="right"))
         if last - first < 1:
             self.curve_fast.clear()
             return low, high
 
         power = rows[first:last, 1]
-        self.show_fast(stamps[first:last] - self.epoch - origin, power)
+        self.show_fast(stamps[first:last] + shift - origin, power)
         bottom, top = float(np.min(power)), float(np.max(power))
         if low is None:
             return bottom, top
@@ -1937,14 +1971,15 @@ class ScopePlotWidget(ThrottledPlotWidget):
             # Only the stretch the recording also reaches back to, so that the
             # two traces agree about what the time axis covers. They are in
             # time order, so this is a slice rather than a search of all of them
-            first = int(np.searchsorted(samples[:, 0], oldest, side="left"))
+            first = int(np.searchsorted(samples[:, 0], oldest - self.fast_epoch,
+                                        side="left"))
             if first >= len(samples):
                 self.curve_fast.clear()
                 self.fast_bounds = None
                 return low, high
 
             power = samples[first:, 1]
-            self.show_fast(samples[first:, 0] - self.epoch, power)
+            self.show_fast(samples[first:, 0] + self.fast_shift, power)
             self.fast_bounds = (float(np.min(power)), float(np.max(power)))
 
         if self.fast_bounds is None:

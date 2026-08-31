@@ -578,8 +578,20 @@ class PowerThread(BasePowerThread):
             return None
         return self.source.band_resolution
 
+    @property
+    def tap_epoch(self):
+        """The clock time the band readings are counted from, or None
+
+        They are counted from the start of the stream rather than stamped on
+        the wall clock, because a float holding seconds since 1970 cannot
+        resolve better than 0.24 us in this decade and the readings are 0.8 us
+        apart. The display keeps the two apart and adds this once per window."""
+        return self.source.stream_start if self.source is not None else None
+
     def take_band_power(self):
-        """Band samples gathered since the last call, as (time, power) rows"""
+        """Band samples gathered since the last call, as (time, power) rows
+
+        Times are seconds from tap_epoch, not from the epoch."""
         if self.source is None:
             return None
         return self.source.take_band_power()

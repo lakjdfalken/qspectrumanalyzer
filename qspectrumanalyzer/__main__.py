@@ -1110,7 +1110,8 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
             return
         samples = take()
         if samples is not None:
-            self.scopePlotWidget.add_fast_samples(samples)
+            self.scopePlotWidget.add_fast_samples(
+                samples, getattr(self.power_thread, "tap_epoch", None))
             self.scopePlotWidget.throttle.schedule("plot", self.data_storage)
 
     def display_span(self):
