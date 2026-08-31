@@ -26,21 +26,29 @@ a dwell before moving on, rather than sweeping across the lot.
 Why the settings matter more than the sweeping
 ----------------------------------------------
 
-What a 1 us pulse reads as, by bin size and detector:
+What a 1 us pulse reads as, by bin size and detector. The frame count is not
+held constant here, because the application does not hold it constant: it
+keeps one delivered sweep at 665.6 us however fine the bins are, so 40 kHz
+bins average 26 frames and 1250 kHz bins average 832.
 
-    40 kHz bins, mean of 26 frames    frame 25.6 us    -28.2 dB
-    625 kHz bins, mean of 26 frames   frame  1.6 us    -16.2 dB
-    40 kHz bins, peak of 26 frames    frame 25.6 us    -14.1 dB
-    625 kHz bins, peak of 26 frames   frame  1.6 us     -2.0 dB
+    bins        frame      frames/sweep    mean       peak
+    40 kHz      25.6 us         26        -28.2 dB   -14.1 dB
+    625 kHz      1.6 us        416        -28.2 dB    -2.0 dB
+    1250 kHz     0.8 us        832        -28.2 dB     0.0 dB
 
-Two settings, 26 dB between them:
+Read the mean column again: **it does not move.** A mean spreads the pulse
+over the whole sweep, and the sweep is 665.6 us whatever the bins are, so the
+loss is 10*log10(665.6/1) and the bin size cannot touch it. Every decibel the
+bin size is worth is a decibel it is worth *to the peak detector*.
 
-* **Bin size** sets the frame length, and a pulse shorter than a frame is
-  spread across the whole of it. Coarser bins mean shorter frames.
 * **Sweep detector** (Settings) decides how the frames making up one delivered
   sweep are combined. *Average* pulls the noise floor down and is right for a
   signal that is always there. *Peak* keeps the loudest frame, so a pulse
-  survives at its own height.
+  survives at its own height. Choose this first: nothing else in this section
+  matters until it is on peak.
+* **Bin size** sets the frame length, and a pulse shorter than a frame is
+  spread across the whole of it. Coarser bins mean shorter frames, and 28 dB
+  of the 28 dB below is bin size — but only once the detector is peak.
 
 An empty survey taken with 40 kHz bins and the average detector says nothing
 about pulsed signals. The header of every survey file records which was used,
