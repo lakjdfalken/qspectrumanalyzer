@@ -544,6 +544,17 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
             self.intervalSpinBox.setMinimum(backend_module.Info.interval_min)
             self.intervalSpinBox.setMaximum(backend_module.Info.interval_max)
             self.intervalSpinBox.setValue(backend_module.Info.interval)
+            # A backend that fixes these at zero cannot use them at all -
+            # hackrf_stream does, because it never sweeps tiles together and
+            # has no crystal correction to apply - so they go rather than sit
+            # there looking adjustable
+            for box, info in ((self.ppmSpinBox, backend_module.Info.ppm_max
+                               != backend_module.Info.ppm_min),
+                              (self.cropSpinBox, backend_module.Info.crop_max
+                               != backend_module.Info.crop_min)):
+                box.setVisible(info)
+                buddy = self.label_5 if box is self.ppmSpinBox else self.label_7
+                buddy.setVisible(info)
             self.ppmSpinBox.setMinimum(backend_module.Info.ppm_min)
             self.ppmSpinBox.setMaximum(backend_module.Info.ppm_max)
             self.ppmSpinBox.setValue(backend_module.Info.ppm)
@@ -1658,7 +1669,8 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
     #: what was recorded, and last the things that only change the drawing.
     PANEL_ORDER = ("runButton", "singleShotButton", "presetGroupBox",
                    "frequencyGroupBox", "receiverGroupBox", "scopeGroupBox",
-                   "historyGroupBox", "plotsGroupBox", "displayGroupBox")
+                   "plotsGroupBox", "historyGroupBox", "displayGroupBox",
+                   "readoutGroupBox")
 
     def consolidate_docks(self):
         """One panel instead of three, and the levels off on their own
@@ -1680,10 +1692,16 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         frequency.setObjectName("frequencyGroupBox")
         inner = QtWidgets.QVBoxLayout(frequency)
         inner.setContentsMargins(0, 0, 0, 0)
+        # The stretch that filled the bottom of its dock has no job in a group
+        # box among others: it only opens a gap under the survey button
+        form = contents.layout()
+        for i in reversed(range(form.count())):
+            if form.itemAt(i).spacerItem() is not None:
+                form.takeAt(i)
         contents.setParent(None)
         inner.addWidget(contents)
 
-        moved = [frequency]
+        moved = [frequency, self.readout_box]
         adjustments = self.settingsDockWidget.widget().layout()
         for i in reversed(range(adjustments.count())):
             widget = adjustments.itemAt(i).widget()
@@ -1754,21 +1772,10 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
             caption.setWordWrap(True)
             form.addRow(caption, value)
             self.readout[name] = value
-        # A QFormLayout, so a full-width row is addRow() with one argument -
-        # addWidget() there takes no position at all and raises. The stretch
-        # at the bottom of the panel has to be taken out and put back after,
-        # or it stays above the readout and pushes it to the floor of the
-        # dock with a hand's width of nothing in between.
-        layout = self.frequencyDockWidgetContents.layout()
-        stretch = None
-        for i in reversed(range(layout.count())):
-            if layout.itemAt(i).spacerItem() is not None:
-                stretch = layout.takeAt(i)
-                break
-        layout.addRow(box)
-        if stretch is not None:
-            layout.setItem(layout.rowCount(),
-                           QtWidgets.QFormLayout.ItemRole.SpanningRole, stretch)
+        # Left unparented; consolidate_docks() puts it at the foot of the
+        # panel, because it is a thing to look at rather than a thing to
+        # reach for and belongs under everything it is derived from
+        box.setObjectName("readoutGroupBox")
         self.readout_box = box
 
         for widget in (self.startFreqSpinBox, self.stopFreqSpinBox, self.binSizeSpinBox,
