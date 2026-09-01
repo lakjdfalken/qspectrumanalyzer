@@ -1287,15 +1287,14 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
     def apply_levels_dock(self):
         """The waterfall's level meter belongs on screen only with the waterfall
 
-        It can be hidden but never shown from here once it is floating. A
-        floating window carries a close button and a View entry, so putting it
-        back on screen is the operator's business; doing it for them means a
-        window they closed reappears at every launch and every waterfall
-        toggle, and neither the button nor the menu appears to work."""
-        wanted = (self.waterfallCheckBox.isChecked()
-                  and bool(QtCore.QSettings().value("levels_meter", 1, int)))
-        if not wanted or not self.levelsDockWidget.isFloating():
-            self.levelsDockWidget.setVisible(wanted)
+        Hidden altogether when there is no waterfall to colour, or when the
+        setting says not to have one. Whether it is folded shut the rest of
+        the time is its owner's business, and is remembered separately."""
+        box = self.findChild(QtWidgets.QGroupBox, "levelsGroupBox")
+        if box is None:
+            return
+        box.setVisible(self.waterfallCheckBox.isChecked()
+                       and bool(QtCore.QSettings().value("levels_meter", 1, int)))
 
     def apply_plot_visibility(self):
         """Put the panes where the checkboxes say
@@ -1683,7 +1682,7 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
     PANEL_ORDER = ("runButton", "singleShotButton", "presetGroupBox",
                    "frequencyGroupBox", "plotsGroupBox", "receiverGroupBox",
                    "scopeGroupBox", "historyGroupBox", "displayGroupBox",
-                   "readoutGroupBox")
+                   "levelsGroupBox", "readoutGroupBox")
 
     def consolidate_docks(self):
         """One panel instead of three, and the levels off on their own
@@ -1714,7 +1713,19 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         contents.setParent(None)
         inner.addWidget(contents)
 
-        moved = [frequency, self.readout_box]
+        # The levels meter belongs beside the drawing it colours, and folds
+        # like everything else - a better switch than a floating window that
+        # has to be found before it can be closed
+        levels = QtWidgets.QGroupBox(self.tr("Levels"))
+        levels.setObjectName("levelsGroupBox")
+        holder = QtWidgets.QVBoxLayout(levels)
+        holder.setContentsMargins(2, 2, 2, 2)
+        meter = self.levelsDockWidget.widget()
+        meter.setParent(None)
+        meter.setMinimumHeight(90)
+        holder.addWidget(meter)
+
+        moved = [frequency, self.readout_box, levels]
         adjustments = self.settingsDockWidget.widget().layout()
         for i in reversed(range(adjustments.count())):
             widget = adjustments.itemAt(i).widget()
@@ -1744,30 +1755,20 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         # finds among the window's children, so a layout saved when these held
         # something would raise two empty frames from the dead - which is
         # exactly what happened. With no parent they are not found.
-        for dock in (self.frequencyDockWidget, self.settingsDockWidget):
+        for dock in (self.frequencyDockWidget, self.settingsDockWidget,
+                     self.levelsDockWidget):
             self.removeDockWidget(dock)
             dock.hide()
             dock.setParent(None)
         self.controlsDockWidget.setWindowTitle(self.tr("Controls"))
 
-        # A floating panel with no close button can only be dismissed from a
-        # menu you have to know about. The .ui gives these docks Floatable and
-        # Movable and stops there.
-        self.levelsDockWidget.setFeatures(
-            self.levelsDockWidget.features()
-            | QtWidgets.QDockWidget.DockWidgetFeature.DockWidgetClosable)
 
-        # Floated and hidden by the migration below rather than here, so that
-        # once someone has put it back it stays put
-        view = self.menubar.addMenu(self.tr("&View"))
-        view.addAction(self.levelsDockWidget.toggleViewAction())
-        self.levelsDockWidget.visibilityChanged.connect(self.place_levels_window)
 
     #: Groups worth folding away. The scope and the readout are the tall ones
     #: and the ones you stop needing once they are set; Looking for and
     #: Frequency are short and always in use, so they stay put.
     FOLDABLE = ("scopeGroupBox", "readoutGroupBox", "displayGroupBox",
-                "historyGroupBox", "receiverGroupBox")
+                "levelsGroupBox", "historyGroupBox", "receiverGroupBox")
 
     def make_foldable(self):
         """Let the tall groups be folded shut
@@ -1801,32 +1802,15 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         for child in inner:
             child.setVisible(open_)
         box.setFlat(not open_)
+        # Hiding the contents is not enough: the frame keeps the height its
+        # layout still wants, so a shut group leaves an empty box under its
+        # own title. Pinned to the title's height instead, and let go again
+        # when it opens.
+        if open_:
+            box.setMaximumHeight(16777215)
+        else:
+            box.setMaximumHeight(box.fontMetrics().height() + 14)
         QtCore.QSettings().setValue("open_" + name, int(open_))
-
-    def place_levels_window(self, visible):
-        """Keep the floating levels meter somewhere it can be reached
-
-        A dock floated by code lands where Qt puts it, and on a first show
-        that is the top left corner of the screen - underneath the menu bar
-        on a Mac, where it cannot be grabbed, moved or closed. Which looks
-        exactly like a View item that does nothing.
-
-        Only ever nudged when it is somewhere it should not be, so a window
-        the operator has put where they want it stays there."""
-        dock = self.levelsDockWidget
-        if not visible or not dock.isFloating():
-            return
-        screen = self.screen() or QtWidgets.QApplication.primaryScreen()
-        if screen is None:
-            return
-        room = screen.availableGeometry()
-        where = dock.frameGeometry()
-        if room.contains(where):
-            return
-        dock.move(max(room.left() + 8,
-                      min(self.frameGeometry().right() - where.width() - 24,
-                          room.right() - where.width() - 8)),
-                  max(room.top() + 8, self.frameGeometry().top() + 56))
 
     def build_readout(self):
         """A panel saying what the settings actually come to
@@ -2037,7 +2021,7 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
 
         # A layout saved when these were three docks would put the old ones
         # back, so it goes rather than fighting the consolidation
-        if settings.value("config_version", 1, int) < 4:
+        if settings.value("config_version", 1, int) < 5:
             settings.remove("window_state")
         # Restore window state
         if settings.value("window_state"):
@@ -2049,16 +2033,14 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         # Migration from older versions of the config file. Read the version
         # once: a step that writes it back stops every later step running.
         version = settings.value("config_version", 1, int)
-        if version < 4:
+        if version < 5:
             # The panels are one dock now, so the tabbing that version 2 did
             # has nothing left to tab. The levels meter is for choosing
             # waterfall colours, which is not done mid-hunt, so it goes off to
             # one side and the View menu brings it back.
-            self.levelsDockWidget.setFloating(True)
-            self.levelsDockWidget.hide()
             self.set_dock_size(self.controlsDockWidget, 0, 0)
-        if version < 4:
-            settings.setValue("config_version", 4)
+        if version < 5:
+            settings.setValue("config_version", 5)
 
         # Window geometry has to be restored only after show(), because initial
         # maximization doesn't work otherwise (at least not in some window managers on X11)
