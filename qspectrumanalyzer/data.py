@@ -312,6 +312,13 @@ class DataStorage(QtCore.QObject):
         # Emit signal only when we have valid data
         self.baseline_updated.emit(self)
 
+        # A file that yielded nothing - the wrong format, or no readings in it -
+        # would otherwise leave the box ticked with nothing behind it. update()
+        # then quietly subtracts nothing at all, and the only way to find out
+        # is to notice that the trace never moved.
+        if toggle and baseline is None:
+            print("No baseline in {}, so nothing is being subtracted".format(baseline_file))
+            toggle = False
         self.subtract_baseline = toggle
 
         # Only recalculate if we have valid data
