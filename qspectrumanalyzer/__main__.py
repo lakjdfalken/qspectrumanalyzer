@@ -1667,20 +1667,38 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         form = QtWidgets.QFormLayout(box)
         form.setContentsMargins(9, 6, 9, 6)
         form.setVerticalSpacing(3)
-        form.setLabelAlignment(QtCore.Qt.AlignLeft)
+        form.setLabelAlignment(QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter)
+        form.setFieldGrowthPolicy(QtWidgets.QFormLayout.FieldsStayAtSizeHint)
+        form.setHorizontalSpacing(12)
         mono = QtGui.QFontDatabase.systemFont(QtGui.QFontDatabase.FixedFont)
+        mono.setPointSizeF(max(8.0, mono.pointSizeF() - 1.0))
+        small = box.font()
+        small.setPointSizeF(max(8.0, small.pointSizeF() - 1.0))
         for name in self.READOUT:
             value = QtWidgets.QLabel("\u2013")
             value.setFont(mono)
             value.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
             value.setTextInteractionFlags(QtCore.Qt.TextSelectableByMouse)
             caption = QtWidgets.QLabel(name)
+            caption.setFont(small)
             caption.setWordWrap(True)
             form.addRow(caption, value)
             self.readout[name] = value
         # A QFormLayout, so a full-width row is addRow() with one argument -
-        # addWidget() there takes no position at all and raises
-        self.frequencyDockWidgetContents.layout().addRow(box)
+        # addWidget() there takes no position at all and raises. The stretch
+        # at the bottom of the panel has to be taken out and put back after,
+        # or it stays above the readout and pushes it to the floor of the
+        # dock with a hand's width of nothing in between.
+        layout = self.frequencyDockWidgetContents.layout()
+        stretch = None
+        for i in reversed(range(layout.count())):
+            if layout.itemAt(i).spacerItem() is not None:
+                stretch = layout.takeAt(i)
+                break
+        layout.addRow(box)
+        if stretch is not None:
+            layout.setItem(layout.rowCount(),
+                           QtWidgets.QFormLayout.ItemRole.SpanningRole, stretch)
         self.readout_box = box
 
         for widget in (self.startFreqSpinBox, self.stopFreqSpinBox, self.binSizeSpinBox,
