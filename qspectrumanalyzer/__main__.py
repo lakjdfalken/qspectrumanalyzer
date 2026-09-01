@@ -21,6 +21,11 @@ from qspectrumanalyzer.baseline import QSpectrumAnalyzerBaseline
 
 from qspectrumanalyzer.ui_qspectrumanalyzer import Ui_QSpectrumAnalyzerMainWindow
 
+try:
+    import hackrf_stream
+except ImportError:                       # the readout is the only thing that wants it
+    hackrf_stream = None
+
 debug = False
 
 # Allow CTRL+C and/or SIGTERM to kill us (PyQt blocks it otherwise)
@@ -410,6 +415,7 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         self.pane_heights = {}
 
         self.make_docks_scrollable()
+        self.build_readout()
         self.wheel_guard = guard_against_the_wheel(self)
 
         # Create progress bar
@@ -1502,6 +1508,115 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
             contents.layout().removeWidget(button)
             grid.addWidget(button, *position)
         return header
+
+    #: What the settings above it come to, in the order the signal takes:
+    #: the FFT, then one frame, then the sweep the frames make, then what is
+    #: on screen, then the zero span tap, then where the radio will point.
+    READOUT = ("FFT length", "Bin size, actual", "Frame \u2014 1 \u00f7 bin",
+               "Frames per sweep", "Sweep covers", "Bins on screen",
+               "Frames per reading", "Bins in the band", "Tune centre",
+               "Scope band sits at", "\u00bc / \u00be wave whip")
+
+    def build_readout(self):
+        """A panel saying what the settings actually come to
+
+        Every number here is derived from controls that are already on screen,
+        and every one of them cost an hour tonight by being invisible: a bin
+        size is a frame length, a frame length is what a pulse shorter than it
+        gets spread over, a recording depth is a number of seconds. The
+        controls ask for one thing and the radio does another - 2500 kHz bins
+        are 1250, a 6 MHz span is tuned from 3.75 MHz below its middle - and
+        until now the only place that was written down was the startup block,
+        after the run had already begun.
+
+        Built here rather than in the .ui because it is all labels: there is
+        nothing to lay out in Designer and nothing for anyone to click."""
+        self.readout = {}
+        box = QtWidgets.QGroupBox(self.tr("What these settings mean"))
+        form = QtWidgets.QFormLayout(box)
+        form.setContentsMargins(9, 6, 9, 6)
+        form.setVerticalSpacing(3)
+        form.setLabelAlignment(QtCore.Qt.AlignLeft)
+        mono = QtGui.QFontDatabase.systemFont(QtGui.QFontDatabase.FixedFont)
+        for name in self.READOUT:
+            value = QtWidgets.QLabel("\u2013")
+            value.setFont(mono)
+            value.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
+            value.setTextInteractionFlags(QtCore.Qt.TextSelectableByMouse)
+            caption = QtWidgets.QLabel(name)
+            caption.setWordWrap(True)
+            form.addRow(caption, value)
+            self.readout[name] = value
+        layout = self.frequencyDockWidgetContents.layout()
+        layout.addWidget(box, layout.rowCount(), 0, 1, 2)
+        self.readout_box = box
+
+        for widget in (self.startFreqSpinBox, self.stopFreqSpinBox, self.binSizeSpinBox,
+                       self.scopeCentreSpinBox, self.scopeWidthSpinBox):
+            widget.valueChanged.connect(self.update_readout)
+        self.update_readout()
+
+    def update_readout(self):
+        """Work the settings through, the way the backend will"""
+        if hackrf_stream is None or not hasattr(self, "readout"):
+            return
+        show = dict.fromkeys(self.READOUT, "\u2013")
+        try:
+            rate = self.tune_width()
+            bin_hz = max(1.0, self.binSizeSpinBox.value() * 1e3)
+            low = self.startFreqSpinBox.value() * 1e6
+            high = self.stopFreqSpinBox.value() * 1e6
+            n = hackrf_stream.fast_fft_size(rate, bin_hz)
+            actual = rate / n
+            frame = n / rate
+            # frames_averaged(): one sweep holds the same 665.6 us however
+            # fine the bins are, so the count moves and the duration does not
+            avg = max(1, int(round(26 * 512 / 20e6 * rate / n)))
+            span = max(0.0, high - low)
+            guard = max((hackrf_stream.dc_spike_bins("hann") + 1) * actual, 0.002 * rate)
+            usable = hackrf_stream.baseband_filter_bw(0.75 * rate)
+            tune = hackrf_stream.offset_tune(low, high, rate, guard, usable=usable)
+            centred = tune is None
+            if centred:
+                tune = (low + high) / 2.0
+            step = QtCore.QSettings().value("tap_resolution", 0.0, float) * 1e-6
+            band = self.scopeWidthSpinBox.value() * 1e3
+
+            show["FFT length"] = "{} point".format(n)
+            show["Bin size, actual"] = self.as_hz(actual)
+            show["Frame \u2014 1 \u00f7 bin"] = self.as_seconds(frame)
+            show["Frames per sweep"] = "{:,}".format(avg)
+            show["Sweep covers"] = self.as_seconds(avg * frame)
+            show["Bins on screen"] = "{:,}".format(max(1, int(round(span / actual))))
+            show["Frames per reading"] = "{:,}".format(
+                max(1, int(round(step / frame))) if step else 1)
+            show["Bins in the band"] = "{:,}".format(max(1, int(round(band / actual))))
+            show["Tune centre"] = "{:.3f} MHz{}".format(
+                tune / 1e6, "" if not centred else self.tr(" (centred)"))
+            show["Scope band sits at"] = "{:+.2f} MHz".format(
+                (self.scopeCentreSpinBox.value() * 1e6 - tune) / 1e6)
+            middle = (low + high) / 2.0
+            if middle > 0:
+                quarter = 0.95 * 299792458.0 / middle / 4.0
+                show["\u00bc / \u00be wave whip"] = "{:.0f} / {:.0f} mm".format(
+                    quarter * 1e3, quarter * 3e3)
+        except (ValueError, ZeroDivisionError, OverflowError):
+            pass
+        for name, text in show.items():
+            self.readout[name].setText(text)
+
+    @staticmethod
+    def as_hz(hz):
+        """A frequency in the unit that makes it readable"""
+        return ("{:.2f} MHz".format(hz / 1e6) if hz >= 1e6
+                else "{:.2f} kHz".format(hz / 1e3))
+
+    @staticmethod
+    def as_seconds(seconds):
+        """A duration in the unit that makes it readable"""
+        for scale, unit in ((1.0, "s"), (1e-3, "ms"), (1e-6, "\u00b5s"), (1e-9, "ns")):
+            if seconds >= scale or scale == 1e-9:
+                return "{:.4g} {}".format(seconds / scale, unit)
 
     def set_dock_size(self, dock, width, height):
         """Ugly hack for resizing QDockWidget (because it doesn't respect minimumSize / sizePolicy set in Designer)
