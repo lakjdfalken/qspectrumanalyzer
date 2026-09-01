@@ -1680,8 +1680,8 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
     #: for, where to point the radio, what it hears with, what to do with it,
     #: what was recorded, and last the things that only change the drawing.
     PANEL_ORDER = ("runButton", "singleShotButton", "presetGroupBox",
-                   "frequencyGroupBox", "receiverGroupBox", "scopeGroupBox",
-                   "plotsGroupBox", "historyGroupBox", "displayGroupBox",
+                   "frequencyGroupBox", "plotsGroupBox", "receiverGroupBox",
+                   "scopeGroupBox", "historyGroupBox", "displayGroupBox",
                    "readoutGroupBox")
 
     def consolidate_docks(self):
