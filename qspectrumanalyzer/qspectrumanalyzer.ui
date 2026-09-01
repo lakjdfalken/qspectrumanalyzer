@@ -123,17 +123,13 @@
        </layout>
       </widget>
      </item>
-     <item row="1" column="0">
-      <widget class="QPushButton" name="startButton">
+     <item row="1" column="0" colspan="2">
+      <widget class="QPushButton" name="runButton">
+       <property name="toolTip">
+        <string>Start measuring, or stop a run that is going. The button says which it will do. Stopping leaves everything recorded on screen; starting again begins a new recording.</string>
+       </property>
        <property name="text">
         <string>&amp;Start</string>
-       </property>
-      </widget>
-     </item>
-     <item row="1" column="1">
-      <widget class="QPushButton" name="stopButton">
-       <property name="text">
-        <string>S&amp;top</string>
        </property>
       </widget>
      </item>
@@ -244,7 +240,7 @@
            <string>Show power over time under the waterfall: the recording along its other axis, so the shape a signal has in time is on screen beside the sweep being looked at. Stepping through the recorded sweeps moves a cursor along it, and dragging that cursor steps to a moment. A signal that comes back every so often shows as evenly spaced spikes.</string>
           </property>
           <property name="text">
-           <string>Power over time (scope)</string>
+           <string>Power over &amp;time (scope)</string>
           </property>
          </widget>
         </item>
@@ -1127,8 +1123,7 @@
  </customwidgets>
  <tabstops>
   <tabstop>presetComboBox</tabstop>
-  <tabstop>startButton</tabstop>
-  <tabstop>stopButton</tabstop>
+  <tabstop>runButton</tabstop>
   <tabstop>singleShotButton</tabstop>
   <tabstop>browseHistoryCheckBox</tabstop>
   <tabstop>historyBackButton</tabstop>

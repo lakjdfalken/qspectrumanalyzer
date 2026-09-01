@@ -5,7 +5,7 @@ from PySide6 import QtCore, QtGui, QtWidgets
 from qspectrumanalyzer import backends
 from qspectrumanalyzer.data import HistoryBuffer
 from qspectrumanalyzer.plot import ScopePlotWidget
-from qspectrumanalyzer.utils import human_time
+from qspectrumanalyzer.utils import guard_against_the_wheel, human_time
 
 from qspectrumanalyzer.ui_qspectrumanalyzer_settings import Ui_QSpectrumAnalyzerSettings
 from qspectrumanalyzer.ui_qspectrumanalyzer_settings_help import Ui_QSpectrumAnalyzerSettingsHelp
@@ -30,6 +30,7 @@ class QSpectrumAnalyzerSettings(QtWidgets.QDialog, Ui_QSpectrumAnalyzerSettings)
         self.antialiasCheckBox.setChecked(settings.value("antialias", 1, int))
         self.levelsMeterCheckBox.setChecked(settings.value("levels_meter", 1, int))
         self.tapResolutionSpinBox.setValue(settings.value("tap_resolution", 0, float))
+        self.wheel_guard = guard_against_the_wheel(self)
         self.huntPulseSpinBox.setValue(settings.value("hunt_pulse_us", 0.0, float))
         self.tapDetectorComboBox.setCurrentIndex(
             {"peak": 0, "mean": 1, "total": 2}.get(

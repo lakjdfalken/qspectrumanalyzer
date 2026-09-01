@@ -11,7 +11,7 @@ from qspectrumanalyzer.data import DataStorage
 from qspectrumanalyzer import findings, periodicity
 from qspectrumanalyzer.plot import (ScopePlotWidget, SpectrumPlotWidget,
                                     WaterfallPlotWidget)
-from qspectrumanalyzer.utils import str_to_color, human_time
+from qspectrumanalyzer.utils import guard_against_the_wheel, str_to_color, human_time
 
 from qspectrumanalyzer.settings import QSpectrumAnalyzerSettings
 from qspectrumanalyzer.smoothing import QSpectrumAnalyzerSmoothing
@@ -410,6 +410,7 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         self.pane_heights = {}
 
         self.make_docks_scrollable()
+        self.wheel_guard = guard_against_the_wheel(self)
 
         # Create progress bar
         self.progressbar = QtWidgets.QProgressBar()
@@ -1494,8 +1495,7 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         # the scrolling part below it line up as one panel rather than two
         margins = contents.layout().contentsMargins()
         grid.setContentsMargins(margins.left(), margins.top(), margins.right(), 0)
-        for button, position in ((self.startButton, (0, 0, 1, 1)),
-                                 (self.stopButton, (0, 1, 1, 1)),
+        for button, position in ((self.runButton, (0, 0, 1, 2)),
                                  (self.singleShotButton, (1, 0, 1, 2))):
             # Out of the scrolling layout before into this one, or the cell it
             # came from is left behind holding it
@@ -1638,10 +1638,14 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         self.statusbar.showMessage(message, timeout)
 
     def update_buttons(self):
-        """Update state of control buttons"""
-        self.startButton.setEnabled(not self.power_thread.alive)
-        self.singleShotButton.setEnabled(not self.power_thread.alive)
-        self.stopButton.setEnabled(self.power_thread.alive)
+        """Say what the run button will do, and what else is allowed
+
+        One button rather than two: a Start greyed out beside a live Stop is
+        the same information written twice, and the pair spent a row of a
+        panel that has to hold everything else as well."""
+        running = self.power_thread.alive
+        self.runButton.setText(self.tr("S&top") if running else self.tr("&Start"))
+        self.singleShotButton.setEnabled(not running)
 
     def update_data(self, data_storage):
         """Update GUI when new data is received
@@ -2204,16 +2208,15 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
             self.power_thread.stop()
 
     @QtCore.Slot()
-    def on_startButton_clicked(self):
-        self.start()
+    def on_runButton_clicked(self):
+        if self.power_thread.alive:
+            self.stop()
+        else:
+            self.start()
 
     @QtCore.Slot()
     def on_singleShotButton_clicked(self):
         self.start(single_shot=True)
-
-    @QtCore.Slot()
-    def on_stopButton_clicked(self):
-        self.stop()
 
     @QtCore.Slot(bool)
     def on_mainCurveCheckBox_toggled(self, checked):

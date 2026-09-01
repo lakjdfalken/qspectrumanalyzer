@@ -108,15 +108,10 @@ class Ui_QSpectrumAnalyzerMainWindow(object):
 
         self.gridLayout_2.addWidget(self.presetGroupBox, 0, 0, 1, 2)
 
-        self.startButton = QPushButton(self.controlsDockWidgetContents)
-        self.startButton.setObjectName(u"startButton")
+        self.runButton = QPushButton(self.controlsDockWidgetContents)
+        self.runButton.setObjectName(u"runButton")
 
-        self.gridLayout_2.addWidget(self.startButton, 1, 0, 1, 1)
-
-        self.stopButton = QPushButton(self.controlsDockWidgetContents)
-        self.stopButton.setObjectName(u"stopButton")
-
-        self.gridLayout_2.addWidget(self.stopButton, 1, 1, 1, 1)
+        self.gridLayout_2.addWidget(self.runButton, 1, 0, 1, 2)
 
         self.singleShotButton = QPushButton(self.controlsDockWidgetContents)
         self.singleShotButton.setObjectName(u"singleShotButton")
@@ -618,9 +613,8 @@ class Ui_QSpectrumAnalyzerMainWindow(object):
         self.label_5.setBuddy(self.ppmSpinBox)
         self.label_7.setBuddy(self.cropSpinBox)
 #endif // QT_CONFIG(shortcut)
-        QWidget.setTabOrder(self.presetComboBox, self.startButton)
-        QWidget.setTabOrder(self.startButton, self.stopButton)
-        QWidget.setTabOrder(self.stopButton, self.singleShotButton)
+        QWidget.setTabOrder(self.presetComboBox, self.runButton)
+        QWidget.setTabOrder(self.runButton, self.singleShotButton)
         QWidget.setTabOrder(self.singleShotButton, self.browseHistoryCheckBox)
         QWidget.setTabOrder(self.browseHistoryCheckBox, self.historyBackButton)
         QWidget.setTabOrder(self.historyBackButton, self.historyStepSpinBox)
@@ -705,8 +699,10 @@ class Ui_QSpectrumAnalyzerMainWindow(object):
 #if QT_CONFIG(tooltip)
         self.presetComboBox.setToolTip(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Set every control at once for a particular job. These settings interact: the bin size decides how short a pulse survives being measured, the detector decides whether it survives at all, and the recording depth decides whether a whole scan cycle fits on screen. Getting one of them wrong quietly wastes an evening, so pick the job instead of the settings.", None))
 #endif // QT_CONFIG(tooltip)
-        self.startButton.setText(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"&Start", None))
-        self.stopButton.setText(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"S&top", None))
+#if QT_CONFIG(tooltip)
+        self.runButton.setToolTip(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Start measuring, or stop a run that is going. The button says which it will do. Stopping leaves everything recorded on screen; starting again begins a new recording.", None))
+#endif // QT_CONFIG(tooltip)
+        self.runButton.setText(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"&Start", None))
         self.singleShotButton.setText(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Si&ngle shot", None))
         self.historyGroupBox.setTitle(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"History", None))
 #if QT_CONFIG(tooltip)
@@ -733,7 +729,7 @@ class Ui_QSpectrumAnalyzerMainWindow(object):
 #if QT_CONFIG(tooltip)
         self.scopeCheckBox.setToolTip(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Show power over time under the waterfall: the recording along its other axis, so the shape a signal has in time is on screen beside the sweep being looked at. Stepping through the recorded sweeps moves a cursor along it, and dragging that cursor steps to a moment. A signal that comes back every so often shows as evenly spaced spikes.", None))
 #endif // QT_CONFIG(tooltip)
-        self.scopeCheckBox.setText(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Power over time (scope)", None))
+        self.scopeCheckBox.setText(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Power over &time (scope)", None))
         self.scopeGroupBox.setTitle(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Oscilloscope", None))
         self.scopeSpanLabel.setText(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Time span:", None))
 #if QT_CONFIG(tooltip)

@@ -1,6 +1,6 @@
 import numpy as np
 
-from PySide6 import QtGui
+from PySide6 import QtCore, QtGui, QtWidgets
 
 
 def smooth(x, window_len=11, window='hanning'):
@@ -51,3 +51,42 @@ def human_time(seconds):
         timestr = '{:.0f} s'.format(s)
 
     return timestr
+
+
+class WheelGuard(QtCore.QObject):
+    """Stops the wheel changing a value the pointer only passed over
+
+    A panel of settings has to scroll, and a spin box under the pointer takes
+    the wheel before the scroll area does. So scrolling down the controls
+    moves the gain, or the bin size, or the trigger level, and the only sign
+    is that a later measurement comes out wrong - the same failure as every
+    other one in this program, where a setting that changed without saying so
+    looks exactly like a band with nothing in it.
+
+    A box now moves only once it has been clicked into. Tab still reaches them
+    all, because the focus policy is strong rather than none, and a box that
+    really does have the focus still takes the wheel.
+
+    Deliberately not applied to sliders: a scroll bar is one, and swallowing
+    its wheel would break the scrolling this exists to protect."""
+
+    KINDS = ("QAbstractSpinBox", "QComboBox")
+
+    def eventFilter(self, watched, event):
+        if event.type() == QtCore.QEvent.Type.Wheel and not watched.hasFocus():
+            event.ignore()
+            return True
+        return super().eventFilter(watched, event)
+
+
+def guard_against_the_wheel(window):
+    """Fit every spin box and drop-down in `window` with a WheelGuard
+
+    The guard is parented to the window so it lives as long as the widgets it
+    is filtering, and returned so a caller can keep it if it would rather."""
+    guard = WheelGuard(window)
+    for name in WheelGuard.KINDS:
+        for widget in window.findChildren(getattr(QtWidgets, name)):
+            widget.setFocusPolicy(QtCore.Qt.StrongFocus)
+            widget.installEventFilter(guard)
+    return guard
