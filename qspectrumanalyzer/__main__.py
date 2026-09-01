@@ -72,14 +72,14 @@ RADAR_PRESETS = [
      "the frequency being hunted. The scope is reading the peak across all 19 "
      "MHz, where the noisiest of a thousand bins outweighs any one carrier, so "
      "put the band on a channel that is active to see a transmission rise.",
-     {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': True, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'gainSpinBox': 40.0, 'startFreqSpinBox': 118.0, 'stopFreqSpinBox': 137.0, 'binSizeSpinBox': 25.0, 'waterfallCheckBox': True, 'scopeCheckBox': True, 'scopeBandCheckBox': False, 'scopeCentreSpinBox': 127.5, 'scopeWidthSpinBox': 25.0, 'scopeFastCheckBox': True, 'scopeSpanSpinBox': 2000.0, 'scopeTriggerCheckBox': False, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': False},
+     {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': True, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'gainSpinBox': 40.0, 'startFreqSpinBox': 118.0, 'stopFreqSpinBox': 137.0, 'binSizeSpinBox': 25.0, 'waterfallCheckBox': False, 'scopeCheckBox': False, 'scopeBandCheckBox': False, 'scopeCentreSpinBox': 127.5, 'scopeWidthSpinBox': 25.0, 'scopeFastCheckBox': True, 'scopeSpanSpinBox': 2000.0, 'scopeTriggerCheckBox': False, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': False},
      {'tap_resolution': 1000.0, 'tap_detector': 'mean', 'record_depth': 10000, 'sweep_detector': 'mean'}),
 
     ("C-band weather radar \u2014 find the channel",
      "Sweeping 5600-5650 MHz with max hold. Leave it for fifteen minutes: the "
      "duty cycle is tiny, so nothing but max hold will paint it. The peak that "
      "appears is the radar's channel.",
-     {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': True, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'gainSpinBox': 40.0, 'startFreqSpinBox': 5600.0, 'stopFreqSpinBox': 5650.0, 'binSizeSpinBox': 40.0, 'waterfallCheckBox': True, 'scopeCheckBox': False, 'scopeBandCheckBox': False, 'scopeCentreSpinBox': 5625.0, 'scopeWidthSpinBox': 2000.0, 'scopeFastCheckBox': False, 'scopeSpanSpinBox': 0.0, 'scopeTriggerCheckBox': False, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': False},
+     {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': True, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'gainSpinBox': 40.0, 'startFreqSpinBox': 5600.0, 'stopFreqSpinBox': 5650.0, 'binSizeSpinBox': 40.0, 'waterfallCheckBox': False, 'scopeCheckBox': False, 'scopeBandCheckBox': False, 'scopeCentreSpinBox': 5625.0, 'scopeWidthSpinBox': 2000.0, 'scopeFastCheckBox': False, 'scopeSpanSpinBox': 0.0, 'scopeTriggerCheckBox': False, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': False},
      {'tap_resolution': 0.0, 'tap_detector': 'peak', 'record_depth': 10000, 'sweep_detector': 'peak'}),
 
     ("C-band weather radar \u2014 catch a burst",
@@ -87,7 +87,7 @@ RADAR_PRESETS = [
      "because an average would destroy it; 20 ms sweep armed on a rising edge. "
      "Put the centre on whatever the channel hunt found, press Arm, and wait "
      "for the antenna to come round.",
-     {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': False, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'gainSpinBox': 40.0, 'startFreqSpinBox': 5615.0, 'stopFreqSpinBox': 5635.0, 'binSizeSpinBox': 625.0, 'waterfallCheckBox': False, 'scopeCheckBox': True, 'scopeBandCheckBox': True, 'scopeCentreSpinBox': 5625.0, 'scopeWidthSpinBox': 2000.0, 'scopeFastCheckBox': True, 'scopeSpanSpinBox': 20.0, 'scopeTriggerCheckBox': True, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': True},
+     {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': False, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'gainSpinBox': 40.0, 'startFreqSpinBox': 5615.0, 'stopFreqSpinBox': 5635.0, 'binSizeSpinBox': 625.0, 'waterfallCheckBox': False, 'scopeCheckBox': False, 'scopeBandCheckBox': True, 'scopeCentreSpinBox': 5625.0, 'scopeWidthSpinBox': 2000.0, 'scopeFastCheckBox': True, 'scopeSpanSpinBox': 20.0, 'scopeTriggerCheckBox': True, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': True},
      {'tap_resolution': 0.0, 'tap_detector': 'peak', 'record_depth': 10000, 'sweep_detector': 'peak'}),
 
     ("C-band weather radar \u2014 time the scan cycle",
@@ -96,7 +96,7 @@ RADAR_PRESETS = [
      "dwell every 15-22 seconds for three minutes, then two minutes of "
      "silence: that five minute cycle is what tells a weather radar from an "
      "airport one.",
-     {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': False, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'gainSpinBox': 40.0, 'startFreqSpinBox': 5615.0, 'stopFreqSpinBox': 5635.0, 'binSizeSpinBox': 625.0, 'waterfallCheckBox': False, 'scopeCheckBox': True, 'scopeBandCheckBox': True, 'scopeCentreSpinBox': 5625.0, 'scopeWidthSpinBox': 2000.0, 'scopeFastCheckBox': True, 'scopeSpanSpinBox': 0.0, 'scopeTriggerCheckBox': False, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': False},
+     {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': False, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'gainSpinBox': 40.0, 'startFreqSpinBox': 5615.0, 'stopFreqSpinBox': 5635.0, 'binSizeSpinBox': 625.0, 'waterfallCheckBox': False, 'scopeCheckBox': False, 'scopeBandCheckBox': True, 'scopeCentreSpinBox': 5625.0, 'scopeWidthSpinBox': 2000.0, 'scopeFastCheckBox': True, 'scopeSpanSpinBox': 0.0, 'scopeTriggerCheckBox': False, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': False},
      {'tap_resolution': 1000.0, 'tap_detector': 'peak', 'record_depth': 85000, 'sweep_detector': 'peak'}),
 
     ("S-band airport radar \u2014 find the channel",
@@ -114,7 +114,7 @@ RADAR_PRESETS = [
      "end - only an attenuator in the lead does that. Raising the gain is "
      "safe by comparison: it can only compress the reading, and compression "
      "shows as a trace that stops moving when the gain does.",
-     {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': True, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'gainSpinBox': 40.0, 'startFreqSpinBox': 2700.0, 'stopFreqSpinBox': 2900.0, 'binSizeSpinBox': 40.0, 'waterfallCheckBox': True, 'scopeCheckBox': False, 'scopeBandCheckBox': False, 'scopeCentreSpinBox': 2800.0, 'scopeWidthSpinBox': 2000.0, 'scopeFastCheckBox': False, 'scopeSpanSpinBox': 0.0, 'scopeTriggerCheckBox': False, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': False},
+     {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': True, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'gainSpinBox': 40.0, 'startFreqSpinBox': 2700.0, 'stopFreqSpinBox': 2900.0, 'binSizeSpinBox': 40.0, 'waterfallCheckBox': False, 'scopeCheckBox': False, 'scopeBandCheckBox': False, 'scopeCentreSpinBox': 2800.0, 'scopeWidthSpinBox': 2000.0, 'scopeFastCheckBox': False, 'scopeSpanSpinBox': 0.0, 'scopeTriggerCheckBox': False, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': False},
      {'tap_resolution': 0.0, 'tap_detector': 'peak', 'record_depth': 10000, 'sweep_detector': 'peak'}),
 
     ("S-band airport radar \u2014 catch a burst",
@@ -122,7 +122,7 @@ RADAR_PRESETS = [
      "approach radar turns every 4-5 seconds and lights you for about 20 ms "
      "with pulses roughly 1 ms apart, so a 20 ms sweep holds a dozen of them. "
      "The attenuation still applies.",
-     {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': False, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'gainSpinBox': 40.0, 'startFreqSpinBox': 2790.0, 'stopFreqSpinBox': 2810.0, 'binSizeSpinBox': 625.0, 'waterfallCheckBox': False, 'scopeCheckBox': True, 'scopeBandCheckBox': True, 'scopeCentreSpinBox': 2800.0, 'scopeWidthSpinBox': 2000.0, 'scopeFastCheckBox': True, 'scopeSpanSpinBox': 20.0, 'scopeTriggerCheckBox': True, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': True},
+     {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': False, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'gainSpinBox': 40.0, 'startFreqSpinBox': 2790.0, 'stopFreqSpinBox': 2810.0, 'binSizeSpinBox': 625.0, 'waterfallCheckBox': False, 'scopeCheckBox': False, 'scopeBandCheckBox': True, 'scopeCentreSpinBox': 2800.0, 'scopeWidthSpinBox': 2000.0, 'scopeFastCheckBox': True, 'scopeSpanSpinBox': 20.0, 'scopeTriggerCheckBox': True, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': True},
      {'tap_resolution': 0.0, 'tap_detector': 'peak', 'record_depth': 10000, 'sweep_detector': 'peak'}),
 
     ("S-band airport radar \u2014 camp on one tune",
@@ -135,7 +135,7 @@ RADAR_PRESETS = [
      "40 kHz bins on the delivered sweeps. Give each tune a couple of minutes "
      "and step Start and Stop on by 20 MHz to cover the band. A radar shows as "
      "evenly spaced spikes on the scope, one every rotation.",
-     {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': True, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'gainSpinBox': 40.0, 'startFreqSpinBox': 2790.0, 'stopFreqSpinBox': 2810.0, 'binSizeSpinBox': 625.0, 'waterfallCheckBox': True, 'scopeCheckBox': True, 'scopeBandCheckBox': False, 'scopeCentreSpinBox': 2800.0, 'scopeWidthSpinBox': 2000.0, 'scopeFastCheckBox': True, 'scopeSpanSpinBox': 0.0, 'scopeTriggerCheckBox': False, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': False},
+     {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': True, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'gainSpinBox': 40.0, 'startFreqSpinBox': 2790.0, 'stopFreqSpinBox': 2810.0, 'binSizeSpinBox': 625.0, 'waterfallCheckBox': False, 'scopeCheckBox': False, 'scopeBandCheckBox': False, 'scopeCentreSpinBox': 2800.0, 'scopeWidthSpinBox': 2000.0, 'scopeFastCheckBox': True, 'scopeSpanSpinBox': 0.0, 'scopeTriggerCheckBox': False, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': False},
      {'tap_resolution': 1000.0, 'tap_detector': 'peak', 'record_depth': 85000, 'sweep_detector': 'peak'}),
 
     ("Airport transponder replies \u2014 1090 MHz",
@@ -147,7 +147,7 @@ RADAR_PRESETS = [
      "Expect a broad hump rather than separate frames: a decoder correlating "
      "against the preamble sees far weaker signals than a spectrum can show. "
      "A quarter wave here is 65 mm.",
-     {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': True, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'gainSpinBox': 40.0, 'startFreqSpinBox': 1082.0, 'stopFreqSpinBox': 1102.0, 'binSizeSpinBox': 40.0, 'waterfallCheckBox': True, 'scopeCheckBox': True, 'scopeBandCheckBox': True, 'scopeCentreSpinBox': 1090.0, 'scopeWidthSpinBox': 4000.0, 'scopeFastCheckBox': True, 'scopeSpanSpinBox': 5.0, 'scopeTriggerCheckBox': True, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': False},
+     {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': True, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'gainSpinBox': 40.0, 'startFreqSpinBox': 1082.0, 'stopFreqSpinBox': 1102.0, 'binSizeSpinBox': 40.0, 'waterfallCheckBox': False, 'scopeCheckBox': False, 'scopeBandCheckBox': True, 'scopeCentreSpinBox': 1090.0, 'scopeWidthSpinBox': 4000.0, 'scopeFastCheckBox': True, 'scopeSpanSpinBox': 5.0, 'scopeTriggerCheckBox': True, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': False},
      {'tap_resolution': 0.0, 'tap_detector': 'peak', 'record_depth': 10000, 'sweep_detector': 'mean'}),
 
     ("Airport radar interrogator \u2014 1030 MHz",
@@ -158,7 +158,7 @@ RADAR_PRESETS = [
      "frequency, longer pulses, and it transmits all the time rather than only "
      "when pointing at you. A quarter wave here is 69 mm, which a telescopic "
      "whip can be set to exactly.",
-     {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': True, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'gainSpinBox': 24.0, 'startFreqSpinBox': 1022.0, 'stopFreqSpinBox': 1042.0, 'binSizeSpinBox': 40.0, 'waterfallCheckBox': True, 'scopeCheckBox': True, 'scopeBandCheckBox': True, 'scopeCentreSpinBox': 1030.0, 'scopeWidthSpinBox': 4000.0, 'scopeFastCheckBox': True, 'scopeSpanSpinBox': 0.0, 'scopeTriggerCheckBox': False, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': False},
+     {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': True, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'gainSpinBox': 24.0, 'startFreqSpinBox': 1022.0, 'stopFreqSpinBox': 1042.0, 'binSizeSpinBox': 40.0, 'waterfallCheckBox': False, 'scopeCheckBox': False, 'scopeBandCheckBox': True, 'scopeCentreSpinBox': 1030.0, 'scopeWidthSpinBox': 4000.0, 'scopeFastCheckBox': True, 'scopeSpanSpinBox': 0.0, 'scopeTriggerCheckBox': False, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': False},
      {'tap_resolution': 0.0, 'tap_detector': 'peak', 'record_depth': 10000, 'sweep_detector': 'mean'}),
 
     ("Wi-Fi burst \u2014 5 GHz channel 36",
@@ -166,7 +166,7 @@ RADAR_PRESETS = [
      "so this smooths instead of chasing pulses: a 100 us step with the average "
      "detector, which drops the wobble from 3.3 dB to 1.6 and makes the shape "
      "of a frame legible. Free running, so the traffic scrolls past.",
-     {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': False, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'gainSpinBox': 20.0, 'startFreqSpinBox': 5170.0, 'stopFreqSpinBox': 5190.0, 'binSizeSpinBox': 40.0, 'waterfallCheckBox': True, 'scopeCheckBox': True, 'scopeBandCheckBox': True, 'scopeCentreSpinBox': 5180.0, 'scopeWidthSpinBox': 20000.0, 'scopeFastCheckBox': True, 'scopeSpanSpinBox': 20.0, 'scopeTriggerCheckBox': False, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': False},
+     {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': False, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'gainSpinBox': 20.0, 'startFreqSpinBox': 5170.0, 'stopFreqSpinBox': 5190.0, 'binSizeSpinBox': 40.0, 'waterfallCheckBox': False, 'scopeCheckBox': False, 'scopeBandCheckBox': True, 'scopeCentreSpinBox': 5180.0, 'scopeWidthSpinBox': 20000.0, 'scopeFastCheckBox': True, 'scopeSpanSpinBox': 20.0, 'scopeTriggerCheckBox': False, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': False},
      {'tap_resolution': 100.0, 'tap_detector': 'mean', 'record_depth': 10000, 'sweep_detector': 'mean'}),
 ]
 
