@@ -426,6 +426,7 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         self.order_the_scope()
         self.build_readout()
         self.consolidate_docks()
+        self.make_foldable()
         self.make_docks_scrollable()
         self.wheel_guard = guard_against_the_wheel(self)
 
@@ -1760,6 +1761,46 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         # once someone has put it back it stays put
         view = self.menubar.addMenu(self.tr("&View"))
         view.addAction(self.levelsDockWidget.toggleViewAction())
+
+    #: Groups worth folding away. The scope and the readout are the tall ones
+    #: and the ones you stop needing once they are set; Looking for and
+    #: Frequency are short and always in use, so they stay put.
+    FOLDABLE = ("scopeGroupBox", "readoutGroupBox", "displayGroupBox",
+                "historyGroupBox", "receiverGroupBox")
+
+    def make_foldable(self):
+        """Let the tall groups be folded shut
+
+        One panel of sixteen hundred pixels in a dock of nine hundred means
+        scrolling, and scrolling a panel of live widgets while the plots are
+        redrawing makes the plots stutter - the drawing and the scrolling are
+        the same thread. Folding what is already set is the cheap answer:
+        nothing repaints in a group that is shut.
+
+        Qt greys a checkable group's children when it is unchecked. They are
+        hidden as well, so the box collapses to its title rather than sitting
+        there full of dead controls."""
+        settings = QtCore.QSettings()
+        self.folded = {}
+        for name in self.FOLDABLE:
+            box = self.findChild(QtWidgets.QGroupBox, name)
+            if box is None:
+                continue
+            inner = [c for c in box.children() if isinstance(c, QtWidgets.QWidget)]
+            self.folded[name] = (box, inner)
+            box.setCheckable(True)
+            box.setChecked(bool(settings.value("open_" + name, 1, int)))
+            box.toggled.connect(
+                lambda open_, n=name: self.set_group_open(n, open_))
+            self.set_group_open(name, box.isChecked())
+
+    def set_group_open(self, name, open_):
+        """Show or hide one group's contents, and remember which"""
+        box, inner = self.folded[name]
+        for child in inner:
+            child.setVisible(open_)
+        box.setFlat(not open_)
+        QtCore.QSettings().setValue("open_" + name, int(open_))
 
     def build_readout(self):
         """A panel saying what the settings actually come to
