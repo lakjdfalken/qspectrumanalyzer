@@ -1478,7 +1478,7 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         so it stuck to the full height of the display and sprang back to the
         top whenever it was moved. Inside a scroll area a dock can be any
         height and its contents scroll."""
-        for dock in (self.controlsDockWidget, self.settingsDockWidget):
+        for dock in (self.controlsDockWidget,):
             contents = dock.widget()
             if contents is None:
                 continue
@@ -1727,9 +1727,22 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         if stretch is not None:
             column.addItem(stretch, len(held), 0, 1, 2)
 
+        # Orphaned, not merely removed. restoreState() puts back any dock it
+        # finds among the window's children, so a layout saved when these held
+        # something would raise two empty frames from the dead - which is
+        # exactly what happened. With no parent they are not found.
         for dock in (self.frequencyDockWidget, self.settingsDockWidget):
             self.removeDockWidget(dock)
+            dock.hide()
+            dock.setParent(None)
         self.controlsDockWidget.setWindowTitle(self.tr("Controls"))
+
+        # A floating panel with no close button can only be dismissed from a
+        # menu you have to know about. The .ui gives these docks Floatable and
+        # Movable and stops there.
+        self.levelsDockWidget.setFeatures(
+            self.levelsDockWidget.features()
+            | QtWidgets.QDockWidget.DockWidgetFeature.DockWidgetClosable)
 
         # Floated and hidden by the migration below rather than here, so that
         # once someone has put it back it stays put
@@ -1918,7 +1931,7 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
 
         # A layout saved when these were three docks would put the old ones
         # back, so it goes rather than fighting the consolidation
-        if settings.value("config_version", 1, int) < 3:
+        if settings.value("config_version", 1, int) < 4:
             settings.remove("window_state")
         # Restore window state
         if settings.value("window_state"):
@@ -1930,7 +1943,7 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         # Migration from older versions of the config file. Read the version
         # once: a step that writes it back stops every later step running.
         version = settings.value("config_version", 1, int)
-        if version < 3:
+        if version < 4:
             # The panels are one dock now, so the tabbing that version 2 did
             # has nothing left to tab. The levels meter is for choosing
             # waterfall colours, which is not done mid-hunt, so it goes off to
@@ -1938,8 +1951,8 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
             self.levelsDockWidget.setFloating(True)
             self.levelsDockWidget.hide()
             self.set_dock_size(self.controlsDockWidget, 0, 0)
-        if version < 3:
-            settings.setValue("config_version", 3)
+        if version < 4:
+            settings.setValue("config_version", 4)
 
         # Window geometry has to be restored only after show(), because initial
         # maximization doesn't work otherwise (at least not in some window managers on X11)
