@@ -388,7 +388,7 @@ class Ui_QSpectrumAnalyzerMainWindow(object):
         self.surveyProgressLabel.setObjectName(u"surveyProgressLabel")
         self.surveyProgressLabel.setWordWrap(True)
 
-        self.formLayout.setWidget(5, QFormLayout.ItemRole.SpanningRole, self.surveyProgressLabel)
+        self.formLayout.setWidget(6, QFormLayout.ItemRole.SpanningRole, self.surveyProgressLabel)
 
         self.binSizeSpinBox = QDoubleSpinBox(self.frequencyDockWidgetContents)
         self.binSizeSpinBox.setObjectName(u"binSizeSpinBox")
@@ -405,7 +405,7 @@ class Ui_QSpectrumAnalyzerMainWindow(object):
 
         self.verticalSpacer_3 = QSpacerItem(20, 0, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
 
-        self.formLayout.setItem(6, QFormLayout.ItemRole.SpanningRole, self.verticalSpacer_3)
+        self.formLayout.setItem(7, QFormLayout.ItemRole.SpanningRole, self.verticalSpacer_3)
 
         self.frequencyDockWidget.setWidget(self.frequencyDockWidgetContents)
         QSpectrumAnalyzerMainWindow.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.frequencyDockWidget)

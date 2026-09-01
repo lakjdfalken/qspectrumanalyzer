@@ -415,6 +415,8 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         self.pane_heights = {}
 
         self.make_docks_scrollable()
+        self.sort_the_panels()
+        self.order_the_scope()
         self.build_readout()
         self.wheel_guard = guard_against_the_wheel(self)
 
@@ -1517,6 +1519,135 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
                "Frames per reading", "Bins in the band", "Tune centre",
                "Scope band sits at", "\u00bc / \u00be wave whip")
 
+    #: The Adjustments panel held the receiver and the drawing in one grid,
+    #: sixteen controls that decide what can be measured next to nine that
+    #: only decide how it is drawn. Sorted by the one question worth asking
+    #: about a control: does this change the measurement, or only the picture?
+    ADJUSTMENT_PANELS = (
+        ("Receiver", ("label_4", "intervalSpinBox", "label_6", "gainSpinBox",
+                      "label_lna", "lnaSpinBox", "label_vga", "vgaSpinBox",
+                      "label_5", "ppmSpinBox", "label_7", "cropSpinBox",
+                      "ampCheckBox")),
+        ("Display", ("mainCurveCheckBox", "colorsButton",
+                     "peakHoldMaxCheckBox", "peakHoldMinCheckBox",
+                     "averageCheckBox", "smoothCheckBox", "smoothButton",
+                     "persistenceCheckBox", "persistenceButton",
+                     "baselineCheckBox", "baselineButton",
+                     "subtractBaselineCheckBox")),
+    )
+
+    def lift_into_group(self, title, names, source):
+        """Move named widgets out of `source` into a group box of their own
+
+        The grid they were laid out on is kept, rebased so the first row of
+        the group is its own row nought. Anything not found is skipped rather
+        than raising, so a backend that hides a control cannot break the
+        window."""
+        box = QtWidgets.QGroupBox(self.tr(title))
+        grid = QtWidgets.QGridLayout(box)
+        grid.setContentsMargins(9, 6, 9, 6)
+        grid.setVerticalSpacing(4)
+        taken = []
+        for name in names:
+            widget = getattr(self, name, None)
+            if widget is None:
+                continue
+            index = source.indexOf(widget)
+            if index < 0:
+                continue
+            row, col, rowspan, colspan = source.getItemPosition(index)
+            source.removeWidget(widget)
+            taken.append((widget, row, col, rowspan, colspan))
+        base = min(t[1] for t in taken) if taken else 0
+        for widget, row, col, rowspan, colspan in taken:
+            grid.addWidget(widget, row - base, col, rowspan, colspan)
+        return box
+
+    def sort_the_panels(self):
+        """Put a line between the controls that measure and the ones that draw
+
+        Everything above the line can cost a measurement without saying so,
+        which is this program's whole failure mode; nothing below it can cost
+        anything at all. That is worth a border and a title, so that the
+        panel you can safely fiddle with mid-hunt is obvious."""
+        source = self.settingsDockWidgetContents.layout()
+        spacer = None
+        for i in reversed(range(source.count())):
+            if source.itemAt(i).spacerItem() is not None:
+                spacer = source.takeAt(i)
+                break
+        boxes = [self.lift_into_group(title, names, source)
+                 for title, names in self.ADJUSTMENT_PANELS]
+        row = 0
+        for box in boxes:
+            source.addWidget(box, row, 0, 1, 3)
+            row += 1
+        if spacer is not None:
+            source.addItem(spacer, row, 0, 1, 3)
+
+    #: The oscilloscope in the order the job is done: choose what to listen
+    #: to, set up the catch, then do something with what was caught. A header
+    #: of None is a widget; a string starts a section.
+    SCOPE_ORDER = (
+        "What to watch",
+        ("scopeBandCheckBox",), ("scopeCentreLabel", "scopeCentreSpinBox"),
+        ("scopeWidthLabel", "scopeWidthSpinBox"), ("scopeFastCheckBox",),
+        "How to catch it",
+        ("scopeSpanLabel", "scopeSpanSpinBox"), ("scopeTriggerCheckBox",),
+        ("scopeTriggerLabel", "scopeTriggerSpinBox"),
+        ("scopePreTriggerLabel", "scopePreTriggerSpinBox"),
+        ("scopeSingleCheckBox",), (None, "scopeArmButton"),
+        "Then",
+        (None, "scopeSaveButton"), (None, "rhythmButton"),
+    )
+
+    def section_header(self, text):
+        """A small heading inside a group box, for a section within a section"""
+        label = QtWidgets.QLabel(self.tr(text))
+        font = label.font()
+        font.setCapitalization(QtGui.QFont.AllUppercase)
+        font.setPointSizeF(max(6.5, font.pointSizeF() - 2.0))
+        font.setBold(True)
+        label.setFont(font)
+        label.setStyleSheet("color: palette(mid);")
+        return label
+
+    def order_the_scope(self):
+        """Lay the scope out as the job rather than as a list
+
+        Twelve controls in one flat list, in an order that told you nothing:
+        Arm sat below Save sweep and above the high-rate tap, so the panel
+        gave no hint that the tap has to be on before any of it means
+        anything - which is exactly the trap it is easiest to fall into.
+        Now it reads top to bottom: choose the band, set up the catch, press
+        Arm, then save it or search it for a rhythm."""
+        grid = self.scopeGroupBox.layout()
+        for i in reversed(range(grid.count())):
+            item = grid.takeAt(i)
+            if item.widget() is not None:
+                item.widget().setParent(None)
+        row = 0
+        for entry in self.SCOPE_ORDER:
+            if isinstance(entry, str):
+                grid.addWidget(self.section_header(entry), row, 0, 1, 2)
+                grid.setRowMinimumHeight(row, 20)
+                row += 1
+                continue
+            if len(entry) == 1:
+                grid.addWidget(getattr(self, entry[0]), row, 0, 1, 2)
+            else:
+                left, right = entry
+                if left is not None:
+                    grid.addWidget(getattr(self, left), row, 0)
+                grid.addWidget(getattr(self, right), row, 1)
+            row += 1
+        # Re-parented widgets come back hidden
+        for entry in self.SCOPE_ORDER:
+            if not isinstance(entry, str):
+                for name in entry:
+                    if name:
+                        getattr(self, name).show()
+
     def build_readout(self):
         """A panel saying what the settings actually come to
 
@@ -1547,13 +1678,15 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
             caption.setWordWrap(True)
             form.addRow(caption, value)
             self.readout[name] = value
-        layout = self.frequencyDockWidgetContents.layout()
-        layout.addWidget(box, layout.rowCount(), 0, 1, 2)
+        # A QFormLayout, so a full-width row is addRow() with one argument -
+        # addWidget() there takes no position at all and raises
+        self.frequencyDockWidgetContents.layout().addRow(box)
         self.readout_box = box
 
         for widget in (self.startFreqSpinBox, self.stopFreqSpinBox, self.binSizeSpinBox,
                        self.scopeCentreSpinBox, self.scopeWidthSpinBox):
             widget.valueChanged.connect(self.update_readout)
+        self.scopeBandCheckBox.toggled.connect(self.update_readout)
         self.update_readout()
 
     def update_readout(self):
@@ -1590,11 +1723,15 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
             show["Bins on screen"] = "{:,}".format(max(1, int(round(span / actual))))
             show["Frames per reading"] = "{:,}".format(
                 max(1, int(round(step / frame))) if step else 1)
-            show["Bins in the band"] = "{:,}".format(max(1, int(round(band / actual))))
+            # Both of these are about a band the scope may not be watching
+            banded = self.scopeBandCheckBox.isChecked()
+            show["Bins in the band"] = ("{:,}".format(max(1, int(round(band / actual))))
+                                        if banded else self.tr("the whole span"))
             show["Tune centre"] = "{:.3f} MHz{}".format(
                 tune / 1e6, "" if not centred else self.tr(" (centred)"))
-            show["Scope band sits at"] = "{:+.2f} MHz".format(
+            show["Scope band sits at"] = ("{:+.2f} MHz".format(
                 (self.scopeCentreSpinBox.value() * 1e6 - tune) / 1e6)
+                if banded else self.tr("no band watched"))
             middle = (low + high) / 2.0
             if middle > 0:
                 quarter = 0.95 * 299792458.0 / middle / 4.0
