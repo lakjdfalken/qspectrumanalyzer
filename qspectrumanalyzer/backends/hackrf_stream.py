@@ -515,9 +515,13 @@ class PowerThread(BasePowerThread):
             bin_size = rate / fft_size
             guard = max((hackrf_stream.dc_spike_bins(options.window) + 1) * bin_size,
                         0.002 * rate)
+            # The passband is the baseband filter, not the sample rate: at
+            # 20 MSPS the radio passes 15 MHz, and a span placed by Nyquist
+            # alone puts its top in the roll-off
             centre = hackrf_stream.offset_tune(
                 self.params["start_freq"] * 1e6 - self.lnb_lo,
-                self.params["stop_freq"] * 1e6 - self.lnb_lo, rate, guard)
+                self.params["stop_freq"] * 1e6 - self.lnb_lo, rate, guard,
+                usable=hackrf_stream.baseband_filter_bw(0.75 * rate))
 
         self.offset_tuned = centre is not None
         if centre is not None:

@@ -31,7 +31,8 @@ class QSpectrumAnalyzerSettings(QtWidgets.QDialog, Ui_QSpectrumAnalyzerSettings)
         self.levelsMeterCheckBox.setChecked(settings.value("levels_meter", 1, int))
         self.tapResolutionSpinBox.setValue(settings.value("tap_resolution", 0, float))
         self.tapDetectorComboBox.setCurrentIndex(
-            1 if settings.value("tap_detector", "peak") == "mean" else 0)
+            {"peak": 0, "mean": 1, "total": 2}.get(
+                settings.value("tap_detector", "peak"), 0))
         self.sweepDetectorComboBox.setCurrentIndex(
             1 if settings.value("sweep_detector", "mean") == "peak" else 0)
         self.recordDepthSpinBox.valueChanged.connect(self.update_record_depth_estimate)
@@ -318,7 +319,7 @@ class QSpectrumAnalyzerSettings(QtWidgets.QDialog, Ui_QSpectrumAnalyzerSettings)
         settings.setValue("record_depth", self.recordDepthSpinBox.value())
         settings.setValue("tap_resolution", self.tapResolutionSpinBox.value())
         settings.setValue("tap_detector",
-                          "mean" if self.tapDetectorComboBox.currentIndex() == 1 else "peak")
+                          ("peak", "mean", "total")[self.tapDetectorComboBox.currentIndex()])
         settings.setValue("sweep_detector",
                           "peak" if self.sweepDetectorComboBox.currentIndex() == 1 else "mean")
         settings.setValue("antialias", int(self.antialiasCheckBox.isChecked()))

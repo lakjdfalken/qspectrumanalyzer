@@ -129,6 +129,7 @@ class Ui_QSpectrumAnalyzerSettings(object):
         self.tapDetectorComboBox = QComboBox(QSpectrumAnalyzerSettings)
         self.tapDetectorComboBox.addItem("")
         self.tapDetectorComboBox.addItem("")
+        self.tapDetectorComboBox.addItem("")
         self.tapDetectorComboBox.setObjectName(u"tapDetectorComboBox")
 
         self.formLayout.setWidget(12, QFormLayout.ItemRole.FieldRole, self.tapDetectorComboBox)
@@ -356,9 +357,10 @@ class Ui_QSpectrumAnalyzerSettings(object):
         self.tapDetectorLabel.setText(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"Zero span &detector:", None))
         self.tapDetectorComboBox.setItemText(0, QCoreApplication.translate("QSpectrumAnalyzerSettings", u"Peak (catch short pulses)", None))
         self.tapDetectorComboBox.setItemText(1, QCoreApplication.translate("QSpectrumAnalyzerSettings", u"Average (smooth the shape)", None))
+        self.tapDetectorComboBox.setItemText(2, QCoreApplication.translate("QSpectrumAnalyzerSettings", u"Total across the band (wide pulses)", None))
 
 #if QT_CONFIG(tooltip)
-        self.tapDetectorComboBox.setToolTip(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"How the frames making up one reading are combined, which is the video bandwidth choice. Peak keeps the loudest frame, so a pulse shorter than the step still reads at its own height; it does not smooth. Average smooths as the square root of the number of frames, which is what makes the shape of a signal legible when it is only a few dB out of the noise. At the finest step there is one frame per reading and the two are the same.", None))
+        self.tapDetectorComboBox.setToolTip(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"How the frames making up one reading are combined, which is the video bandwidth choice. Peak keeps the loudest frame, so a pulse shorter than the step still reads at its own height; it does not smooth. Average smooths as the square root of the number of frames, which is what makes the shape of a signal legible when it is only a few dB out of the noise. At the finest step there is one frame per reading and the two are the same. Total is a different question: peak and average both keep the loudest bin of the band and discard the rest, which is right for a carrier in one bin and wrong for a pulse spread over many. Total adds the bins instead, worth about 3 dB on a chirp when the band is matched to it, and worth less than nothing when the band is much wider than the signal.", None))
 #endif // QT_CONFIG(tooltip)
         self.sweepDetectorLabel.setText(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"S&weep detector:", None))
         self.sweepDetectorComboBox.setItemText(0, QCoreApplication.translate("QSpectrumAnalyzerSettings", u"Average (quieter floor)", None))
