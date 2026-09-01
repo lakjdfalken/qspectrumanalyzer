@@ -1798,57 +1798,62 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         self.update_readout()
 
     def update_readout(self):
-        """Work the settings through, the way the backend will"""
+        """Work the settings through, the way the backend will
+
+        The arithmetic lives in the backend beside the code that will use it,
+        so the panel cannot promise one thing and the run do another. This
+        only formats."""
         if hackrf_stream is None or not hasattr(self, "readout"):
             return
         show = dict.fromkeys(self.READOUT, "\u2013")
         try:
-            rate = self.tune_width()
-            bin_hz = max(1.0, self.binSizeSpinBox.value() * 1e3)
-            low = self.startFreqSpinBox.value() * 1e6
-            high = self.stopFreqSpinBox.value() * 1e6
-            n = hackrf_stream.fast_fft_size(rate, bin_hz)
-            actual = rate / n
-            frame = n / rate
-            # frames_averaged(): one sweep holds the same 665.6 us however
-            # fine the bins are, so the count moves and the duration does not
-            avg = max(1, int(round(26 * 512 / 20e6 * rate / n)))
-            span = max(0.0, high - low)
-            guard = max((hackrf_stream.dc_spike_bins("hann") + 1) * actual, 0.002 * rate)
-            usable = hackrf_stream.baseband_filter_bw(0.75 * rate)
-            tune = hackrf_stream.offset_tune(low, high, rate, guard, usable=usable)
-            centred = tune is None
-            if centred:
-                tune = (low + high) / 2.0
-            step = QtCore.QSettings().value("tap_resolution", 0.0, float) * 1e-6
-            band = self.scopeWidthSpinBox.value() * 1e3
-
-            show["FFT length"] = "{} point".format(n)
-            show["Bin size, actual"] = self.as_hz(actual)
-            show["Frame \u2014 1 \u00f7 bin"] = self.as_seconds(frame)
-            show["Frames per sweep"] = "{:,}".format(avg)
-            show["Sweep covers"] = self.as_seconds(avg * frame)
-            show["Bins on screen"] = "{:,}".format(max(1, int(round(span / actual))))
-            show["Frames per reading"] = "{:,}".format(
-                max(1, int(round(step / frame))) if step else 1)
-            # Both of these are about a band the scope may not be watching
+            settings = QtCore.QSettings()
             banded = self.scopeBandCheckBox.isChecked()
-            show["Bins in the band"] = ("{:,}".format(max(1, int(round(band / actual))))
-                                        if banded else self.tr("the whole span"))
+            d = backends.hackrf_stream.derive(
+                rate=self.tune_width(),
+                bin_hz=max(1.0, self.binSizeSpinBox.value() * 1e3),
+                low=self.startFreqSpinBox.value() * 1e6,
+                high=self.stopFreqSpinBox.value() * 1e6,
+                band_hz=self.scopeWidthSpinBox.value() * 1e3 if banded else 0.0,
+                step=settings.value("tap_resolution", 0.0, float) * 1e-6,
+                window=self.configured_window())
+
+            show["FFT length"] = "{} point".format(d["fft_size"])
+            show["Bin size, actual"] = self.as_hz(d["bin_hz"])
+            show["Frame \u2014 1 \u00f7 bin"] = self.as_seconds(d["frame"])
+            show["Frames per sweep"] = "{:,}".format(d["average"])
+            show["Sweep covers"] = self.as_seconds(d["sweep"])
+            show["Bins on screen"] = "{:,}".format(d["bins"])
+            show["Frames per reading"] = "{:,}".format(d["frames_per_reading"])
+            show["Bins in the band"] = ("{:,}".format(d["band_bins"]) if banded
+                                        else self.tr("the whole span"))
             show["Tune centre"] = "{:.3f} MHz{}".format(
-                tune / 1e6, "" if not centred else self.tr(" (centred)"))
+                d["tune"] / 1e6, self.tr(" (centred)") if d["centred"] else "")
             show["Scope band sits at"] = ("{:+.2f} MHz".format(
-                (self.scopeCentreSpinBox.value() * 1e6 - tune) / 1e6)
+                (self.scopeCentreSpinBox.value() * 1e6 - d["tune"]) / 1e6)
                 if banded else self.tr("no band watched"))
-            middle = (low + high) / 2.0
+            middle = (self.startFreqSpinBox.value()
+                      + self.stopFreqSpinBox.value()) * 1e6 / 2.0
             if middle > 0:
                 quarter = 0.95 * 299792458.0 / middle / 4.0
                 show["\u00bc / \u00be wave whip"] = "{:.0f} / {:.0f} mm".format(
                     quarter * 1e3, quarter * 3e3)
-        except (ValueError, ZeroDivisionError, OverflowError):
+        except (ValueError, ZeroDivisionError, OverflowError, AttributeError):
             pass
         for name, text in show.items():
             self.readout[name].setText(text)
+
+    def configured_window(self):
+        """The FFT window the backend will really use
+
+        Read rather than assumed: blackman spreads the DC spike over two bins
+        where hann spreads it over one, which changes the guard, which decides
+        whether the span can be offset-tuned at all."""
+        try:
+            return backends.hackrf_stream.parse_params(
+                QtCore.QSettings().value("params", "") or "").window
+        except Exception:
+            return "hann"
 
     @staticmethod
     def as_hz(hz):

@@ -67,10 +67,11 @@ class WheelGuard(QtCore.QObject):
     all, because the focus policy is strong rather than none, and a box that
     really does have the focus still takes the wheel.
 
-    Deliberately not applied to sliders: a scroll bar is one, and swallowing
-    its wheel would break the scrolling this exists to protect."""
+"""
 
-    KINDS = ("QAbstractSpinBox", "QComboBox")
+    #: Deliberately not QAbstractSlider: a scroll bar is one, and swallowing
+    #: its wheel would break the scrolling this exists to protect.
+    KINDS = (QtWidgets.QAbstractSpinBox, QtWidgets.QComboBox)
 
     def eventFilter(self, watched, event):
         if event.type() == QtCore.QEvent.Type.Wheel and not watched.hasFocus():
@@ -85,8 +86,8 @@ def guard_against_the_wheel(window):
     The guard is parented to the window so it lives as long as the widgets it
     is filtering, and returned so a caller can keep it if it would rather."""
     guard = WheelGuard(window)
-    for name in WheelGuard.KINDS:
-        for widget in window.findChildren(getattr(QtWidgets, name)):
+    for kind in WheelGuard.KINDS:
+        for widget in window.findChildren(kind):
             widget.setFocusPolicy(QtCore.Qt.StrongFocus)
             widget.installEventFilter(guard)
     return guard

@@ -8,6 +8,45 @@ from PySide6 import QtCore
 from qspectrumanalyzer.backends import BaseInfo, BasePowerThread
 from qspectrumanalyzer.constants import TAP_CAPACITY
 
+#: How long a finished spectrum should cover when the frame count is left to
+#: work itself out. It is what 26 frames came to at the old default of 40 kHz
+#: bins, so nothing changes there; what changes is the fine bins, where 26
+#: frames is 42 us and finishes twenty-four thousand spectra a second for a
+#: display that is shown a hundred.
+SPECTRUM_SECONDS = 26 * 512 / 20e6
+
+
+def derive(rate, bin_hz, low, high, band_hz=0.0, step=0.0, window="hann"):
+    """What a set of controls comes to, worked out the way the radio will
+
+    Pure arithmetic on numbers a panel already holds, so a readout can say
+    what a setting costs before any radio is opened - and cannot drift from
+    what the backend then does, because every figure comes from the same
+    library call the run itself makes. The window matters and is not assumed:
+    dc_spike_bins() gives blackman two bins where hann gets one, which moves
+    the guard, which decides whether the tune can be offset at all."""
+    n = hackrf_stream.fast_fft_size(rate, bin_hz)
+    actual = rate / n
+    frame = n / rate
+    average = max(1, int(round(SPECTRUM_SECONDS * rate / n)))
+    guard = max((hackrf_stream.dc_spike_bins(window) + 1) * actual, 0.002 * rate)
+    tune = hackrf_stream.offset_tune(
+        low, high, rate, guard,
+        usable=hackrf_stream.baseband_filter_bw(0.75 * rate))
+    centred = tune is None
+    return {
+        "fft_size": n,
+        "bin_hz": actual,
+        "frame": frame,
+        "average": average,
+        "sweep": average * frame,
+        "bins": max(1, int(round(max(0.0, high - low) / actual))),
+        "frames_per_reading": max(1, int(round(step / frame))) if step else 1,
+        "band_bins": max(1, int(round(band_hz / actual))) if band_hz else 1,
+        "tune": (low + high) / 2.0 if centred else tune,
+        "centred": centred,
+    }
+
 
 
 try:
@@ -284,13 +323,6 @@ class PowerThread(BasePowerThread):
         self.band_resolution = None
         self.band_detector = "peak"
 
-    #: How long a finished spectrum should cover when the frame count is left
-    #: to work itself out. It is what 26 frames came to at the old default of
-    #: 40 kHz bins, so nothing changes there; what changes is the fine bins,
-    #: where 26 frames is 42 us and finishes twenty-four thousand spectra a
-    #: second for a display that is shown a hundred.
-    SPECTRUM_SECONDS = 26 * 512 / 20e6
-
     def frames_averaged(self, asked, fft_size):
         """How many frames go into one delivered spectrum
 
@@ -307,7 +339,7 @@ class PowerThread(BasePowerThread):
         because it reads the frames rather than the finished spectra."""
         if asked is not None:
             return asked
-        return max(1, int(round(self.SPECTRUM_SECONDS
+        return max(1, int(round(SPECTRUM_SECONDS
                                 * self.params["sample_rate"] / fft_size)))
 
     @property
