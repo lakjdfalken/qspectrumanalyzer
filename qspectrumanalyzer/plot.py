@@ -957,6 +957,9 @@ class ScopePlotWidget(ThrottledPlotWidget):
     #: recording it sits under anyway, so raising this past the recording
     #: depth buys nothing. The settings dialog works this out for whatever
     #: step is chosen.
+    #: Copied as TAP_CAPACITY in backends/hackrf_stream.py, which checks a
+    #: zero span step against how far back this reaches. If one moves,
+    #: move the other.
     FAST_CAPACITY = 1000000
 
     def __init__(self, layout, max_refresh_rate=60):

@@ -191,6 +191,13 @@ class Survey:
         self.index = 0
         #: (frequency, loudest, active sweeps, total sweeps) for every bin so far
         self.rows = []
+        #: Spectra the peak hold actually saw, across every slice
+        self.spectra = 0
+        #: Blocks the radio dropped while this survey was listening. A drop is
+        #: a discontinuity in the samples, which an FFT reads as a click:
+        #: white across every bin, and with the peak detector it pins the
+        #: whole sweep it lands in.
+        self.dropped = 0
 
     @property
     def slice(self):
@@ -201,8 +208,22 @@ class Survey:
     def finished(self):
         return self.index >= len(self.edges)
 
-    def harvest(self, data_storage):
-        """Take what this slice heard, before the next one wipes it"""
+    def harvest(self, data_storage, power_thread=None):
+        """Take what this slice heard, before the next one wipes it
+
+        Two different questions are being asked of the same dwell, and they
+        want different data. *How loud did it ever get* wants every spectrum
+        the radio made; taking it from the delivered history alone throws away
+        nineteen out of twenty, and on a long dwell the history has already
+        wrapped besides. *How often was it there* wants a median to measure
+        against, and a median only needs a fair sample - which is exactly what
+        the delivered sweeps are."""
+        # Drained first, so a slice that recorded nothing cannot leave a peak
+        # behind for the next tune to inherit
+        take = getattr(power_thread, "take_peak_hold", None)
+        held, spectra = take() if take is not None else (None, 0)
+        self.dropped += int(getattr(power_thread, "dropped", 0) or 0)
+
         history = data_storage.history
         if history is None or data_storage.x is None or not history.history_size:
             return 0
@@ -212,6 +233,9 @@ class Survey:
         recorded, x = recorded[:, :count], x[:count]
 
         loudest = recorded.max(axis=0)
+        if held is not None and len(held) >= count:
+            loudest = np.maximum(loudest, held[:count])
+            self.spectra += spectra
         # Against each bin's own median, so a bin sitting on a carrier is not
         # counted as busy and a quiet one is not missed for being quiet
         floor = np.median(recorded, axis=0)
@@ -1713,7 +1737,27 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
               "about {}".format(start / 1e6, stop / 1e6, width / 1e6,
                                 self.survey.dwell, len(self.survey.edges),
                                 human_time(len(self.survey.edges) * (self.survey.dwell + 2))))
+        self.ensure_record_depth(self.survey.dwell)
         self.begin_survey_slice()
+
+    def ensure_record_depth(self, dwell):
+        """Make the recording long enough to hold the dwell it is about to take
+
+        The depth is in sweeps and the dwell is in seconds, so the two only
+        agree by accident. When they disagree the recording wins silently:
+        a 300 s dwell at 100 sweeps a second needs 30000, and at 10000 the
+        survey harvests the last hundred seconds and nothing says so."""
+        rate = getattr(self.power_thread, "delivery_rate", None)
+        if not rate:
+            return
+        needed = int(dwell * rate) + 1
+        have = self.data_storage.max_history_size
+        if needed <= have:
+            return
+        self.data_storage.max_history_size = needed
+        self.data_storage.reset()
+        print("  {:<10} recording depth {} holds {:.0f} s of a {:g} s dwell; "
+              "raised to {} sweeps".format("check", have, have / rate, dwell, needed))
 
     def begin_survey_slice(self):
         """Point the radio at the next slice and start the clock on it"""
@@ -1729,7 +1773,7 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         """A slice has had its time; keep what it heard and move on"""
         if self.survey is None:
             return
-        swept = self.survey.harvest(self.data_storage)
+        swept = self.survey.harvest(self.data_storage, self.power_thread)
         low, high = self.survey.slice
         print("  {:8.3f}-{:8.3f} MHz: {} sweeps".format(low / 1e6, high / 1e6, swept))
         self.survey.index += 1
@@ -1754,14 +1798,14 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         self.survey_timer.stop()
         self.surveyButton.setText(self.tr("Sur&vey the range..."))
         self.surveyProgressLabel.setText("")
+        # Whatever the last slice heard is worth keeping too, even if it was
+        # cut short: a survey stopped early is still a survey. Before stop(),
+        # so the peak hold is taken from the thread that recorded it
+        if survey is not None and not survey.finished:
+            survey.harvest(self.data_storage, self.power_thread)
         self.stop()
         if survey is None:
             return
-
-        # Whatever the last slice heard is worth keeping too, even if it was
-        # cut short: a survey stopped early is still a survey
-        if not survey.finished:
-            survey.harvest(self.data_storage)
 
         if not survey.rows:
             self.show_status(self.tr("{} - nothing was recorded").format(why), timeout=0)
@@ -1858,7 +1902,17 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
             "the sweeps in which it stood more than {:g} dB above its own median, "
             "which is what tells a signal that comes and goes from one that is "
             "always there".format(Survey.ACTIVE_MARGIN),
-        ]
+        ] + ([
+            "loudest_db saw every one of the {} spectra the radio made; "
+            "active_sweeps and total_sweeps count the delivered sweeps only, "
+            "which is the sample the median is taken from".format(survey.spectra)
+        ] if survey.spectra else []) + ([
+            "the radio dropped {} blocks during this survey. A drop is a "
+            "discontinuity in the samples, which reads as a click: white "
+            "across every bin at once, and the peak detector keeps it - so "
+            "bins that all go active together in the same sweeps are more "
+            "likely to be this than a signal".format(survey.dropped)
+        ] if survey.dropped else [])
 
     def configured_refresh_rate(self):
         """The redraw rate the settings ask for"""

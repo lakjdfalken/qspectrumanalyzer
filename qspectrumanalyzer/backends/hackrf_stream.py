@@ -7,6 +7,13 @@ from PySide6 import QtCore
 
 from qspectrumanalyzer.backends import BaseInfo, BasePowerThread
 
+#: Readings the scope's fast buffer holds, so a zero span step can be checked
+#: against how far back it will actually reach. Deliberately a copy of
+#: ScopePlotWidget.FAST_CAPACITY rather than an import of it: every module
+#: that owns the number pulls in QtGui, and a backend that imports the widget
+#: stack cannot be run headless. If one moves, move the other.
+TAP_CAPACITY = 1000000
+
 try:
     import hackrf_stream
 except ImportError:
@@ -257,13 +264,19 @@ class PowerThread(BasePowerThread):
         self.amp = bool(amp)
         self.lnb_lo = lnb_lo
         self.interval = interval
+        self.delivery_interval = None
         self.last_spectrum = 0.0
         self.databuffer = {"timestamp": [], "x": [], "y": []}
 
         self.source = None
         self.x = None
         self.crop_mask = None
+        self.dropped_edges = 0
         self.latest = None
+        #: Highest each bin has reached since the last take_peak_hold(), over
+        #: every spectrum made rather than the few that are delivered
+        self.peak_hold = None
+        self.peak_spectra = 0
         self.delivered = 0
         self.reported_drops = 0
         self.reported_band_error = None
@@ -299,6 +312,89 @@ class PowerThread(BasePowerThread):
             return asked
         return max(1, int(round(self.SPECTRUM_SECONDS
                                 * self.params["sample_rate"] / fft_size)))
+
+    @property
+    def delivery_rate(self):
+        """Sweeps a second handed to the display
+
+        Known before the radio is open, because a survey has to size its
+        recording from it and that is decided before anything starts."""
+        if self.delivery_interval:
+            return 1.0 / self.delivery_interval
+        return float(parse_params(self.additional_params(Info)).max_rate)
+
+    @staticmethod
+    def pulse_cost(frame, bin_hz, tau):
+        """Signal to noise given up on a pulse of `tau` at this bin size
+
+        Two losses that pull opposite ways and cross at one over the pulse
+        width. A frame longer than the pulse shares its energy with the
+        silence either side; a bin wider than the pulse's own bandwidth
+        collects noise the pulse was never going to fill."""
+        return (10 * np.log10(max(1.0, frame / tau))
+                + 10 * np.log10(max(1.0, bin_hz * tau)))
+
+    def check_settings(self, options, average):
+        """Settings that quietly undo each other, said out loud before the run
+
+        None of these is an error and none of them stops anything. The run
+        succeeds, the trace looks reasonable, and it answers a different
+        question than the one that was asked - which is exactly what makes
+        them expensive, because a wrong one here looks like an empty band and
+        an empty band looks like the same thing."""
+        rate = self.params["sample_rate"]
+        frame = self.source.fft_size / rate
+        bin_hz = rate / self.source.fft_size
+        sweep = frame * average
+        settings = QtCore.QSettings()
+        lines = []
+
+        if self.source.mode != "peak":
+            lines.append("the sweep detector averages the {} frames behind one "
+                         "sweep, so a pulse shorter than {:.1f} us is spread "
+                         "across all of it - 1 us loses {:.1f} dB and no bin "
+                         "size wins that back. Peak keeps it at its own "
+                         "height.".format(average, sweep * 1e6,
+                                          10 * np.log10(sweep / 1e-6)))
+
+        wanted = settings.value("hunt_pulse_us", 0.0, float) * 1e-6
+        if wanted > 0:
+            best_n = hackrf_stream.fast_fft_size(rate, 1.0 / wanted)
+            here = self.pulse_cost(frame, bin_hz, wanted)
+            ideal = self.pulse_cost(best_n / rate, rate / best_n, wanted)
+            if here - ideal >= 1.0:
+                lines.append("the pulse being hunted is {:g} us, which this "
+                             "{:.2f} us frame costs {:.1f} dB. {:.0f} kHz bins "
+                             "would cost {:.1f} dB - {:.1f} dB better."
+                             .format(wanted * 1e6, frame * 1e6, here,
+                                     rate / best_n / 1e3, ideal, here - ideal))
+        else:
+            micro = self.pulse_cost(frame, bin_hz, 1e-6)
+            if micro >= 1.0:
+                best_n = hackrf_stream.fast_fft_size(rate, 1e6)
+                lines.append("nothing is stated about the pulse being hunted, "
+                             "so the bin size cannot be checked against it. For "
+                             "scale: a 1 us pulse costs {:.1f} dB at this bin "
+                             "size and {:.1f} dB at {:.0f} kHz."
+                             .format(micro,
+                                     self.pulse_cost(best_n / rate,
+                                                     rate / best_n, 1e-6),
+                                     rate / best_n / 1e3))
+
+        if self.source.band is not None:
+            # None means as fine as it goes, which is one frame a reading -
+            # and that is exactly the case this check exists for
+            step = self.source.band_resolution or frame
+            reach = TAP_CAPACITY * step
+            if reach < 4.0:
+                lines.append("the zero span buffer holds {:.1f} s at {:.2f} us "
+                             "a reading. A rotating antenna comes round every "
+                             "several seconds, so it will have been and gone "
+                             "before the buffer reaches back to it - a coarser "
+                             "step costs a pulse nothing on peak, and 10 us "
+                             "would reach {:.0f} s."
+                             .format(reach, step * 1e6, TAP_CAPACITY * 10e-6))
+        return lines
 
     def describe_radio(self, options, average):
         """Every setting the measurement depends on, as lines of text
@@ -342,6 +438,11 @@ class PowerThread(BasePowerThread):
 
         say("bins", "{} of {:.2f} kHz kept from a {}-point FFT, {} window".format(
             len(self.x), source.bin_size / 1e3, source.fft_size, options.window))
+        if self.dropped_edges:
+            say("", "{} more dropped at the bottom of the tune, where the "
+                    "Nyquist bin folds the two ends of the passband together "
+                    "and reads high whatever the air is doing".format(
+                        self.dropped_edges))
         say("frames", "{:.2f} us each, so a pulse shorter than that is spread "
                       "over one".format(frame * 1e6))
         say("sweeps", "{} {} frames = {:.1f} us each, {:.0f} a second made, "
@@ -450,6 +551,27 @@ class PowerThread(BasePowerThread):
         low, high = self.source.dc_band
         return (low + self.lnb_lo, high + self.lnb_lo)
 
+    def measured_bins(self, frequencies):
+        """The bins that are a measurement of the air rather than of the radio
+
+        The lowest bin of a tune is not a measurement. It is the Nyquist bin,
+        where the two ends of the passband meet, and it sits high at a fixed
+        level whatever the air is doing - so it turns up in a survey as a
+        narrow signal that is *always on*, which is the one description no
+        real signal ever has. Measured on this receiver at 5180 MHz: the
+        outermost bin stood 13.9 dB over the floor for the whole dwell.
+
+        The window spreads it inwards exactly as it spreads the DC spike, so
+        the same count goes with it - at 39 kHz bins the second bin was still
+        9 dB high while the third was already back on the floor.
+
+        Only the bottom, and only a bin or two: the top of the tune measured
+        clean, and cropping to the baseband filter instead would take a
+        quarter of every tune and leave gaps between the slices of a survey."""
+        keep = np.ones(len(frequencies), dtype=bool)
+        keep[:1 + max(0, self.source.dc_bins)] = False
+        return keep
+
     def prepare_axis(self):
         """Work out which bins to keep, and their frequencies once the LNB is added"""
         frequencies = self.source.frequencies + self.lnb_lo
@@ -462,6 +584,13 @@ class PowerThread(BasePowerThread):
             # the whole tune rather than nothing at all
             mask = np.ones_like(frequencies, dtype=bool)
 
+        # Never widen what was asked for, and never hand back nothing: a tune
+        # narrower than the filter has no roll-off in it to drop
+        measured = mask & self.measured_bins(frequencies)
+        self.dropped_edges = int(mask.sum() - measured.sum())
+        if measured.any():
+            mask = measured
+
         self.crop_mask = mask
         self.x = frequencies[mask]
 
@@ -473,6 +602,35 @@ class PowerThread(BasePowerThread):
         starts dropping them. So it only hands the spectrum over, and the
         thread's own loop does the delivering."""
         self.latest = (timestamp, powers_db)
+
+        # A survey looking for something rare wants every spectrum, not the
+        # hundred a second the display is given: the delivery cap is there to
+        # keep DataStorage and the drawing from being swamped, and neither is
+        # involved in a max. One pass over an array already in cache is the
+        # whole cost, so it is affordable even here.
+        hold = self.peak_hold
+        if hold is None or hold.shape != powers_db.shape:
+            self.peak_hold = powers_db.copy()
+        else:
+            np.maximum(hold, powers_db, out=hold)
+        self.peak_spectra += 1
+
+    def take_peak_hold(self):
+        """The highest each bin reached since the last call, and how many
+        spectra went into that
+
+        Returned in the bins the display uses, so it lines up with the x axis
+        and with the delivered history.
+
+        No lock: this thread is the only writer, and the only thing the reader
+        does is swap a fresh accumulator in. That can lose the single spectrum
+        being maxed at the instant of the swap, which happens once at the end
+        of a survey slice - not worth making the radio's own thread wait for."""
+        hold, seen = self.peak_hold, self.peak_spectra
+        self.peak_hold, self.peak_spectra = None, 0
+        if hold is None or self.crop_mask is None:
+            return None, seen
+        return hold[self.crop_mask], seen
 
     def process_start(self):
         """Open the radio and start receiving"""
@@ -516,7 +674,10 @@ class PowerThread(BasePowerThread):
             self.source.set_band(self.band[0] - self.lnb_lo, self.band[1] - self.lnb_lo,
                                  self.band_resolution, self.band_detector)
 
-        for line in self.describe_radio(options, average):
+        lines = self.describe_radio(options, average)
+        for line in self.check_settings(options, average):
+            lines.append("  {:<10} {}".format("check", line))
+        for line in lines:
             print(line)
         print()
         self.source.start(self.on_spectrum)
