@@ -414,10 +414,14 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         # screen, so that switching it off and back on does not shrink it
         self.pane_heights = {}
 
-        self.make_docks_scrollable()
+        # Order matters: the panels have to be sorted and the readout built
+        # before they are gathered into one dock, and the dock has to be whole
+        # before it is put in a scroll area
         self.sort_the_panels()
         self.order_the_scope()
         self.build_readout()
+        self.consolidate_docks()
+        self.make_docks_scrollable()
         self.wheel_guard = guard_against_the_wheel(self)
 
         # Create progress bar
@@ -1544,6 +1548,7 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         than raising, so a backend that hides a control cannot break the
         window."""
         box = QtWidgets.QGroupBox(self.tr(title))
+        box.setObjectName(title.lower() + "GroupBox")
         grid = QtWidgets.QGridLayout(box)
         grid.setContentsMargins(9, 6, 9, 6)
         grid.setVerticalSpacing(4)
@@ -1647,6 +1652,71 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
                 for name in entry:
                     if name:
                         getattr(self, name).show()
+
+    #: The one panel, in the order the work is done: what you are looking
+    #: for, where to point the radio, what it hears with, what to do with it,
+    #: what was recorded, and last the things that only change the drawing.
+    PANEL_ORDER = ("runButton", "singleShotButton", "presetGroupBox",
+                   "frequencyGroupBox", "receiverGroupBox", "scopeGroupBox",
+                   "historyGroupBox", "plotsGroupBox", "displayGroupBox")
+
+    def consolidate_docks(self):
+        """One panel instead of three, and the levels off on their own
+
+        Three docks stacked in a column came to more than two thousand pixels
+        of content in a column that is nine hundred tall on a laptop, so all
+        three scrolled and none of them showed what you wanted. They are one
+        panel now with one scroll bar, in the order the work is done.
+
+        The levels meter floats and starts hidden, because it is for choosing
+        colours in the waterfall and that is not something done mid-hunt. A
+        View menu brings it back, which did not exist before and had to,
+        because a dock hidden with no way to show it again is a dock thrown
+        away."""
+        column = self.controlsDockWidgetContents.layout()
+
+        contents = self.frequencyDockWidget.widget()
+        frequency = QtWidgets.QGroupBox(self.tr("Frequency"))
+        frequency.setObjectName("frequencyGroupBox")
+        inner = QtWidgets.QVBoxLayout(frequency)
+        inner.setContentsMargins(0, 0, 0, 0)
+        contents.setParent(None)
+        inner.addWidget(contents)
+
+        moved = [frequency]
+        adjustments = self.settingsDockWidget.widget().layout()
+        for i in reversed(range(adjustments.count())):
+            widget = adjustments.itemAt(i).widget()
+            if isinstance(widget, QtWidgets.QGroupBox):
+                adjustments.removeWidget(widget)
+                moved.append(widget)
+
+        # Everything out, then back in the order above; anything unnamed keeps
+        # its place at the end rather than being dropped
+        held, stretch = [], None
+        for i in reversed(range(column.count())):
+            item = column.takeAt(i)
+            if item.widget() is not None:
+                held.append(item.widget())
+            elif item.spacerItem() is not None:
+                stretch = item
+        held.extend(moved)
+        rank = {name: i for i, name in enumerate(self.PANEL_ORDER)}
+        held.sort(key=lambda w: rank.get(w.objectName(), len(rank)))
+        for row, widget in enumerate(held):
+            column.addWidget(widget, row, 0, 1, 2)
+            widget.show()
+        if stretch is not None:
+            column.addItem(stretch, len(held), 0, 1, 2)
+
+        for dock in (self.frequencyDockWidget, self.settingsDockWidget):
+            self.removeDockWidget(dock)
+        self.controlsDockWidget.setWindowTitle(self.tr("Controls"))
+
+        # Floated and hidden by the migration below rather than here, so that
+        # once someone has put it back it stays put
+        view = self.menubar.addMenu(self.tr("&View"))
+        view.addAction(self.levelsDockWidget.toggleViewAction())
 
     def build_readout(self):
         """A panel saying what the settings actually come to
@@ -1839,6 +1909,10 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         self.scopePreTriggerSpinBox.setValue(settings.value("scope_pre_trigger", 10, int))
         self.scopeSingleCheckBox.setChecked(settings.value("scope_single", 0, int))
 
+        # A layout saved when these were three docks would put the old ones
+        # back, so it goes rather than fighting the consolidation
+        if settings.value("config_version", 1, int) < 3:
+            settings.remove("window_state")
         # Restore window state
         if settings.value("window_state"):
             self.restoreState(settings.value("window_state"))
@@ -1846,15 +1920,19 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
             self.plotSplitter.restoreState(settings.value("plotsplitter_state"))
         self.apply_plot_visibility()
 
-        # Migration from older version of config file
-        if settings.value("config_version", 1, int) < 2:
-            # Make tabs from docks when started for first time
-            self.tabifyDockWidget(self.settingsDockWidget, self.levelsDockWidget)
-            self.settingsDockWidget.raise_()
+        # Migration from older versions of the config file. Read the version
+        # once: a step that writes it back stops every later step running.
+        version = settings.value("config_version", 1, int)
+        if version < 3:
+            # The panels are one dock now, so the tabbing that version 2 did
+            # has nothing left to tab. The levels meter is for choosing
+            # waterfall colours, which is not done mid-hunt, so it goes off to
+            # one side and the View menu brings it back.
+            self.levelsDockWidget.setFloating(True)
+            self.levelsDockWidget.hide()
             self.set_dock_size(self.controlsDockWidget, 0, 0)
-            self.set_dock_size(self.frequencyDockWidget, 0, 0)
-            # Update config version
-            settings.setValue("config_version", 2)
+        if version < 3:
+            settings.setValue("config_version", 3)
 
         # Window geometry has to be restored only after show(), because initial
         # maximization doesn't work otherwise (at least not in some window managers on X11)
