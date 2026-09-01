@@ -231,7 +231,7 @@
            <string>Show the waterfall under the spectrum: the recording as an image, frequency across and time down.</string>
           </property>
           <property name="text">
-           <string>&amp;Waterfall</string>
+           <string>Waterfall</string>
           </property>
           <property name="checked">
            <bool>true</bool>
@@ -244,7 +244,7 @@
            <string>Show power over time under the waterfall: the recording along its other axis, so the shape a signal has in time is on screen beside the sweep being looked at. Stepping through the recorded sweeps moves a cursor along it, and dragging that cursor steps to a moment. A signal that comes back every so often shows as evenly spaced spikes.</string>
           </property>
           <property name="text">
-           <string>Power over &amp;time (scope)</string>
+           <string>Power over time (scope)</string>
           </property>
          </widget>
         </item>
@@ -301,7 +301,7 @@
            <string>Reduce the scope to one stretch of the spectrum instead of all of it, which is a zero span view of that stretch. Set it below, or drag the shaded band on the spectrum plot.</string>
           </property>
           <property name="text">
-           <string>One frequency &amp;band only</string>
+           <string>One fre&amp;quency band only</string>
           </property>
          </widget>
         </item>
@@ -381,7 +381,7 @@
            <string>Start each sweep where the signal rises past a level, the way a scope does, instead of letting the trace slide through the window. A burst that comes back then lands in the same place every time and stands still, so its shape can be read. When nothing crosses the level the last sweep is held rather than moved.</string>
           </property>
           <property name="text">
-           <string>Trigger on a &amp;rising edge</string>
+           <string>Trigger &amp;on a rising edge</string>
           </property>
          </widget>
         </item>
@@ -398,7 +398,7 @@
         <item row="7" column="0">
          <widget class="QLabel" name="scopePreTriggerLabel">
           <property name="text">
-           <string>&amp;Pre-trigger:</string>
+           <string>Pre-trigger:</string>
           </property>
           <property name="buddy">
            <cstring>scopePreTriggerSpinBox</cstring>
@@ -449,7 +449,7 @@
            <string>Look through the recorded high-rate trace for anything that repeats, rather than for anything loud. A trigger can only find a pulse that stands above the noise, and with six hundred thousand readings a second the noise itself reaches five or six decibels above its own floor - so a pulse below that cannot be caught however the level is set. A pulse train can still be found, because it comes back: a thousand pulses stacked in step stand thirty times clear of noise stacked out of step. Reports the interval between pulses, how wide they are and how far the stack stands above the noise.</string>
           </property>
           <property name="text">
-           <string>Look for a repeating &amp;pulse...</string>
+           <string>Loo&amp;k for a repeating pulse...</string>
           </property>
          </widget>
         </item>
@@ -459,7 +459,7 @@
            <string>Write the sweep on screen out as CSV, at full resolution, with the settings it was taken under and the time t=0 happened. A burst worth catching is worth keeping.</string>
           </property>
           <property name="text">
-           <string>Sa&amp;ve sweep...</string>
+           <string>Save sweep...</string>
           </property>
          </widget>
         </item>
@@ -513,7 +513,7 @@
            <string>Measure the band straight off the radio's frames instead of reading it back out of the delivered spectra, and draw it as a second, finer trace. hackrf_stream reaches 25.6 us per reading at 20 MSPS with 40 kHz bins, against 10 ms for a delivered sweep, so a burst far too short to survive the averaging is still measured at full height. The step is set in Settings. Readings are noisier than the spectra behind them, which is the price of the resolution. Only backends that can do it offer it.</string>
           </property>
           <property name="text">
-           <string>Hi&amp;gh-rate tap</string>
+           <string>High-rate ta&amp;p</string>
           </property>
          </widget>
         </item>
@@ -648,7 +648,7 @@
      <item row="2" column="0">
       <widget class="QLabel" name="label">
        <property name="text">
-        <string>&amp;Bin size:</string>
+        <string>Bin si&amp;ze:</string>
        </property>
        <property name="buddy">
         <cstring>binSizeSpinBox</cstring>
@@ -693,7 +693,7 @@
         <string>Visit every slice twice, from two different tunes, and keep only what lands at the same frequency both times. A receiver's own spurs sit at a fixed offset from the tune, so they move when it does; an IQ image moves twice as far the other way; something on the air does not move at all. Costs twice the dwell and rejects three kinds of artifact that otherwise read as findings.</string>
        </property>
        <property name="text">
-        <string>Check for receiver spu&amp;rs</string>
+        <string>Check for receiver sp&amp;urs</string>
        </property>
       </widget>
      </item>
@@ -703,7 +703,7 @@
         <string>Walk the whole Start to Stop range one tune at a time, camping on each slice for the dwell and writing down what was ever heard in it and how often. Meant for a signal that is only there occasionally: sweeping past such a thing misses it, staying put does not. Press again to stop.</string>
        </property>
        <property name="text">
-        <string>Sur&amp;vey the range...</string>
+        <string>Surve&amp;y the range...</string>
        </property>
       </widget>
      </item>
@@ -906,7 +906,7 @@
         <string>Switch on the radio's own front end amplifier, worth about 14 dB on a HackRF. It sits ahead of the gain control, so it costs headroom that gain cannot give back: leave it off near a transmitter, and on for anything faint. Backends with no such amplifier ignore it.</string>
        </property>
        <property name="text">
-        <string>RF a&amp;mp (+14 dB)</string>
+        <string>&amp;RF amp (+14 dB)</string>
        </property>
       </widget>
      </item>

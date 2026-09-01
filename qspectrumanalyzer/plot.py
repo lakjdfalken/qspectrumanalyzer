@@ -5,6 +5,7 @@ from PySide6 import QtCore, QtGui, QtWidgets
 import pyqtgraph as pg
 
 from hackrf_stream.dsp import noise_ceiling
+from qspectrumanalyzer.constants import TAP_CAPACITY
 from qspectrumanalyzer.data import HistoryBuffer
 
 # Basic PyQtGraph settings
@@ -957,10 +958,9 @@ class ScopePlotWidget(ThrottledPlotWidget):
     #: recording it sits under anyway, so raising this past the recording
     #: depth buys nothing. The settings dialog works this out for whatever
     #: step is chosen.
-    #: Copied as TAP_CAPACITY in backends/hackrf_stream.py, which checks a
-    #: zero span step against how far back this reaches. If one moves,
-    #: move the other.
-    FAST_CAPACITY = 1000000
+    #: Readings kept in the fast buffer. Shared with the backends, which check
+    #: a zero span step against how far back it reaches.
+    FAST_CAPACITY = TAP_CAPACITY
 
     def __init__(self, layout, max_refresh_rate=60):
         super().__init__(layout, max_refresh_rate)

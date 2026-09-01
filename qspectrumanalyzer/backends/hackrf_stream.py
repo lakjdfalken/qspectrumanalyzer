@@ -6,13 +6,9 @@ import numpy as np
 from PySide6 import QtCore
 
 from qspectrumanalyzer.backends import BaseInfo, BasePowerThread
+from qspectrumanalyzer.constants import TAP_CAPACITY
 
-#: Readings the scope's fast buffer holds, so a zero span step can be checked
-#: against how far back it will actually reach. Deliberately a copy of
-#: ScopePlotWidget.FAST_CAPACITY rather than an import of it: every module
-#: that owns the number pulls in QtGui, and a backend that imports the widget
-#: stack cannot be run headless. If one moves, move the other.
-TAP_CAPACITY = 1000000
+
 
 try:
     import hackrf_stream
