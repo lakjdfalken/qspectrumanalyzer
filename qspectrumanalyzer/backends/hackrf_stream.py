@@ -281,6 +281,7 @@ class PowerThread(BasePowerThread):
         self.reported_drops = 0
         self.reported_band_error = None
         self.offset_tuned = False
+        self.tune_flipped = False
         #: Band being watched in the time domain, in display frequencies, and
         #: the seconds per reading asked for (None for as fine as it goes)
         self.band = None
@@ -430,6 +431,10 @@ class PowerThread(BasePowerThread):
             say("", "off to one side on purpose, so the DC spike and the IQ "
                     "images fall outside the span and every bin shown is "
                     "measured")
+        if self.tune_flipped:
+            say("", "and to the other side of the passband from the last look, "
+                    "so anything at a fixed offset from the tune has moved out "
+                    "of the span - this is the second look of a spur check")
 
         gain = hackrf_stream.describe_gain(source.lna, source.vga, self.amp)
         say("gain", gain[0])
@@ -522,6 +527,19 @@ class PowerThread(BasePowerThread):
                 self.params["start_freq"] * 1e6 - self.lnb_lo,
                 self.params["stop_freq"] * 1e6 - self.lnb_lo, rate, guard,
                 usable=hackrf_stream.baseband_filter_bw(0.75 * rate))
+
+        # A survey checking for receiver spurs looks at each slice twice, and
+        # asks for the second look from the other side of the passband: the
+        # span moves from the upper half of the tune to the lower one. Half a
+        # passband is a whole number of bins at every FFT size this uses, so
+        # the two looks land on the same absolute grid and can be compared bin
+        # for bin - and anything sitting at a fixed offset from the tune has
+        # moved right out of the span.
+        if centre is not None and QtCore.QSettings().value("survey_tune_flip", 0, int):
+            centre += hackrf_stream.baseband_filter_bw(0.75 * rate) / 2.0
+            self.tune_flipped = True
+        else:
+            self.tune_flipped = False
 
         self.offset_tuned = centre is not None
         if centre is not None:

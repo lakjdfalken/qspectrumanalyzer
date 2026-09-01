@@ -379,10 +379,15 @@ class Ui_QSpectrumAnalyzerMainWindow(object):
 
         self.formLayout.setWidget(3, QFormLayout.ItemRole.FieldRole, self.surveyDwellSpinBox)
 
+        self.surveyVerifyCheckBox = QCheckBox(self.frequencyDockWidgetContents)
+        self.surveyVerifyCheckBox.setObjectName(u"surveyVerifyCheckBox")
+
+        self.formLayout.setWidget(4, QFormLayout.ItemRole.SpanningRole, self.surveyVerifyCheckBox)
+
         self.surveyButton = QPushButton(self.frequencyDockWidgetContents)
         self.surveyButton.setObjectName(u"surveyButton")
 
-        self.formLayout.setWidget(4, QFormLayout.ItemRole.SpanningRole, self.surveyButton)
+        self.formLayout.setWidget(5, QFormLayout.ItemRole.SpanningRole, self.surveyButton)
 
         self.surveyProgressLabel = QLabel(self.frequencyDockWidgetContents)
         self.surveyProgressLabel.setObjectName(u"surveyProgressLabel")
@@ -799,6 +804,10 @@ class Ui_QSpectrumAnalyzerMainWindow(object):
 #if QT_CONFIG(tooltip)
         self.surveyButton.setToolTip(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Walk the whole Start to Stop range one tune at a time, camping on each slice for the dwell and writing down what was ever heard in it and how often. Meant for a signal that is only there occasionally: sweeping past such a thing misses it, staying put does not. Press again to stop.", None))
 #endif // QT_CONFIG(tooltip)
+#if QT_CONFIG(tooltip)
+        self.surveyVerifyCheckBox.setToolTip(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Visit every slice twice, from two different tunes, and keep only what lands at the same frequency both times. A receiver's own spurs sit at a fixed offset from the tune, so they move when it does; an IQ image moves twice as far the other way; something on the air does not move at all. Costs twice the dwell and rejects three kinds of artifact that otherwise read as findings.", None))
+#endif // QT_CONFIG(tooltip)
+        self.surveyVerifyCheckBox.setText(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Check for receiver spu&rs", None))
         self.surveyButton.setText(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Sur&vey the range...", None))
         self.surveyProgressLabel.setText("")
         self.binSizeSpinBox.setSuffix(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u" kHz", None))

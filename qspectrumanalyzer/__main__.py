@@ -180,17 +180,23 @@ class Survey:
     #: How far above a bin's own median a sweep has to be to count as activity
     ACTIVE_MARGIN = 10.0
 
-    def __init__(self, start_hz, stop_hz, width_hz, dwell):
+    def __init__(self, start_hz, stop_hz, width_hz, dwell, verify=False):
         self.width = width_hz
         self.dwell = dwell
+        #: Visit every slice from two tunes and keep only what does not move.
+        #: A receiver's spurs sit at a fixed offset from the tune, so they
+        #: follow it; an IQ image moves twice as far the other way; a signal
+        #: on the air does not move at all. Costs twice the dwell.
+        self.verify = verify
+        self.pass_no = 0
         self.edges = []
         edge = start_hz
         while edge < stop_hz:
             self.edges.append((edge, min(edge + width_hz, stop_hz)))
             edge += width_hz
         self.index = 0
-        #: (frequency, loudest, active sweeps, total sweeps) for every bin so far
-        self.rows = []
+        #: frequency -> the (loudest, active, total) each look recorded there
+        self.seen = {}
         #: Spectra the peak hold actually saw, across every slice
         self.spectra = 0
         #: Blocks the radio dropped while this survey was listening. A drop is
@@ -241,9 +247,25 @@ class Survey:
         floor = np.median(recorded, axis=0)
         active = (recorded > floor + self.ACTIVE_MARGIN).sum(axis=0)
         for i in range(count):
-            self.rows.append((float(x[i]), float(loudest[i]),
-                              int(active[i]), int(recorded.shape[0])))
+            self.seen.setdefault(float(x[i]), []).append(
+                (float(loudest[i]), int(active[i]), int(recorded.shape[0])))
         return recorded.shape[0]
+
+    @property
+    def rows(self):
+        """What each bin heard, in frequency order
+
+        Where a bin was looked at twice the quieter look wins, kept whole
+        rather than mixed: taking the lower loudest but the other look's
+        counts would describe a measurement that never happened. A spur is
+        loud in the look whose tune put it there and absent in the other, so
+        the minimum is the look without it. A real signal is in both and pays
+        only the little by which the lower of two max-holds sits under either
+        - the price of knowing it was really there."""
+        out = []
+        for freq in sorted(self.seen):
+            out.append((freq,) + min(self.seen[freq], key=lambda look: look[0]))
+        return out
 
     def write(self, handle, header):
         """Write the survey out, loudest first within each slice"""
@@ -251,9 +273,10 @@ class Survey:
             handle.write("# {}\n".format(line))
         out = csv.writer(handle)
         out.writerow(("frequency_hz", "loudest_db", "active_sweeps", "total_sweeps"))
+        rows = self.rows
         out.writerows(("{:.0f}".format(f), "{:.2f}".format(d), a, t)
-                      for f, d, a, t in self.rows)
-        return len(self.rows)
+                      for f, d, a, t in rows)
+        return len(rows)
 
 
 class SurveyFindings(QtWidgets.QDialog):
@@ -1730,13 +1753,17 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
                              timeout=5000)
             return
 
-        self.survey = Survey(start, stop, width, self.surveyDwellSpinBox.value())
+        verify = self.surveyVerifyCheckBox.isChecked()
+        self.survey = Survey(start, stop, width, self.surveyDwellSpinBox.value(), verify)
         self.survey_range = (start, stop)
         self.surveyButton.setText(self.tr("Stop the sur&vey"))
         print("Surveying {:g}-{:g} MHz in {:g} MHz steps, {} s each: {} tunes, "
               "about {}".format(start / 1e6, stop / 1e6, width / 1e6,
                                 self.survey.dwell, len(self.survey.edges),
-                                human_time(len(self.survey.edges) * (self.survey.dwell + 2))))
+                                human_time(len(self.survey.edges) * (self.survey.dwell + 2)
+                                           * (2 if verify else 1))
+                                + (", each slice looked at twice to reject "
+                                   "receiver spurs" if verify else "")))
         self.ensure_record_depth(self.survey.dwell)
         self.begin_survey_slice()
 
@@ -1761,6 +1788,9 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
 
     def begin_survey_slice(self):
         """Point the radio at the next slice and start the clock on it"""
+        # Read by the backend when it settles the tune. A setting rather than
+        # an attribute because the power thread may be rebuilt between slices.
+        QtCore.QSettings().setValue("survey_tune_flip", int(self.survey.pass_no))
         low, high = self.survey.slice
         self.startFreqSpinBox.setValue(low / 1e6)
         self.stopFreqSpinBox.setValue(high / 1e6)
@@ -1775,7 +1805,15 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
             return
         swept = self.survey.harvest(self.data_storage, self.power_thread)
         low, high = self.survey.slice
-        print("  {:8.3f}-{:8.3f} MHz: {} sweeps".format(low / 1e6, high / 1e6, swept))
+        print("  {:8.3f}-{:8.3f} MHz: {} sweeps{}".format(
+            low / 1e6, high / 1e6, swept,
+            " (look {} of 2)".format(self.survey.pass_no + 1) if self.survey.verify else ""))
+        if self.survey.verify and self.survey.pass_no == 0:
+            # The same slice again, from the other side of the passband
+            self.survey.pass_no = 1
+            self.begin_survey_slice()
+            return
+        self.survey.pass_no = 0
         self.survey.index += 1
         if self.survey.finished:
             self.finish_survey(self.tr("Survey finished"))
@@ -1790,7 +1828,9 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         low, high = self.survey.slice
         self.surveyProgressLabel.setText(self.tr(
             "Listening to {:g}-{:g} MHz \u00b7 {} of {}").format(
-                low / 1e6, high / 1e6, self.survey.index + 1, len(self.survey.edges)))
+                low / 1e6, high / 1e6, self.survey.index + 1, len(self.survey.edges))
+            + (self.tr(" \u00b7 look {} of 2").format(self.survey.pass_no + 1)
+               if self.survey.verify else ""))
 
     def finish_survey(self, why):
         """Stop walking, and offer to write down what was heard"""
@@ -1798,6 +1838,7 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         self.survey_timer.stop()
         self.surveyButton.setText(self.tr("Sur&vey the range..."))
         self.surveyProgressLabel.setText("")
+        QtCore.QSettings().setValue("survey_tune_flip", 0)
         # Whatever the last slice heard is worth keeping too, even if it was
         # cut short: a survey stopped early is still a survey. Before stop(),
         # so the peak hold is taken from the thread that recorded it
@@ -1907,6 +1948,11 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
             "active_sweeps and total_sweeps count the delivered sweeps only, "
             "which is the sample the median is taken from".format(survey.spectra)
         ] if survey.spectra else []) + ([
+            "every slice was looked at twice, from two tunes half the passband "
+            "apart, and the quieter look kept: a spur sits at a fixed offset "
+            "from the tune and moves with it, an IQ image moves twice as far "
+            "the other way, and neither survives being asked twice"
+        ] if survey.verify else []) + ([
             "the radio dropped {} blocks during this survey. A drop is a "
             "discontinuity in the samples, which reads as a click: white "
             "across every bin at once, and the peak detector keeps it - so "

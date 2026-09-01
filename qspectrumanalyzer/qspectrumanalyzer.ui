@@ -688,6 +688,16 @@
       </widget>
      </item>
      <item row="4" column="0" colspan="2">
+      <widget class="QCheckBox" name="surveyVerifyCheckBox">
+       <property name="toolTip">
+        <string>Visit every slice twice, from two different tunes, and keep only what lands at the same frequency both times. A receiver's own spurs sit at a fixed offset from the tune, so they move when it does; an IQ image moves twice as far the other way; something on the air does not move at all. Costs twice the dwell and rejects three kinds of artifact that otherwise read as findings.</string>
+       </property>
+       <property name="text">
+        <string>Check for receiver spu&amp;rs</string>
+       </property>
+      </widget>
+     </item>
+     <item row="5" column="0" colspan="2">
       <widget class="QPushButton" name="surveyButton">
        <property name="toolTip">
         <string>Walk the whole Start to Stop range one tune at a time, camping on each slice for the dwell and writing down what was ever heard in it and how often. Meant for a signal that is only there occasionally: sweeping past such a thing misses it, staying put does not. Press again to stop.</string>
