@@ -1761,6 +1761,7 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         # once someone has put it back it stays put
         view = self.menubar.addMenu(self.tr("&View"))
         view.addAction(self.levelsDockWidget.toggleViewAction())
+        self.levelsDockWidget.visibilityChanged.connect(self.place_levels_window)
 
     #: Groups worth folding away. The scope and the readout are the tall ones
     #: and the ones you stop needing once they are set; Looking for and
@@ -1801,6 +1802,31 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
             child.setVisible(open_)
         box.setFlat(not open_)
         QtCore.QSettings().setValue("open_" + name, int(open_))
+
+    def place_levels_window(self, visible):
+        """Keep the floating levels meter somewhere it can be reached
+
+        A dock floated by code lands where Qt puts it, and on a first show
+        that is the top left corner of the screen - underneath the menu bar
+        on a Mac, where it cannot be grabbed, moved or closed. Which looks
+        exactly like a View item that does nothing.
+
+        Only ever nudged when it is somewhere it should not be, so a window
+        the operator has put where they want it stays there."""
+        dock = self.levelsDockWidget
+        if not visible or not dock.isFloating():
+            return
+        screen = self.screen() or QtWidgets.QApplication.primaryScreen()
+        if screen is None:
+            return
+        room = screen.availableGeometry()
+        where = dock.frameGeometry()
+        if room.contains(where):
+            return
+        dock.move(max(room.left() + 8,
+                      min(self.frameGeometry().right() - where.width() - 24,
+                          room.right() - where.width() - 8)),
+                  max(room.top() + 8, self.frameGeometry().top() + 56))
 
     def build_readout(self):
         """A panel saying what the settings actually come to
