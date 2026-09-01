@@ -121,6 +121,19 @@ class Ui_QSpectrumAnalyzerSettings(object):
 
         self.formLayout.setWidget(11, QFormLayout.ItemRole.FieldRole, self.tapResolutionSpinBox)
 
+        self.huntPulseLabel = QLabel(QSpectrumAnalyzerSettings)
+        self.huntPulseLabel.setObjectName(u"huntPulseLabel")
+
+        self.formLayout.setWidget(14, QFormLayout.ItemRole.LabelRole, self.huntPulseLabel)
+
+        self.huntPulseSpinBox = QDoubleSpinBox(QSpectrumAnalyzerSettings)
+        self.huntPulseSpinBox.setObjectName(u"huntPulseSpinBox")
+        self.huntPulseSpinBox.setAlignment(Qt.AlignRight|Qt.AlignTrailing|Qt.AlignVCenter)
+        self.huntPulseSpinBox.setDecimals(2)
+        self.huntPulseSpinBox.setMaximum(100000.000000000000000)
+
+        self.formLayout.setWidget(14, QFormLayout.ItemRole.FieldRole, self.huntPulseSpinBox)
+
         self.tapDetectorLabel = QLabel(QSpectrumAnalyzerSettings)
         self.tapDetectorLabel.setObjectName(u"tapDetectorLabel")
 
@@ -354,6 +367,12 @@ class Ui_QSpectrumAnalyzerSettings(object):
 #endif // QT_CONFIG(tooltip)
         self.tapResolutionSpinBox.setSuffix(QCoreApplication.translate("QSpectrumAnalyzerSettings", u" us", None))
         self.tapResolutionSpinBox.setSpecialValueText(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"finest", None))
+        self.huntPulseLabel.setText(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"&Pulse being hunted:", None))
+#if QT_CONFIG(tooltip)
+        self.huntPulseSpinBox.setToolTip(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"The pulse you are looking for, so the startup checks can say what your bin size costs it. A pulse shorter than one FFT frame is spread across the whole of it: at 40 kHz bins a 1 us pulse loses 14 dB, at 1250 kHz it loses 1. Left at zero the bin size is not checked against anything, only reported.", None))
+#endif // QT_CONFIG(tooltip)
+        self.huntPulseSpinBox.setSpecialValueText(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"not stated", None))
+        self.huntPulseSpinBox.setSuffix(QCoreApplication.translate("QSpectrumAnalyzerSettings", u" us", None))
         self.tapDetectorLabel.setText(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"Zero span &detector:", None))
         self.tapDetectorComboBox.setItemText(0, QCoreApplication.translate("QSpectrumAnalyzerSettings", u"Peak (catch short pulses)", None))
         self.tapDetectorComboBox.setItemText(1, QCoreApplication.translate("QSpectrumAnalyzerSettings", u"Average (smooth the shape)", None))

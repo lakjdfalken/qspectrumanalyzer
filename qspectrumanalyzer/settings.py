@@ -30,6 +30,7 @@ class QSpectrumAnalyzerSettings(QtWidgets.QDialog, Ui_QSpectrumAnalyzerSettings)
         self.antialiasCheckBox.setChecked(settings.value("antialias", 1, int))
         self.levelsMeterCheckBox.setChecked(settings.value("levels_meter", 1, int))
         self.tapResolutionSpinBox.setValue(settings.value("tap_resolution", 0, float))
+        self.huntPulseSpinBox.setValue(settings.value("hunt_pulse_us", 0.0, float))
         self.tapDetectorComboBox.setCurrentIndex(
             {"peak": 0, "mean": 1, "total": 2}.get(
                 settings.value("tap_detector", "peak"), 0))
@@ -318,6 +319,7 @@ class QSpectrumAnalyzerSettings(QtWidgets.QDialog, Ui_QSpectrumAnalyzerSettings)
         settings.setValue("max_refresh_rate", self.maxRefreshRateSpinBox.value())
         settings.setValue("record_depth", self.recordDepthSpinBox.value())
         settings.setValue("tap_resolution", self.tapResolutionSpinBox.value())
+        settings.setValue("hunt_pulse_us", self.huntPulseSpinBox.value())
         settings.setValue("tap_detector",
                           ("peak", "mean", "total")[self.tapDetectorComboBox.currentIndex()])
         settings.setValue("sweep_detector",

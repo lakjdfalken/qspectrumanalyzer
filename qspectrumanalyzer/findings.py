@@ -84,15 +84,33 @@ def read_survey(path):
     return columns[:, 0], columns[:, 1], columns[:, 2], columns[:, 3], header
 
 
+#: When no bin was ever quiet, the floor is taken from this fraction of the
+#: quietest bins instead. A quarter is enough to be a median rather than a
+#: minimum, and few enough that something covering three quarters of the span
+#: still cannot set the level it is measured against.
+QUIET_FRACTION = 0.25
+
+
 def noise_floor(loudest, active):
     """Where the survey's own noise sat
 
     Taken from the bins that were never active, so that a band full of signals
-    does not raise the level everything else is measured against. When
-    everything was active there is nothing quiet to compare with, and the
-    median of the lot is the best that can be done."""
+    does not raise the level everything else is measured against.
+
+    When every bin was active there is nothing quiet to compare with, and the
+    median of the lot is *not* the best that can be done - it is the worst,
+    because a signal wide enough to fill the span then sets its own reference
+    and reports itself as a few dB over a floor made of itself. Measured on a
+    5622-5628 MHz survey where all nineteen bins were active: the median of
+    the lot gave -24.2 dB and the emitter read +3.9 dB over it, while the
+    quietest bins gave -27.5 dB and the same emitter read +7.1. The quietest
+    quarter is the fallback: still a median, so one odd bin cannot set it, but
+    taken from the part of the span the signal had least of."""
     quiet = loudest[active == 0]
-    return float(np.median(quiet if quiet.size else loudest))
+    if quiet.size:
+        return float(np.median(quiet))
+    keep = max(1, int(round(loudest.size * QUIET_FRACTION)))
+    return float(np.median(np.sort(loudest)[:keep]))
 
 
 #: What a candidate has to manage before it is worth reporting: either enough

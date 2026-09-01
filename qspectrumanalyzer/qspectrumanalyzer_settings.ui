@@ -271,6 +271,38 @@
        </item>
       </widget>
      </item>
+     <item row="14" column="0">
+      <widget class="QLabel" name="huntPulseLabel">
+       <property name="text">
+        <string>&amp;Pulse being hunted:</string>
+       </property>
+       <property name="buddy">
+        <cstring>huntPulseSpinBox</cstring>
+       </property>
+      </widget>
+     </item>
+     <item row="14" column="1">
+      <widget class="QDoubleSpinBox" name="huntPulseSpinBox">
+       <property name="toolTip">
+        <string>The pulse you are looking for, so the startup checks can say what your bin size costs it. A pulse shorter than one FFT frame is spread across the whole of it: at 40 kHz bins a 1 us pulse loses 14 dB, at 1250 kHz it loses 1. Left at zero the bin size is not checked against anything, only reported.</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+       </property>
+       <property name="specialValueText">
+        <string>not stated</string>
+       </property>
+       <property name="suffix">
+        <string> us</string>
+       </property>
+       <property name="decimals">
+        <number>2</number>
+       </property>
+       <property name="maximum">
+        <double>100000.000000000000000</double>
+       </property>
+      </widget>
+     </item>
      <item row="15" column="1">
       <widget class="QLabel" name="tapEstimateLabel">
        <property name="text">

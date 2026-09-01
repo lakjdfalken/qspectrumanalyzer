@@ -358,6 +358,24 @@ class PowerThread(BasePowerThread):
                          "height.".format(average, sweep * 1e6,
                                           10 * np.log10(sweep / 1e-6)))
 
+        # The same guard choose_tune() uses, so the span it names really is
+        # one that offset tuning would take
+        guard = max((self.source.dc_bins + 1) * bin_hz, 0.002 * rate)
+        half = hackrf_stream.baseband_filter_bw(0.75 * rate) / 2.0
+        centre = self.params["center_freq"] + self.lnb_lo
+        low, high = self.params["start_freq"] * 1e6, self.params["stop_freq"] * 1e6
+        outside = max(0.0, (centre - half) - low) + max(0.0, high - (centre + half))
+        if outside > bin_hz:
+            lines.append("{:.2f} MHz of the span is outside the {:.1f} MHz "
+                         "baseband filter, which passes {:.3f}-{:.3f} MHz of "
+                         "this tune. Those bins are the filter's own roll-off "
+                         "rather than the air, and they slope away exactly as "
+                         "a band going quiet at one end does. A span under "
+                         "{:.2f} MHz can be offset-tuned to fit inside it."
+                         .format(outside / 1e6, 2 * half / 1e6,
+                                 (centre - half) / 1e6, (centre + half) / 1e6,
+                                 (half - 2 * guard) / 1e6))
+
         wanted = settings.value("hunt_pulse_us", 0.0, float) * 1e-6
         if wanted > 0:
             best_n = hackrf_stream.fast_fft_size(rate, 1.0 / wanted)
