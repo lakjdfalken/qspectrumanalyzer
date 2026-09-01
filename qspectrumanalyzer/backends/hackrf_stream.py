@@ -16,7 +16,24 @@ from qspectrumanalyzer.constants import TAP_CAPACITY
 SPECTRUM_SECONDS = 26 * 512 / 20e6
 
 
-def derive(rate, bin_hz, low, high, band_hz=0.0, step=0.0, window="hann"):
+def offsettable_span(rate, bin_hz, window="hann"):
+    """The widest span the tune can still be moved clear of the DC spike in
+
+    A spur check works by moving the tune, and the tune can only move when the
+    span has left it room. A survey walks in slices one sample rate wide by
+    default, which at 20 MSPS is wider than the whole passband - so
+    offset_tune() refuses, the tune never moves, and the check silently
+    compares a slice with itself. Slices this wide or narrower is the price of
+    the check actually happening."""
+    n = hackrf_stream.fast_fft_size(rate, bin_hz)
+    actual = rate / n
+    guard = max((hackrf_stream.dc_spike_bins(window) + 1) * actual, 0.002 * rate)
+    half = hackrf_stream.baseband_filter_bw(0.75 * rate) / 2.0
+    return max(0.0, half - 2.0 * guard)
+
+
+def derive(rate, bin_hz, low, high, band_hz=0.0, step=0.0, window="hann",
+           average=None):
     """What a set of controls comes to, worked out the way the radio will
 
     Pure arithmetic on numbers a panel already holds, so a readout can say
@@ -28,7 +45,11 @@ def derive(rate, bin_hz, low, high, band_hz=0.0, step=0.0, window="hann"):
     n = hackrf_stream.fast_fft_size(rate, bin_hz)
     actual = rate / n
     frame = n / rate
-    average = max(1, int(round(SPECTRUM_SECONDS * rate / n)))
+    # None is --average auto, the case frames_averaged() works out; a number
+    # is what the parameters asked for and is what the run will really use
+    if average is None:
+        average = max(1, int(round(SPECTRUM_SECONDS * rate / n)))
+    average = max(1, int(average))
     guard = max((hackrf_stream.dc_spike_bins(window) + 1) * actual, 0.002 * rate)
     tune = hackrf_stream.offset_tune(
         low, high, rate, guard,
@@ -267,6 +288,12 @@ class PowerThread(BasePowerThread):
     reported_band_error = None
     lnb_lo = 0
     offset_tuned = False
+    #: A class attribute as well as an instance one, because delivery_rate is
+    #: asked for before a run starts - a survey sizes its recording from it -
+    #: and setup() has not happened then. Without this the property raises
+    #: AttributeError, getattr() swallows it as None, and the caller silently
+    #: does nothing at all.
+    delivery_interval = None
 
     def setup(self, start_freq, stop_freq, bin_size, interval=0.0, gain=-1, ppm=0, crop=0,
               single_shot=False, device="", sample_rate=20000000, bandwidth=0, lnb_lo=0,
@@ -574,15 +601,19 @@ class PowerThread(BasePowerThread):
                 self.params["stop_freq"] * 1e6 - self.lnb_lo, rate, guard,
                 usable=hackrf_stream.baseband_filter_bw(0.75 * rate))
 
-        # A survey checking for receiver spurs looks at each slice twice, and
-        # asks for the second look from the other side of the passband: the
-        # span moves from the upper half of the tune to the lower one. Half a
-        # passband is a whole number of bins at every FFT size this uses, so
-        # the two looks land on the same absolute grid and can be compared bin
-        # for bin - and anything sitting at a fixed offset from the tune has
-        # moved right out of the span.
+        # A survey checking for receiver spurs looks at each slice twice and
+        # asks for the second look from the other side of the passband, so the
+        # span moves from the upper half of the tune to the lower one and
+        # anything at a fixed offset from the tune moves right out of it.
+        #
+        # Quantised to whole bins. Half a passband is a whole number of them at
+        # 20 MSPS but not at 10 or 6, where the filter is not three quarters of
+        # the rate; without rounding, the two looks would land on grids a
+        # fraction of a bin apart and nothing could be compared with anything.
         if centre is not None and QtCore.QSettings().value("survey_tune_flip", 0, int):
-            centre += hackrf_stream.baseband_filter_bw(0.75 * rate) / 2.0
+            bin_size = rate / fft_size
+            half = hackrf_stream.baseband_filter_bw(0.75 * rate) / 2.0
+            centre += round(half / bin_size) * bin_size
             self.tune_flipped = True
         else:
             self.tune_flipped = False
@@ -655,9 +686,14 @@ class PowerThread(BasePowerThread):
         # Never widen what was asked for, and never hand back nothing: a tune
         # narrower than the filter has no roll-off in it to drop
         measured = mask & self.measured_bins(frequencies)
-        self.dropped_edges = int(mask.sum() - measured.sum())
+        # Counted only when the crop is actually taken. A span lying entirely
+        # inside the bins measured_bins() rejects keeps every one of them, and
+        # saying otherwise tells the operator bins went that did not.
         if measured.any():
+            self.dropped_edges = int(mask.sum() - measured.sum())
             mask = measured
+        else:
+            self.dropped_edges = 0
 
         self.crop_mask = mask
         self.x = frequencies[mask]

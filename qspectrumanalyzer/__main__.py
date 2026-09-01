@@ -7,7 +7,7 @@ from PySide6 import QtCore, QtGui, QtWidgets
 
 from qspectrumanalyzer import backends
 from qspectrumanalyzer.version import __version__
-from qspectrumanalyzer.data import DataStorage
+from qspectrumanalyzer.data import DataStorage, HistoryBuffer
 from qspectrumanalyzer import findings, periodicity
 from qspectrumanalyzer.plot import (ScopePlotWidget, SpectrumPlotWidget,
                                     WaterfallPlotWidget)
@@ -264,9 +264,14 @@ class Survey:
         rather than mixed: taking the lower loudest but the other look's
         counts would describe a measurement that never happened. A spur is
         loud in the look whose tune put it there and absent in the other, so
-        the minimum is the look without it. A real signal is in both and pays
-        only the little by which the lower of two max-holds sits under either
-        - the price of knowing it was really there."""
+        the minimum is the look without it.
+
+        The cost is real and is not only the extra dwell. Anything present in
+        one look and not the other is rejected the same way a spur is, and a
+        rare enough emitter is exactly that - so the check answers "is this
+        thing on the air" and not "is there anything here". Sweep once with it
+        off to find things, once with it on to decide whether they are yours
+        or the receiver's."""
         out = []
         for freq in sorted(self.seen):
             out.append((freq,) + min(self.seen[freq], key=lambda look: look[0]))
@@ -1279,10 +1284,17 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
             splitter.setSizes(sizes)
 
     def apply_levels_dock(self):
-        """The waterfall's level meter belongs on screen only with the waterfall"""
-        self.levelsDockWidget.setVisible(
-            self.waterfallCheckBox.isChecked()
-            and bool(QtCore.QSettings().value("levels_meter", 1, int)))
+        """The waterfall's level meter belongs on screen only with the waterfall
+
+        It can be hidden but never shown from here once it is floating. A
+        floating window carries a close button and a View entry, so putting it
+        back on screen is the operator's business; doing it for them means a
+        window they closed reappears at every launch and every waterfall
+        toggle, and neither the button nor the menu appears to work."""
+        wanted = (self.waterfallCheckBox.isChecked()
+                  and bool(QtCore.QSettings().value("levels_meter", 1, int)))
+        if not wanted or not self.levelsDockWidget.isFloating():
+            self.levelsDockWidget.setVisible(wanted)
 
     def apply_plot_visibility(self):
         """Put the panes where the checkboxes say
@@ -1816,7 +1828,8 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
                 high=self.stopFreqSpinBox.value() * 1e6,
                 band_hz=self.scopeWidthSpinBox.value() * 1e3 if banded else 0.0,
                 step=settings.value("tap_resolution", 0.0, float) * 1e-6,
-                window=self.configured_window())
+                window=self.configured_window(),
+                average=self.configured_average())
 
             show["FFT length"] = "{} point".format(d["fft_size"])
             show["Bin size, actual"] = self.as_hz(d["bin_hz"])
@@ -1842,6 +1855,27 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
             pass
         for name, text in show.items():
             self.readout[name].setText(text)
+
+    def refresh_after_settings(self):
+        """Settings that are not on the panel still decide what it says
+
+        Sample rate and the zero span step live in the dialog and drive the
+        FFT length, the bin size, the frame, the tune - most of the readout.
+        Without this the panel goes on showing the old numbers until some
+        unrelated box is nudged, which is exactly the failure it exists to
+        remove."""
+        self.update_readout()
+
+    def configured_average(self):
+        """Frames per sweep if the parameters name a number, else None
+
+        None means auto, which frames_averaged() decides. A number set by hand
+        overrides it, and the readout has to say the one the run will use."""
+        try:
+            return backends.hackrf_stream.parse_params(
+                QtCore.QSettings().value("params", "") or "").average
+        except Exception:
+            return None
 
     def configured_window(self):
         """The FFT window the backend will really use
@@ -2131,6 +2165,8 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
             return
 
         verify = self.surveyVerifyCheckBox.isChecked()
+        if verify:
+            width, verify = self.spur_check_width(width)
         self.survey = Survey(start, stop, width, self.surveyDwellSpinBox.value(), verify)
         self.survey_range = (start, stop)
         self.surveyButton.setText(self.tr("Stop the sur&vey"))
@@ -2143,6 +2179,38 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
                                    "receiver spurs" if verify else "")))
         self.ensure_record_depth(self.survey.dwell)
         self.begin_survey_slice()
+
+    def spur_check_width(self, width):
+        """How wide a slice may be if the tune is to move between the looks
+
+        A spur check works by moving the tune, and the tune only moves when
+        offset tuning can place the span clear of the DC spike - which it
+        cannot do for a slice one whole sample rate wide. Walked at the
+        default width the check compares each slice with itself, takes twice
+        as long to do it, and says in the file that it looked from two tunes.
+
+        So the range is walked in narrower slices instead, which is the real
+        price of the check and is said out loud rather than discovered later.
+        Returns the width to use and whether the check can happen at all."""
+        widest = getattr(backends, self.active_backend, None)
+        widest = getattr(widest, "offsettable_span", None)
+        if widest is None:
+            print("  {:<10} this backend cannot move its tune, so there is no "
+                  "spur check to do".format("check"))
+            return width, False
+        room = widest(self.tune_width(), self.binSizeSpinBox.value() * 1e3,
+                      self.configured_window())
+        if room <= 0:
+            print("  {:<10} at {:g} kHz bins the DC spike leaves no room to move "
+                  "the tune, so the spur check cannot run".format(
+                      "check", self.binSizeSpinBox.value()))
+            return width, False
+        if room >= width:
+            return width, True
+        print("  {:<10} spur check needs slices of {:.2f} MHz rather than {:.2f}, "
+              "because the tune has to have somewhere to move to".format(
+                  "check", room / 1e6, width / 1e6))
+        return room, True
 
     def ensure_record_depth(self, dwell):
         """Make the recording long enough to hold the dwell it is about to take
@@ -2162,6 +2230,32 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         self.data_storage.reset()
         print("  {:<10} recording depth {} holds {:.0f} s of a {:g} s dwell; "
               "raised to {} sweeps".format("check", have, have / rate, dwell, needed))
+        # Raising the number is not the same as getting it. The buffer is also
+        # capped by a memory budget it cannot know until the bin count arrives,
+        # so work the bin count out here and say if the dwell is still going to
+        # come up short - which is the whole failure this was added to stop.
+        bins = self.expected_bins()
+        if bins:
+            fits = HistoryBuffer.fits(bins, needed)
+            if fits < needed:
+                print("  {:<10} but {} bins a sweep only leaves room for {}, "
+                      "which is the last {:.0f} s of the dwell. Coarser bins or "
+                      "a shorter dwell.".format("check", bins, fits, fits / rate))
+
+    def expected_bins(self):
+        """How many bins a sweep will have, before one has arrived
+
+        The recording is sized in sweeps and budgeted in bytes, and the bytes
+        depend on this. Guessed from the controls rather than waited for,
+        because by the time the first sweep answers it the survey has started."""
+        try:
+            return backends.hackrf_stream.derive(
+                rate=self.tune_width(),
+                bin_hz=max(1.0, self.binSizeSpinBox.value() * 1e3),
+                low=self.startFreqSpinBox.value() * 1e6,
+                high=self.stopFreqSpinBox.value() * 1e6)["bins"]
+        except Exception:
+            return 0
 
     def begin_survey_slice(self):
         """Point the radio at the next slice and start the clock on it"""
@@ -2328,7 +2422,9 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
             "every slice was looked at twice, from two tunes half the passband "
             "apart, and the quieter look kept: a spur sits at a fixed offset "
             "from the tune and moves with it, an IQ image moves twice as far "
-            "the other way, and neither survives being asked twice"
+            "the other way, and neither survives being asked twice. Nor does "
+            "anything that was only there for one of the two looks, so this "
+            "confirms what a plain survey found rather than replacing it"
         ] if survey.verify else []) + ([
             "the radio dropped {} blocks during this survey. A drop is a "
             "discontinuity in the samples, which reads as a click: white "
@@ -2480,6 +2576,12 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         # The frequency range is only settled now, so this is the first point
         # at which we can tell whether the chosen backend can measure it
         self.apply_backend_for_range()
+
+        # Any run that is not a survey slice tunes normally. Without this a
+        # window closed during the second look leaves the flag set on disk and
+        # every later run quietly tunes half a passband high.
+        if self.survey is None:
+            QtCore.QSettings().setValue("survey_tune_flip", 0)
 
         self.prev_data_timestamp = time.time()
         self.start_timestamp = self.prev_data_timestamp
@@ -2695,6 +2797,7 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
                 bool(settings.value("levels_meter", 1, int)))
             self.apply_levels_dock()
             self.setup_power_thread()
+            self.refresh_after_settings()
             # The zero span step and the tap's detector live in here, and the
             # tap is told them when the band is pointed. Without this they wait
             # for the next Start, which looks exactly like a setting that does
