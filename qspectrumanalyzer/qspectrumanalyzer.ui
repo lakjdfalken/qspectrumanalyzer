@@ -263,7 +263,7 @@
         <item row="0" column="0">
          <widget class="QLabel" name="scopeSpanLabel">
           <property name="text">
-           <string>S&amp;pan:</string>
+           <string>Time span:</string>
           </property>
           <property name="buddy">
            <cstring>scopeSpanSpinBox</cstring>
@@ -308,7 +308,7 @@
         <item row="2" column="0">
          <widget class="QLabel" name="scopeCentreLabel">
           <property name="text">
-           <string>C&amp;entre:</string>
+           <string>Band c&amp;entre:</string>
           </property>
           <property name="buddy">
            <cstring>scopeCentreSpinBox</cstring>
@@ -340,7 +340,7 @@
         <item row="3" column="0">
          <widget class="QLabel" name="scopeWidthLabel">
           <property name="text">
-           <string>Wi&amp;dth:</string>
+           <string>Band wi&amp;dth:</string>
           </property>
           <property name="buddy">
            <cstring>scopeWidthSpinBox</cstring>
@@ -381,14 +381,14 @@
            <string>Start each sweep where the signal rises past a level, the way a scope does, instead of letting the trace slide through the window. A burst that comes back then lands in the same place every time and stands still, so its shape can be read. When nothing crosses the level the last sweep is held rather than moved.</string>
           </property>
           <property name="text">
-           <string>Tri&amp;gger on a rising edge</string>
+           <string>Trigger on a &amp;rising edge</string>
           </property>
          </widget>
         </item>
         <item row="6" column="0">
          <widget class="QLabel" name="scopeTriggerLabel">
           <property name="text">
-           <string>Le&amp;vel:</string>
+           <string>Trigger le&amp;vel:</string>
           </property>
           <property name="buddy">
            <cstring>scopeTriggerSpinBox</cstring>
@@ -436,10 +436,10 @@
            <bool>false</bool>
           </property>
           <property name="toolTip">
-           <string>Catch one sweep and hold it, instead of triggering over and over. A burst that happens once, or once a minute, cannot be read off a display that has moved on by the time you look at it. The sweep the burst arrived in stays on screen until you press Arm for the next one. This is the scope's trigger mode; it has nothing to do with the Single shot button above, which takes one measurement and stops.</string>
+           <string>Catch one sweep and hold it, instead of triggering over and over. A burst that happens once, or once a minute, cannot be read off a display that has moved on by the time you look at it. The sweep the burst arrived in stays on screen until you press Arm for the next one. This is the scope's trigger mode - it holds one sweep of the trace. The Single shot button above is a different thing: it takes one measurement from the radio and stops.</string>
           </property>
           <property name="text">
-           <string>Single s&amp;weep</string>
+           <string>Single &amp;capture</string>
           </property>
          </widget>
         </item>
