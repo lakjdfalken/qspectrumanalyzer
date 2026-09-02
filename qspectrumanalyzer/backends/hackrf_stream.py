@@ -577,6 +577,23 @@ class PowerThread(BasePowerThread):
         if source.band is None:
             say("zero span", "no band being watched, so the scope has only the "
                              "delivered sweeps to draw")
+        elif source.band_magnitude:
+            low, high = source.band
+            step = source.band_resolution
+            samples = int(round(step * rate))
+            say("zero span", "the magnitude tap, {:.3f} us a reading "
+                             "({} sample{}), {} detector".format(
+                                 step * 1e6, samples, "" if samples == 1 else "s",
+                                 source.band_detector))
+            say("", "read off the samples rather than the bins, which is the "
+                    "only way below one {:.2f} us frame".format(frame * 1e6))
+            say("", "it measures the whole {:.3f}-{:.3f} MHz passband and NOT "
+                    "the band asked for: there are no bins here to select "
+                    "with, so expect the floor about {:.0f} dB above a one bin "
+                    "watch, with every other signal in the tune arriving "
+                    "alongside the one being looked at".format(
+                        (low + self.lnb_lo) / 1e6, (high + self.lnb_lo) / 1e6,
+                        10 * np.log10(rate / source.bin_size)))
         else:
             low, high = source.band
             step = source.band_resolution

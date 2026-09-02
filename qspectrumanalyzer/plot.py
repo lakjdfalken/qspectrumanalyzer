@@ -37,6 +37,15 @@ def zoom_pixmap(glyph, size=16):
     return pixmap
 
 
+def time_length(seconds):
+    """A length of time in whichever unit reads without leading zeros"""
+    if seconds < 1e-3:
+        return "{:.2f} us".format(seconds * 1e6)
+    if seconds < 1.0:
+        return "{:.3f} ms".format(seconds * 1e3)
+    return "{:.3f} s".format(seconds)
+
+
 class RelativeTimeAxis(pg.AxisItem):
     """A time axis labelled against a moving reference
 
@@ -1813,33 +1822,53 @@ class ScopePlotWidget(ThrottledPlotWidget):
             print("scope: caught a sweep, but nothing is drawn in it")
             return
 
+        x, y = np.asarray(x, dtype=float), np.asarray(y, dtype=float)
+        step = float(np.median(np.diff(x))) if len(x) > 1 else 0.0
         floor, peak = float(np.median(y)), float(np.max(y))
+
+        lines = ["scope: caught a sweep on {} - {} readings{}".format(
+            source, len(x), " at {} each".format(time_length(step)) if step else "")]
+        lines.append("  floor {:+.1f} dB, peak {:+.1f} dB, {:+.1f} above the floor"
+                     .format(floor, peak, peak - floor))
+
         if self.level_used is None:
-            where = "no level was in use"
+            lines.append("  no level was in use, so there is nothing to measure "
+                         "the length against")
         else:
-            above = np.asarray(y) >= self.level_used
-            crossed = np.flatnonzero(above)
+            crossed = np.flatnonzero(y >= self.level_used)
             if not len(crossed):
-                where = "NOTHING in the window reaches the level"
+                lines.append("  NOTHING in the window reaches {:+.1f} dB"
+                             .format(self.level_used))
             else:
-                # How wide the thing that fired it was. One reading is a spike,
-                # and the noise makes those all day; a burst lasts. This is the
-                # number that tells a catch worth keeping from a catch worth
-                # discarding, and it cannot be read off a trace drawn to fill
-                # the pane.
-                run = 1
-                while (crossed[0] + run < len(above)) and above[crossed[0] + run]:
-                    run += 1
-                step = float(np.median(np.diff(x))) if len(x) > 1 else 0.0
-                where = ("the first reading at the level is at {:+.4f} ms and it "
-                         "stays there for {} reading{} ({:.2f} us)"
-                         .format(float(x[crossed[0]]) * 1e3, run,
-                                 "" if run == 1 else "s", run * step * 1e6))
-        print("scope: caught a sweep on {} - {} readings, floor {:+.1f} dB, peak "
-              "{:+.1f} dB ({:+.1f} above the floor), level {}, {}"
-              .format(source, len(x), floor, peak, peak - floor,
-                      "{:+.1f} dB".format(self.level_used)
-                      if self.level_used is not None else "none", where))
+                first, last = int(crossed[0]), int(crossed[-1])
+                # First crossing to last, and deliberately not the first
+                # unbroken run of them. Anything pulsed crosses the level once
+                # per pulse, so a run measures one pulse and says nothing about
+                # the burst it belongs to: a 119 us squitter caught at 0.8 us a
+                # reading reported 0.80 us, because the trigger level was high
+                # enough that only the single loudest reading was over it.
+                extent = float(x[last]) - float(x[first]) + step
+                breaks = np.flatnonzero(np.diff(crossed) != 1)
+                starts = np.concatenate(([0], breaks + 1))
+                ends = np.concatenate((breaks + 1, [len(crossed)]))
+                bursts = len(starts)
+                lines.append("  above {:+.1f} dB for {}, from {:+.4f} to "
+                             "{:+.4f} ms".format(
+                                 self.level_used, time_length(extent),
+                                 float(x[first]) * 1e3, float(x[last]) * 1e3))
+                if len(crossed) == 1:
+                    lines.append("  one reading, which is where the level sits "
+                                 "rather than how long anything lasted - lower "
+                                 "it to measure the burst")
+                elif bursts == 1:
+                    lines.append("  one unbroken burst")
+                else:
+                    lines.append("  {} separate bursts, longest {}, over the "
+                                 "level for {:.0f}% of that - pulsed, not one "
+                                 "pulse".format(
+                                     bursts, time_length(int((ends - starts).max()) * step),
+                                     100.0 * len(crossed) / (last - first + 1)))
+        print("\n".join(lines))
 
     def draw_fast_sweep(self, origin, start, end, low, high):
         """Draw the high rate trace across this sweep, and widen the bounds

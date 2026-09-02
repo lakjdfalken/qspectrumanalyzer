@@ -116,23 +116,10 @@ class Ui_QSpectrumAnalyzerSettings(object):
         self.tapResolutionSpinBox = QDoubleSpinBox(QSpectrumAnalyzerSettings)
         self.tapResolutionSpinBox.setObjectName(u"tapResolutionSpinBox")
         self.tapResolutionSpinBox.setAlignment(Qt.AlignRight|Qt.AlignTrailing|Qt.AlignVCenter)
-        self.tapResolutionSpinBox.setDecimals(1)
+        self.tapResolutionSpinBox.setDecimals(2)
         self.tapResolutionSpinBox.setMaximum(100000.000000000000000)
 
         self.formLayout.setWidget(11, QFormLayout.ItemRole.FieldRole, self.tapResolutionSpinBox)
-
-        self.huntPulseLabel = QLabel(QSpectrumAnalyzerSettings)
-        self.huntPulseLabel.setObjectName(u"huntPulseLabel")
-
-        self.formLayout.setWidget(14, QFormLayout.ItemRole.LabelRole, self.huntPulseLabel)
-
-        self.huntPulseSpinBox = QDoubleSpinBox(QSpectrumAnalyzerSettings)
-        self.huntPulseSpinBox.setObjectName(u"huntPulseSpinBox")
-        self.huntPulseSpinBox.setAlignment(Qt.AlignRight|Qt.AlignTrailing|Qt.AlignVCenter)
-        self.huntPulseSpinBox.setDecimals(2)
-        self.huntPulseSpinBox.setMaximum(100000.000000000000000)
-
-        self.formLayout.setWidget(14, QFormLayout.ItemRole.FieldRole, self.huntPulseSpinBox)
 
         self.tapDetectorLabel = QLabel(QSpectrumAnalyzerSettings)
         self.tapDetectorLabel.setObjectName(u"tapDetectorLabel")
@@ -158,6 +145,19 @@ class Ui_QSpectrumAnalyzerSettings(object):
         self.sweepDetectorComboBox.setObjectName(u"sweepDetectorComboBox")
 
         self.formLayout.setWidget(13, QFormLayout.ItemRole.FieldRole, self.sweepDetectorComboBox)
+
+        self.huntPulseLabel = QLabel(QSpectrumAnalyzerSettings)
+        self.huntPulseLabel.setObjectName(u"huntPulseLabel")
+
+        self.formLayout.setWidget(14, QFormLayout.ItemRole.LabelRole, self.huntPulseLabel)
+
+        self.huntPulseSpinBox = QDoubleSpinBox(QSpectrumAnalyzerSettings)
+        self.huntPulseSpinBox.setObjectName(u"huntPulseSpinBox")
+        self.huntPulseSpinBox.setAlignment(Qt.AlignRight|Qt.AlignTrailing|Qt.AlignVCenter)
+        self.huntPulseSpinBox.setDecimals(2)
+        self.huntPulseSpinBox.setMaximum(100000.000000000000000)
+
+        self.formLayout.setWidget(14, QFormLayout.ItemRole.FieldRole, self.huntPulseSpinBox)
 
         self.tapEstimateLabel = QLabel(QSpectrumAnalyzerSettings)
         self.tapEstimateLabel.setObjectName(u"tapEstimateLabel")
@@ -303,6 +303,7 @@ class Ui_QSpectrumAnalyzerSettings(object):
         self.tapResolutionLabel.setBuddy(self.tapResolutionSpinBox)
         self.tapDetectorLabel.setBuddy(self.tapDetectorComboBox)
         self.sweepDetectorLabel.setBuddy(self.sweepDetectorComboBox)
+        self.huntPulseLabel.setBuddy(self.huntPulseSpinBox)
         self.label_9.setBuddy(self.maxRefreshRateSpinBox)
         self.label_7.setBuddy(self.bandwidthSpinBox)
         self.label_8.setBuddy(self.lnbSpinBox)
@@ -363,16 +364,10 @@ class Ui_QSpectrumAnalyzerSettings(object):
 #endif // QT_CONFIG(tooltip)
         self.tapResolutionLabel.setText(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"&Zero span step:", None))
 #if QT_CONFIG(tooltip)
-        self.tapResolutionSpinBox.setToolTip(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"Seconds of signal behind each reading of the oscilloscope's high-rate tap. Rounded to whole FFT frames, so what you get is shown below. Zero asks for the finest the radio can be read at, which is one frame.", None))
+        self.tapResolutionSpinBox.setToolTip(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"Seconds of signal behind each reading of the oscilloscope's high-rate tap. Zero asks for the finest the FFT can be read at, which is one frame. Ask for less than a frame and the tap reads the samples instead, down to one sample - but that measures the whole passband rather than the band, because there are no bins to select with. What you get is shown below.", None))
 #endif // QT_CONFIG(tooltip)
         self.tapResolutionSpinBox.setSuffix(QCoreApplication.translate("QSpectrumAnalyzerSettings", u" us", None))
         self.tapResolutionSpinBox.setSpecialValueText(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"finest", None))
-        self.huntPulseLabel.setText(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"&Pulse being hunted:", None))
-#if QT_CONFIG(tooltip)
-        self.huntPulseSpinBox.setToolTip(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"The pulse you are looking for, so the startup checks can say what your bin size costs it. A pulse shorter than one FFT frame is spread across the whole of it: at 40 kHz bins a 1 us pulse loses 14 dB, at 1250 kHz it loses 1. Left at zero the bin size is not checked against anything, only reported.", None))
-#endif // QT_CONFIG(tooltip)
-        self.huntPulseSpinBox.setSpecialValueText(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"not stated", None))
-        self.huntPulseSpinBox.setSuffix(QCoreApplication.translate("QSpectrumAnalyzerSettings", u" us", None))
         self.tapDetectorLabel.setText(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"Zero span &detector:", None))
         self.tapDetectorComboBox.setItemText(0, QCoreApplication.translate("QSpectrumAnalyzerSettings", u"Peak (catch short pulses)", None))
         self.tapDetectorComboBox.setItemText(1, QCoreApplication.translate("QSpectrumAnalyzerSettings", u"Average (smooth the shape)", None))
@@ -388,6 +383,12 @@ class Ui_QSpectrumAnalyzerSettings(object):
 #if QT_CONFIG(tooltip)
         self.sweepDetectorComboBox.setToolTip(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"How the frames making up one delivered sweep are combined. Average pulls the noise floor down by the square root of the count and is right for a signal that is always there. Peak keeps the loudest frame instead, so a pulse far shorter than a sweep survives at its own height rather than being spread across the whole average: worth 14 dB on a microsecond pulse, at the cost of a noise floor a few dB higher. Backends that deliver sweeps whole ignore it.", None))
 #endif // QT_CONFIG(tooltip)
+        self.huntPulseLabel.setText(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"&Pulse being hunted:", None))
+#if QT_CONFIG(tooltip)
+        self.huntPulseSpinBox.setToolTip(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"The pulse you are looking for, so the startup checks can say what your bin size costs it. A pulse shorter than one FFT frame is spread across the whole of it: at 40 kHz bins a 1 us pulse loses 14 dB, at 1250 kHz it loses 1. Left at zero the bin size is not checked against anything, only reported.", None))
+#endif // QT_CONFIG(tooltip)
+        self.huntPulseSpinBox.setSpecialValueText(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"not stated", None))
+        self.huntPulseSpinBox.setSuffix(QCoreApplication.translate("QSpectrumAnalyzerSettings", u" us", None))
         self.tapEstimateLabel.setText("")
 #if QT_CONFIG(tooltip)
         self.levelsMeterCheckBox.setToolTip(QCoreApplication.translate("QSpectrumAnalyzerSettings", u"The colour scale beside the waterfall, which also sets its levels and gradient. It recomputes a histogram of the whole waterfall on every redraw, so turning it off is faster.", None))

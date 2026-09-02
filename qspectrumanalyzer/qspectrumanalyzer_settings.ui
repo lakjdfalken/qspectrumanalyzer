@@ -193,7 +193,7 @@
      <item row="11" column="1">
       <widget class="QDoubleSpinBox" name="tapResolutionSpinBox">
        <property name="toolTip">
-        <string>Seconds of signal behind each reading of the oscilloscope's high-rate tap. Rounded to whole FFT frames, so what you get is shown below. Zero asks for the finest the radio can be read at, which is one frame.</string>
+        <string>Seconds of signal behind each reading of the oscilloscope's high-rate tap. Zero asks for the finest the FFT can be read at, which is one frame. Ask for less than a frame and the tap reads the samples instead, down to one sample - but that measures the whole passband rather than the band, because there are no bins to select with. What you get is shown below.</string>
        </property>
        <property name="alignment">
         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
@@ -202,7 +202,7 @@
         <string> us</string>
        </property>
        <property name="decimals">
-        <number>1</number>
+        <number>2</number>
        </property>
        <property name="maximum">
         <double>100000.000000000000000</double>
