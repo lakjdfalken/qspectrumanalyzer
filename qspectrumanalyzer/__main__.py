@@ -1806,9 +1806,21 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         # layout still wants, so a shut group leaves an empty box under its
         # own title. Pinned to the title's height instead, and let go again
         # when it opens.
+        #
+        # Letting go is not enough either. The panel is a grid inside a scroll
+        # area, and releasing the cap only says the group *may* be taller - so
+        # the column went on handing it the height it had been pinned at, and
+        # its children came back with heights of 0 and -12: visible, laid out,
+        # and nothing on screen. Opening a group has to say what it needs, not
+        # only what it will allow. The minimum is a floor rather than a cap, so
+        # a group whose contents grow later still grows with them.
         if open_:
             box.setMaximumHeight(16777215)
+            box.setMinimumHeight(box.sizeHint().height())
         else:
+            # Cleared first: a minimum left over from being open is larger
+            # than the cap about to be set, and Qt honours the minimum
+            box.setMinimumHeight(0)
             box.setMaximumHeight(box.fontMetrics().height() + 14)
         QtCore.QSettings().setValue("open_" + name, int(open_))
 
