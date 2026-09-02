@@ -126,7 +126,7 @@
      <item row="1" column="0" colspan="2">
       <widget class="QPushButton" name="runButton">
        <property name="toolTip">
-        <string>Start measuring, or stop a run that is going. The button says which it will do. Stopping leaves everything recorded on screen; starting again begins a new recording.</string>
+        <string>Start measuring, or stop a run that is going. The button says which it will do, and the space bar does the same. Stopping leaves everything recorded on screen; starting again begins a new recording.</string>
        </property>
        <property name="text">
         <string>&amp;Start</string>

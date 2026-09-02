@@ -1953,6 +1953,27 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
             if seconds >= scale or scale == 1e-9:
                 return "{:.4g} {}".format(seconds / scale, unit)
 
+    def keyPressEvent(self, event):
+        """Space starts a run, or stops the one that is going
+
+        Deliberately handled here rather than as a window shortcut. A shortcut
+        is checked before the focused widget sees the key, so binding space
+        that way would take it away from every checkbox in the panel - and a
+        checkbox that can no longer be ticked from the keyboard is a worse
+        trade than a missing shortcut. A key event only reaches a window when
+        nothing that had the focus wanted it, which is exactly the rule this
+        needs: space works everywhere except where it already meant something.
+
+        Auto-repeat is ignored, or holding the bar starts and stops the radio
+        as fast as the keyboard repeats."""
+        if (event.key() == QtCore.Qt.Key.Key_Space
+                and not event.isAutoRepeat()
+                and self.runButton.isEnabled()):
+            self.runButton.click()
+            event.accept()
+            return
+        super().keyPressEvent(event)
+
     def set_dock_size(self, dock, width, height):
         """Ugly hack for resizing QDockWidget (because it doesn't respect minimumSize / sizePolicy set in Designer)
            Link: https://stackoverflow.com/questions/2722939/c-resize-a-docked-qt-qdockwidget-programmatically"""

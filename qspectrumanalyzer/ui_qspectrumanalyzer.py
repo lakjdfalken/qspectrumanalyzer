@@ -700,7 +700,7 @@ class Ui_QSpectrumAnalyzerMainWindow(object):
         self.presetComboBox.setToolTip(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Set every control at once for a particular job. These settings interact: the bin size decides how short a pulse survives being measured, the detector decides whether it survives at all, and the recording depth decides whether a whole scan cycle fits on screen. Getting one of them wrong quietly wastes an evening, so pick the job instead of the settings.", None))
 #endif // QT_CONFIG(tooltip)
 #if QT_CONFIG(tooltip)
-        self.runButton.setToolTip(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Start measuring, or stop a run that is going. The button says which it will do. Stopping leaves everything recorded on screen; starting again begins a new recording.", None))
+        self.runButton.setToolTip(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Start measuring, or stop a run that is going. The button says which it will do, and the space bar does the same. Stopping leaves everything recorded on screen; starting again begins a new recording.", None))
 #endif // QT_CONFIG(tooltip)
         self.runButton.setText(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"&Start", None))
         self.singleShotButton.setText(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Si&ngle shot", None))

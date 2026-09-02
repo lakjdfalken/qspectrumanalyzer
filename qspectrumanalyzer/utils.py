@@ -77,6 +77,14 @@ class WheelGuard(QtCore.QObject):
         if event.type() == QtCore.QEvent.Type.Wheel and not watched.hasFocus():
             event.ignore()
             return True
+        # A number has no use for a space, so a spin box holding the focus
+        # should not swallow one: it goes to the window, where it may mean
+        # something. A drop-down is left alone, since space opens it.
+        if (event.type() == QtCore.QEvent.Type.KeyPress
+                and event.key() == QtCore.Qt.Key.Key_Space
+                and isinstance(watched, QtWidgets.QAbstractSpinBox)):
+            QtWidgets.QApplication.sendEvent(watched.window(), event)
+            return True
         return super().eventFilter(watched, event)
 
 
