@@ -685,6 +685,22 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
             return None, None
         return history.counter - history.history_size + 1, history.counter
 
+    def band_measured(self, band):
+        """What the tap really watched, for the top of a saved file
+
+        Not the same as the band asked for. Below one FFT frame the tap reads
+        the samples instead of the bins, and samples have no bins to select
+        with, so it measures the whole passband and the request is not used. A
+        header that named the request would describe a filter that was not
+        there, and the powers underneath it would look inexplicably high."""
+        asked = ("{:.6f}-{:.6f} MHz".format(band[0] / 1e6, band[1] / 1e6)
+                 if band else "the whole tune")
+        if not getattr(self.power_thread, "tap_magnitude", False):
+            return asked
+        return ("the whole passband - the magnitude tap reads samples, which "
+                "have no bins to select with, so the {} asked for was not "
+                "used".format(asked))
+
     def update_history_controls(self):
         """Enable and label the history controls for the current state"""
         oldest, newest = self.history_range()
@@ -882,9 +898,7 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
             self.active_backend, self.startFreqSpinBox.value(),
             self.stopFreqSpinBox.value(), self.binSizeSpinBox.value(),
             self.gain_summary()))
-        lines.append("band {}".format(
-            "{:.6f}-{:.6f} MHz".format(band[0] / 1e6, band[1] / 1e6)
-            if band else "the whole tune"))
+        lines.append("band {}".format(self.band_measured(band)))
         lines.append("sweep span {}".format(
             "{:g} ms".format(sweep["span"] * 1e3) if sweep["span"]
             else "the whole recording"))
@@ -1051,8 +1065,7 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
                 self.active_backend, self.startFreqSpinBox.value(),
                 self.stopFreqSpinBox.value(), self.binSizeSpinBox.value(),
                 self.gain_summary()),
-            "band {}".format("{:.6f}-{:.6f} MHz".format(band[0] / 1e6, band[1] / 1e6)
-                             if band else "the whole tune"),
+            "band {}".format(self.band_measured(band)),
             "zero span step {}, {} detector{}".format(
                 "{:g} us as asked for".format(asked) if asked else "the finest, as asked for",
                 QtCore.QSettings().value("tap_detector", "peak"),

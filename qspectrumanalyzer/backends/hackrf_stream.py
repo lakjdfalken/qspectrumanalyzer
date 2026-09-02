@@ -914,6 +914,17 @@ class PowerThread(BasePowerThread):
         return self.source.dropped if self.source is not None else 0
 
     @property
+    def tap_magnitude(self):
+        """True while the tap reads samples rather than bins
+
+        Worth asking before writing the band into a file header: a magnitude
+        tap measures the whole passband whatever band was requested, so a
+        header naming the request describes a filter that was not there."""
+        if self.source is None:
+            return False
+        return bool(self.source.band_magnitude)
+
+    @property
     def tap_resolution(self):
         """Seconds each band reading covers, once snapped to whole frames"""
         if self.source is None:
