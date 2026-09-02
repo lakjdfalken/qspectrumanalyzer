@@ -2437,8 +2437,12 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         by twenty decibels."""
         width = self.tune_width() or 20e6
         centre = finding.centre_hz
-        self.startFreqSpinBox.setValue((centre - width / 2) / 1e6)
-        self.stopFreqSpinBox.setValue((centre + width / 2) / 1e6)
+        # Not bracketed symmetrically: that puts the finding on the centre of
+        # the tune, which is the receiver's own carrier and the one part of
+        # the span that is interpolated rather than measured
+        low, high = findings.aim(centre, width)
+        self.startFreqSpinBox.setValue(low / 1e6)
+        self.stopFreqSpinBox.setValue(high / 1e6)
 
         self.scopeCheckBox.setChecked(True)
         self.scopeBandCheckBox.setChecked(True)

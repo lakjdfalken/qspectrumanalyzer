@@ -91,6 +91,25 @@ def read_survey(path):
 QUIET_FRACTION = 0.25
 
 
+#: Where in the tune to put something you have come to look at. A quarter of
+#: the span above the centre: far enough from the receiver's own carrier that
+#: the flattened bins cannot touch it, and still inside the baseband filter,
+#: which at 20 MSPS passes 7.5 MHz either side.
+AIM_OFFSET = 0.25
+
+
+def aim(centre_hz, span_hz):
+    """Start and stop frequencies that put `centre_hz` clear of the DC spike
+
+    Bracketing a finding symmetrically is the obvious thing and the wrong one:
+    the centre of a tune is zero hertz at baseband, where the receiver's own
+    carrier lands and the spectrum is interpolated rather than measured. It
+    puts the one frequency you came for on the one part of the span that is
+    not a measurement - and a zero span watch there reads the receiver."""
+    low = centre_hz - span_hz * (1.0 - AIM_OFFSET)
+    return low, low + span_hz
+
+
 def noise_floor(loudest, active):
     """Where the survey's own noise sat
 
@@ -197,8 +216,10 @@ def report(path, limit=12):
     best = found[0]
     lines.append("")
     lines.append("To look at the strongest:")
-    lines.append("  tune          {:.3f} to {:.3f} MHz".format(
-        (best.centre_hz - 10e6) / 1e6, (best.centre_hz + 10e6) / 1e6))
+    low, high = aim(best.centre_hz, 20e6)
+    lines.append("  tune          {:.3f} to {:.3f} MHz, which puts it {:.1f} MHz "
+                 "off centre and clear of the DC spike".format(
+                     low / 1e6, high / 1e6, (best.centre_hz - (low + high) / 2) / 1e6))
     lines.append("  band centre   {:.3f} MHz, width {:.0f} kHz".format(
         best.centre_hz / 1e6, max(best.width_hz, 1e6) / 1e3))
     lines.append("  trigger       on a rising edge at the automatic level")
