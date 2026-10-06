@@ -1101,7 +1101,13 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         self.scopePlotWidget.redraw_now(self.data_storage)
 
     def on_scope_span_changed(self, seconds):
-        """The scope was zoomed by hand; show the width it ended up with"""
+        """The scope was zoomed by hand; show the width it ended up with
+
+        Zero is the A button asking for the whole recording, which goes
+        through the Span box like typing 0 into it does."""
+        if not seconds:
+            self.scopeSpanSpinBox.setValue(0.0)
+            return
         self.scopeSpanSpinBox.blockSignals(True)
         self.scopeSpanSpinBox.setValue(seconds * 1e3)
         self.scopeSpanSpinBox.blockSignals(False)
