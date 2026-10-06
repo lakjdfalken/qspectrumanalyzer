@@ -32,6 +32,10 @@ debug = False
 signal.signal(signal.SIGINT, signal.SIG_DFL)
 signal.signal(signal.SIGTERM, signal.SIG_DFL)
 
+#: Set to anything but 0 to have a load line printed every second while a
+#: backend that measures itself (hackrf_stream) is running
+LOAD_ENV = "QSPECTRUMANALYZER_LOAD"
+
 
 def release_widget(layout, widget):
     """Take a widget out of a layout so that it can be laid out again elsewhere
@@ -510,6 +514,13 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         self.dropped_seen = 0
         self.dropped_at = None
         self.warned_about_drops = False
+
+        #: Print a load line to the terminal every second, for testing how far
+        #: the settings can be pushed. Off unless asked for: it is a
+        #: measurement, and a terminal filling up is no use to anyone else
+        self.print_load_lines = os.environ.get(LOAD_ENV, "") not in ("", "0")
+        self.printed_load = None
+        self.load_gui_mark = None
 
         self.populate_presets()
         self.update_buttons()
@@ -2560,6 +2571,34 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
                        self.scopePlotWidget):
             widget.set_max_refresh_rate(rate)
 
+    def print_load(self):
+        """One line a second of what the radio and the display are costing
+
+        The backend measures its side on its own thread; the GUI thread's CPU
+        and the redraw rate are only known here, so the line is put together
+        here. Printed whenever the backend has a new reading, which also means
+        a backend that does not measure itself prints nothing."""
+        if not self.print_load_lines:
+            return
+        load = getattr(self.power_thread, "load", None)
+        if load is None or load is self.printed_load:
+            return
+        self.printed_load = load
+
+        now, cpu = time.monotonic(), time.thread_time()
+        mark, self.load_gui_mark = self.load_gui_mark, (now, cpu)
+        if mark is None or now <= mark[0]:
+            # Nothing yet to time the GUI thread against; the next one will be
+            return
+        gui = (cpu - mark[1]) / (now - mark[0])
+        ceiling = self.configured_refresh_rate()
+        print("load: FFT thread {cpu:.0%} on CPU, {busy:.0%} in its work | "
+              "queue peak {queue_peak}/{queue_depth} | stream {stream:.1%} | "
+              "{spectra:.0f} spectra/s, {delivered:.0f} delivered/s | "
+              "dropped {dropped} | GUI thread {gui:.0%} | redraw {rate}/{ceiling} Hz"
+              .format(gui=gui, rate=self.refresh_rate,
+                      ceiling=ceiling if ceiling > 0 else "unlimited", **load))
+
     def adapt_refresh_rate(self):
         """Give frames back to the backend when it is losing samples
 
@@ -2620,6 +2659,7 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         status = []
         self.update_sweep_rate()
         self.adapt_refresh_rate()
+        self.print_load()
         # Where the DC spike is depends on the tune the backend settled on,
         # which it does on its own thread after the radio opens — later than
         # anything that could have marked it at start. Cheap, and it skips
@@ -2711,6 +2751,7 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
             self.progressbar.setRange(0, 0)
         self.update_progress(0)
         self.update_status_timer.start(100)
+        self.printed_load = self.load_gui_mark = None
         # A new run starts from the rate that was asked for, not from whatever
         # the last one had to stand down to
         self.dropped_seen = 0

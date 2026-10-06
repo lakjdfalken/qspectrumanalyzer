@@ -355,6 +355,14 @@ class PowerThread(BasePowerThread):
         self.delivered = 0
         self.reported_drops = 0
         self.reported_band_error = None
+        #: What the radio side cost over the last LOAD_INTERVAL, as a dict;
+        #: None until there have been two readings to take a difference of
+        self.load = None
+        self.load_mark = None
+        #: Deepest the queue has been since the last drop report. measure_load()
+        #: takes the source's peak every second, so it is kept here for
+        #: report_drops() rather than read off the source
+        self.drop_queue_peak = 0
         self.offset_tuned = False
         self.tune_flipped = False
         #: Band being watched in the time domain, in display frequencies, and
@@ -979,7 +987,8 @@ class PowerThread(BasePowerThread):
         # Since the last message, not since the run began: the queue fills
         # while the display builds itself, and a lifetime peak would report
         # that first second for the rest of the evening
-        peak = self.source.take_queue_peak()
+        peak = max(self.drop_queue_peak, self.source.take_queue_peak())
+        self.drop_queue_peak = 0
         if cpu > 0.7:
             advice = ('the DSP cannot keep up. Raise the bin size (fewer, '
                       'shorter FFTs) or lower the sample rate.')
@@ -997,6 +1006,53 @@ class PowerThread(BasePowerThread):
               'peaked at {}/{} since the last of these - {}'.format(
                   dropped, lost, cpu * 100, busy * 100, peak,
                   self.source.statistics().get("queue_depth", 0), advice))
+
+    #: Seconds between load readings; see measure_load()
+    LOAD_INTERVAL = 1.0
+
+    def measure_load(self):
+        """What the radio side cost over the last second, kept in self.load
+
+        source.statistics() averages over the whole run, which hides the very
+        thing a load test is looking for: a setting changed a minute in moves
+        a lifetime average by a few percent. So keep the running totals behind
+        it and report the difference between two readings instead."""
+        if self.source is None:
+            return
+        now = time.monotonic()
+        if self.load_mark is not None and now - self.load_mark[0] < self.LOAD_INTERVAL:
+            return
+        stats = self.source.statistics()
+        if not stats:
+            return
+
+        # Back from averages to totals, so that two of them can be subtracted
+        seconds = stats["seconds"]
+        totals = {name: stats[name] * seconds
+                  for name in ("cpu_fraction", "busy_fraction", "stream_fraction",
+                               "spectra_per_second")}
+        totals["dropped"] = stats["dropped_transfers"]
+        totals["delivered"] = self.delivered
+        peak = self.source.take_queue_peak()
+        self.drop_queue_peak = max(self.drop_queue_peak, peak)
+
+        if self.load_mark is not None:
+            _, before, before_seconds = self.load_mark
+            span = seconds - before_seconds
+            if span > 0:
+                def rate(name):
+                    return (totals[name] - before[name]) / span
+                self.load = {
+                    "cpu": rate("cpu_fraction"),
+                    "busy": rate("busy_fraction"),
+                    "stream": rate("stream_fraction"),
+                    "spectra": rate("spectra_per_second"),
+                    "delivered": rate("delivered"),
+                    "dropped": totals["dropped"] - before["dropped"],
+                    "queue_peak": peak,
+                    "queue_depth": stats["queue_depth"],
+                }
+        self.load_mark = (now, totals, seconds)
 
     def report_band_error(self):
         """Say so if the high rate tap stopped, without stopping the radio"""
@@ -1040,6 +1096,7 @@ class PowerThread(BasePowerThread):
             if self.source is not None and self.source.error is not None:
                 print('hackrf_stream stopped: {}'.format(self.source.error))
                 break
+            self.measure_load()
             self.report_drops()
             self.report_band_error()
             self.msleep(2)
