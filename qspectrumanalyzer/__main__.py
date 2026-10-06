@@ -497,6 +497,9 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         self.power_thread = None
         self.backend = None
         self.active_backend = None
+        #: The tap checkbox's own tooltip, kept so that offer_tap() can put it
+        #: back after saying why the tap is unavailable
+        self.tap_tooltip = None
         self.setup_power_thread()
 
         # Sweep number currently shown while browsing recorded sweeps
@@ -628,6 +631,7 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         self.power_thread.powerThreadStarted.connect(self.on_power_thread_started)
         self.power_thread.powerThreadStopped.connect(self.on_power_thread_stopped)
         self.active_backend = name
+        self.offer_tap()
 
     def resolve_backend(self):
         """The backend that can actually measure what the spin boxes ask for
@@ -1259,7 +1263,7 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         self.show_pane(self.scopePlotLayout, checked)
         self.scopePlotWidget.set_hidden(not checked)
         self.scopeGroupBox.setEnabled(checked)
-        self.scopeFastCheckBox.setEnabled(checked and self.backend_has_tap())
+        self.offer_tap()
         self.apply_band_region()
         self.apply_scope_band()
 
@@ -1282,6 +1286,32 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
     def backend_has_tap(self):
         """Whether the backend in use can measure a band off its own frames"""
         return getattr(self.power_thread, "set_band", None) is not None
+
+    def offer_tap(self):
+        """Let the high-rate tap be switched only where the backend has one
+
+        Worked out again whenever the backend changes, not only when the scope
+        is toggled. A wide range hands the run to hackrf_sweep, which has no
+        tap; toggling the scope then greyed the box, and narrowing the range
+        back brought hackrf_stream back without ungreying it - so the tap sat
+        ticked and unreachable for the rest of the session.
+
+        The tick is left as it is while greyed, so the choice is still there
+        when a backend that can honour it returns, and the tooltip says why
+        it cannot be changed rather than leaving that to be guessed."""
+        box = self.scopeFastCheckBox
+        if self.tap_tooltip is None:
+            self.tap_tooltip = box.toolTip()
+        available = self.backend_has_tap()
+        box.setEnabled(self.scopeCheckBox.isChecked() and available)
+        if available:
+            box.setToolTip(self.tap_tooltip)
+        else:
+            box.setToolTip(self.tr(
+                "Not available with {}: it has no tap. Only hackrf_stream "
+                "measures a band off its own frames, and it covers one tune - "
+                "20 MHz at most - so narrow the frequency range to bring the "
+                "tap back.\n\n{}").format(self.active_backend, self.tap_tooltip))
 
     def show_pane(self, pane, visible):
         """Show or hide one pane of the plot splitter, remembering its height"""
