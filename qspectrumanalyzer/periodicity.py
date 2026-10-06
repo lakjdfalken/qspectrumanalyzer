@@ -444,6 +444,133 @@ def search(times, power_db, rates=DEFAULT_RATES, harmonics=HARMONICS,
     return found, covered, step
 
 
+#: How far off the named period the controls sit, as fractions of it, and how
+#: many. A fold only stays in step while the detuning times the number of
+#: periods stacked is under one, so at 291 periods anything past about 0.34%
+#: is thoroughly out of step: from three per cent up, a control cannot be
+#: catching the train the named period catches, and none of these is a
+#: small-integer ratio of it either.
+CONTROL_SPREAD = (0.03, 0.15)
+CONTROL_COUNT = 32
+
+
+#: How far over the loudest control the peak has to stand as well as beating
+#: every one of them. Beating 32 controls is worth about one chance in 33 on
+#: its own — but only about, and the "about" is where this number comes from.
+#: Over twenty traces of 15 s carrying traffic and no train at all, the rank
+#: alone beat every control 0 times out of 20 at 12% duty and 2 out of 20 at
+#: 50%, so a busy channel throws up a clean sweep of the controls rather more
+#: often than the null promises. Requiring a decibel of daylight as well is
+#: what keeps those out.
+#:
+#: It costs sensitivity, and the trade is worth stating rather than hiding.
+#: Measured over 30 s of trace carrying a beacon train at 20 dB, the peak
+#: stood over the loudest control by +2.8 dB at 5% traffic duty, +2.6 at 12%,
+#: +0.9 at 25% and +0.2 at 50% — so with this gate the fold confirms a beacon
+#: up to something like a fifth of the channel being busy, and above that says
+#: it cannot tell. Which is the true answer at that length: the stack gains as
+#: the square root of the periods in it, so the lever is a longer trace and
+#: nothing else.
+CONTROL_MARGIN = 1.0
+
+
+def controls_for(period, spread=CONTROL_SPREAD, count=CONTROL_COUNT):
+    """Periods to fold at that cannot be in step with `period`"""
+    half = np.linspace(spread[0], spread[1], max(1, count // 2))
+    return np.concatenate([1.0 - half, 1.0 + half]) * period
+
+
+def at_period(times, power_db, period, controls=None):
+    """Fold at a period already known, instead of searching for one
+
+    The search asks what repeats, and on a channel with traffic that question
+    has a louder answer than the one being looked for. Measured against Wi-Fi
+    at 5 to 50 per cent duty, the strongest line in the whole search was junk
+    down at 1-2.5 Hz standing at 15 sigma, while a beacon train at 9.77 Hz
+    stood at 5 to 8 — present, above the reporting line, and never once the
+    top candidate. Aperiodic bursts have a red spectrum and low rates always
+    win. No ranking will hand you the beacon on a busy channel.
+
+    So this asks a different question. Given a period out of the protocol —
+    102.4 ms for a Wi-Fi beacon, a number the standard fixes rather than one
+    the transmitter chose — it folds there and says what is at that phase.
+
+    The honest name for it is a confirmation and not a discovery: it can tell
+    you that a train you already believe in is there, and it can tell you
+    nothing whatever about a train you have not thought of. Which is why the
+    answer is not one number. Folding at any period at all produces a peak,
+    so the same fold is taken at periods detuned far enough to be out of step
+    with anything the named one is in step with, and the named period is
+    reported against that spread. A peak that does not stand clear of its own
+    controls is a peak that means nothing."""
+    power, step, covered = on_a_grid(times, power_db)
+    if period <= 2 * step:
+        raise ValueError("a period of {:.3f} ms is {:.1f} readings at {:.1f} us "
+                         "a reading - too few to fold"
+                         .format(period * 1e3, period / step, step * 1e6))
+    if period > covered / MIN_CYCLES:
+        raise ValueError("{:.3f} ms only comes round {:.1f} times in {:.1f} s of "
+                         "trace, and {} is the fewest worth stacking"
+                         .format(period * 1e3, covered / period, covered, MIN_CYCLES))
+
+    profile = fold(power, step, period)
+    if controls is None:
+        controls = controls_for(period)
+    peaks = np.array([fold(power, step, float(other)).max() for other in controls])
+
+    # Counted rather than scaled. The obvious summary is how many scatters the
+    # peak stands above the controls' middle, and it was tried: over the same
+    # trace it read 12.3, 5.9, 5.6 and 7.3 sigma for 8, 16, 24 and 32 controls,
+    # because these are maxima of folds - a long-tailed thing whose spread a
+    # median absolute deviation of a handful of samples does not measure. How
+    # many controls the peak beat needs no such estimate, and says exactly what
+    # it says: beating all 32 is one chance in 33 of happening by luck.
+    beat = int((peaks < profile.max()).sum())
+    margin = float(profile.max() - peaks.max())
+    return Candidate(1.0 / period, 0.0, profile, step, covered), peaks, beat, margin
+
+
+def report_at(times, power_db, period, header=()):
+    """Fold at a named period and say what was there, as lines of text"""
+    candidate, controls, beat, margin = at_period(times, power_db, period)
+    lines = list(header)
+    lines.append("")
+    lines.append("Folded at {:.4f} ms, which was asked for rather than found - "
+                 "{:.0f} periods in {:.3f} s of trace".format(
+                     period * 1e3, candidate.repeats, candidate.covered))
+    lines.append("")
+    lines.append("  " + _sparkline(candidate.profile))
+    lines.append("  peak {:+.1f} dB at {:.4f} ms into the period, {:.1f} us wide"
+                 .format(candidate.peak_db,
+                         float(np.argmax(candidate.profile)) / len(candidate.profile)
+                         * period * 1e3,
+                         candidate.width_seconds * 1e6))
+    lines.append("")
+    lines.append("  the same fold at {} periods detuned {:.0f} to {:.0f} per cent, "
+                 "which cannot be in step with it:".format(
+                     len(controls), CONTROL_SPREAD[0] * 100, CONTROL_SPREAD[1] * 100))
+    lines.append("    peaks {:+.1f} to {:+.1f} dB, and this one beat {} of {}"
+                 .format(controls.min(), controls.max(), beat, len(controls)))
+    lines.append("")
+    if beat == len(controls) and margin >= CONTROL_MARGIN:
+        lines.append("  Higher than every control, by {:.1f} dB. Something is at "
+                     "this period: folding at a period nothing is at does not do "
+                     "that more than about once in {}.".format(
+                         margin, len(controls) + 1))
+    else:
+        lines.append("  Not clear of the controls ({} of {} beaten, by {:.1f} dB). "
+                     "A fold at any period at all produces a peak, and this one "
+                     "is no better than folding at nothing - which is a negative "
+                     "for a train here standing above this trace's noise, and "
+                     "not a statement that nothing is transmitting. Stacking "
+                     "gains as the square root of the periods that went in, so "
+                     "the one lever is a longer trace: four times this one is "
+                     "worth 6 dB, and {:.0f} s of it would hold {:.0f} periods."
+                     .format(beat, len(controls), margin,
+                             candidate.covered * 4, candidate.repeats * 4))
+    return lines
+
+
 def report(times, power_db, header=(), result=None, **kwargs):
     """Look for a rhythm and say what was found, as lines of text
 
@@ -557,10 +684,17 @@ def main(argv=None):
         prog="qspectrumanalyzer.periodicity",
         description="Look for a pulse train in a sweep saved by QSpectrumAnalyzer")
     parser.add_argument("sweep", nargs="+", help="one or more sweep CSV files")
-    parser.add_argument("--from", dest="low", type=float, default=DEFAULT_RATES[0],
-                        help="lowest repetition rate to look for, in Hz")
-    parser.add_argument("--to", dest="high", type=float, default=DEFAULT_RATES[1],
-                        help="highest repetition rate to look for, in Hz")
+    # Deliberately no way to narrow the search to a range. There was one, and
+    # it was wrong rather than merely unhelpful: the background a rate is
+    # measured against is the median and scatter of the rates searched, so a
+    # narrow range leaves a handful of bins to take them from and the sigma
+    # becomes meaningless - 9.5 to 10 Hz reported a rate of 9.45, outside the
+    # range asked for, at "524 sigma". Looking for a particular period is a
+    # different question and --at is the one that answers it.
+    parser.add_argument("--at", dest="period", type=float, default=None,
+                        help="fold at this period in milliseconds instead of "
+                             "searching - for something the protocol fixes, "
+                             "like 102.4 for a Wi-Fi beacon")
     parser.add_argument("--sigma", type=float, default=SIGMA,
                         help="how far above the background a rate must stand")
     args = parser.parse_args(argv)
@@ -570,8 +704,10 @@ def main(argv=None):
             print("=== {} ===".format(path))
         try:
             times, power, header = read_sweep(path)
-            print("\n".join(report(times, power, header,
-                                   rates=(args.low, args.high), sigma=args.sigma)))
+            if args.period is not None:
+                print("\n".join(report_at(times, power, args.period / 1e3, header)))
+            else:
+                print("\n".join(report(times, power, header, sigma=args.sigma)))
         except (OSError, ValueError) as error:
             print("{}: {}".format(path, error), file=sys.stderr)
         print()
