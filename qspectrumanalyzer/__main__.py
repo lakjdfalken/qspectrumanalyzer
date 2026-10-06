@@ -1634,11 +1634,19 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         # (layout, position). It is laid out on the first and only moves when
         # another of its tabs is shown, so nothing is spent while running
         self.shared_groups = {}
+        self.task_notes = []
         for index, (title, explanation, names) in enumerate(self.WORKSPACES):
             page = QtWidgets.QWidget()
             layout = QtWidgets.QVBoxLayout(page)
             layout.setContentsMargins(margins)
             layout.addWidget(self.blurb(explanation))
+            note = QtWidgets.QLabel()
+            note.setWordWrap(True)
+            note.setFrameShape(QtWidgets.QFrame.StyledPanel)
+            note.setStyleSheet("padding: 4px;")
+            note.hide()
+            layout.addWidget(note)
+            self.task_notes.append(note)
             for name in names + (leftovers if title == "Live" else ()):
                 widget = groups.get(name)
                 if widget is None:
@@ -1680,6 +1688,7 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         self.carry_shared_groups(tabs.currentIndex())
         tabs.currentChanged.connect(self.on_workspace_changed)
         self.workspaces = tabs
+        self.make_task_picker()
 
     def on_workspace_changed(self, index):
         QtCore.QSettings().setValue("workspace", index)
@@ -1704,6 +1713,76 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
                     other.removeWidget(widget)
             layout.insertWidget(position, widget)
             widget.show()
+
+    #: The jobs the panel is used for, in plain words: the tab each is done
+    #: on, what to do there, and which ready-made settings belong to it - by
+    #: the start of their names, so a preset added later finds its job.
+    #: A job whose controls this build has not got is not offered.
+    TASKS = (
+        ("Looking around a band", "Live", None,
+         ("Airband", "C-band weather radar \u2014 find", "S-band airport radar \u2014 find"),
+         "Set Start and Stop in Frequency, or pick an example below, and press "
+         "Start. Anything transmitting stands up from the noise on the trace "
+         "and draws a line down the waterfall."),
+        ("Checking my Wi-Fi channel", "Live", None, ("Wi-Fi",),
+         "Pick your band below, then put Start and Stop 2.5 MHz either side of "
+         "your channel. After a minute, Look for a repeating pulse on the "
+         "Analyse tab should find 102.4 ms: your access point's beacon."),
+        ("Catching short pulses", "Live", None,
+         ("C-band weather radar \u2014 catch", "C-band weather radar \u2014 time",
+          "S-band airport radar \u2014 catch", "S-band airport radar \u2014 camp",
+          "Airport"),
+         "Pick what you are after below. The oscilloscope shows power against "
+         "time at one frequency; its trigger freezes the moment something "
+         "crosses the level."),
+        ("Surveying a wide range", "Capture", "surveyButton", (),
+         "Set the range in Frequency, then Survey the range. It steps across "
+         "it one tune at a time and lists what stood above the noise."),
+        ("Finding interference", "Capture", "interferenceButton", ("Wi-Fi",),
+         "Set Frequency to your Wi-Fi channel, then Look for interference. It "
+         "records for a while and lists what in it was not Wi-Fi."),
+        ("Going back over a recording", "Analyse", None, (),
+         "Tick Browse recorded sweeps and step through what was recorded. The "
+         "line over the plots says which sweep is on screen."),
+    )
+
+    def make_task_picker(self):
+        """Fill the "What are you doing?" box, and show the job it was left on
+
+        Restoring it shows the job's note but does not move the tab: the tab
+        the panel was left on is the better guess at where you were."""
+        self.tasks = [task for task in self.TASKS
+                      if task[2] is None or hasattr(self, task[2])]
+        self.presetGroupBox.setTitle(self.tr("Start from an example"))
+        for title, *_ in self.tasks:
+            self.taskComboBox.addItem(self.tr(title))
+        index = QtCore.QSettings().value("task", 0, int)
+        self.taskComboBox.setCurrentIndex(min(max(index, 0), len(self.tasks) - 1))
+        self.show_task(self.taskComboBox.currentIndex())
+        self.taskComboBox.currentIndexChanged.connect(self.on_task_changed)
+
+    def on_task_changed(self, index):
+        QtCore.QSettings().setValue("task", index)
+        self.show_task(index)
+        self.populate_presets()
+        tab = [title for title, _, _ in self.WORKSPACES].index(self.tasks[index][1])
+        self.workspaces.setCurrentIndex(tab)
+
+    def show_task(self, index):
+        """Put the job's note at the top of the tab it is done on"""
+        _, place, _, _, guide = self.tasks[index]
+        for (title, _, _), note in zip(self.WORKSPACES, self.task_notes):
+            note.setText(self.tr(guide))
+            note.setVisible(title == place)
+
+    def task_presets(self):
+        """Which of RADAR_PRESETS the job in hand offers, by index
+
+        A job with none of its own offers them all, rather than an empty box
+        that looks broken."""
+        prefixes = self.tasks[self.taskComboBox.currentIndex()][3]
+        return [index for index, (label, *_) in enumerate(RADAR_PRESETS)
+                if index == 0 or not prefixes or label.startswith(prefixes)]
 
     def make_capture_groups(self):
         """Give each kind of recording a group of its own
@@ -1769,6 +1848,9 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
              ("baselineCheckBox", "baselineButton"), ("subtractBaselineCheckBox",))),
     }
 
+    #: What a fold is called where "More settings" would be the wrong name
+    MORE_LABELS = {"readoutGroupBox": "The numbers behind it"}
+
     def make_more_settings(self):
         """Lay each group out as its basic rows, a "More settings" fold, and the rest"""
         settings = QtCore.QSettings()
@@ -1818,15 +1900,24 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
             grid.addWidget(toggle, row, 0, 1, 2)
             widgets = tuple(place(advanced, row + 1))
             grid.setColumnStretch(1, 1)
+            self.wire_more(name, toggle, widgets)
 
-            self.more_toggles[name] = (toggle, widgets)
-            toggle.toggled.connect(lambda shown, n=name: self.show_more(n, shown))
-            for widget in widgets:
-                if isinstance(widget, QtWidgets.QAbstractButton) and widget.isCheckable():
-                    widget.toggled.connect(lambda *_, n=name: self.label_more(n))
-            shown = bool(settings.value("more_" + name, 0, int))
-            toggle.setChecked(shown)
-            self.show_more(name, shown)
+        # The readout's figures, under a fold of their own below the sentence
+        # that says what they come to
+        if getattr(self, "readout_toggle", None) is not None:
+            self.wire_more("readoutGroupBox", self.readout_toggle,
+                           (self.readout_details,))
+
+    def wire_more(self, name, toggle, widgets):
+        """Make `toggle` open and shut `widgets`, starting as it was left"""
+        self.more_toggles[name] = (toggle, widgets)
+        toggle.toggled.connect(lambda shown, n=name: self.show_more(n, shown))
+        for widget in widgets:
+            if isinstance(widget, QtWidgets.QAbstractButton) and widget.isCheckable():
+                widget.toggled.connect(lambda *_, n=name: self.label_more(n))
+        shown = bool(QtCore.QSettings().value("more_" + name, 0, int))
+        toggle.setChecked(shown)
+        self.show_more(name, shown)
 
     def show_more(self, name, shown):
         """Open or shut one group's "More settings", and remember which"""
@@ -1850,7 +1941,7 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         on = sum(1 for widget in widgets
                  if isinstance(widget, QtWidgets.QAbstractButton)
                  and widget.isCheckable() and widget.isChecked())
-        text = self.tr("More settings")
+        text = self.tr(self.MORE_LABELS.get(name, "More settings"))
         if not toggle.isChecked() and on:
             text = self.tr("More settings ({} on)").format(on)
         toggle.setText(text)
@@ -1942,6 +2033,17 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
             # came from is left behind holding it
             contents.layout().removeWidget(button)
             grid.addWidget(button, *position)
+        self.taskComboBox = QtWidgets.QComboBox(header)
+        self.taskComboBox.setToolTip(self.tr(
+            "Says what the panel is for right now: it opens the tab that job "
+            "is done on, says what to do there, and narrows the ready-made "
+            "settings to the ones that fit. Choosing a job changes no setting "
+            "by itself."))
+        label = QtWidgets.QLabel(self.tr("&What are you doing?"), header)
+        label.setBuddy(self.taskComboBox)
+        grid.addWidget(label, 2, 0)
+        grid.addWidget(self.taskComboBox, 2, 1)
+        grid.setColumnStretch(1, 1)
         return header
 
     #: What the settings above it come to, in the order the signal takes:
@@ -2203,6 +2305,10 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
             box.toggled.connect(
                 lambda open_, n=name: self.set_group_open(n, open_))
             self.set_group_open(name, box.isChecked())
+            # Only where wrapped text makes the height depend on the width,
+            # so no other group pays for a filter on all its events
+            if box.hasHeightForWidth():
+                box.installEventFilter(self)
 
     def set_group_open(self, name, open_):
         """Show or hide one group's contents, and remember which"""
@@ -2263,6 +2369,13 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
                     self.fit_group(box)
                 return
 
+    def eventFilter(self, watched, event):
+        # A group of wrapped text gets taller as the panel narrows
+        if (event.type() == QtCore.QEvent.Resize and watched.hasHeightForWidth()
+                and event.size().width() != event.oldSize().width()):
+            self.refit_open_group(watched)
+        return super().eventFilter(watched, event)
+
     def build_readout(self):
         """A panel saying what the settings actually come to
 
@@ -2279,8 +2392,24 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         nothing to lay out in Designer and nothing for anyone to click."""
         self.readout = {}
         box = QtWidgets.QGroupBox(self.tr("What these settings mean"))
-        form = QtWidgets.QFormLayout(box)
-        form.setContentsMargins(9, 6, 9, 6)
+        column = QtWidgets.QVBoxLayout(box)
+        column.setContentsMargins(9, 6, 9, 6)
+        column.setSpacing(3)
+        # The same arithmetic in words first, for whoever does not yet know
+        # what a frame is; the figures fold away under it
+        self.readout_plain = QtWidgets.QLabel(box)
+        self.readout_plain.setWordWrap(True)
+        self.readout_plain.setTextInteractionFlags(QtCore.Qt.TextSelectableByMouse)
+        column.addWidget(self.readout_plain)
+        self.readout_toggle = QtWidgets.QToolButton(box)
+        self.readout_toggle.setCheckable(True)
+        self.readout_toggle.setAutoRaise(True)
+        self.readout_toggle.setToolButtonStyle(QtCore.Qt.ToolButtonTextBesideIcon)
+        column.addWidget(self.readout_toggle)
+        self.readout_details = QtWidgets.QWidget(box)
+        column.addWidget(self.readout_details)
+        form = QtWidgets.QFormLayout(self.readout_details)
+        form.setContentsMargins(0, 0, 0, 0)
         form.setVerticalSpacing(3)
         form.setLabelAlignment(QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter)
         form.setFieldGrowthPolicy(QtWidgets.QFormLayout.FieldsStayAtSizeHint)
@@ -2309,6 +2438,7 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
                        self.scopeCentreSpinBox, self.scopeWidthSpinBox):
             widget.valueChanged.connect(self.update_readout)
         self.scopeBandCheckBox.toggled.connect(self.update_readout)
+        self.scopeCheckBox.toggled.connect(self.update_readout)
         self.update_readout()
 
     def update_readout(self):
@@ -2317,9 +2447,13 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         The arithmetic lives in the backend beside the code that will use it,
         so the panel cannot promise one thing and the run do another. This
         only formats."""
-        if hackrf_stream is None or not hasattr(self, "readout"):
+        if not hasattr(self, "readout"):
+            return
+        if hackrf_stream is None:
+            self.readout_plain.setText(self.plain_readout(None))
             return
         show = dict.fromkeys(self.READOUT, "\u2013")
+        d = None
         try:
             settings = QtCore.QSettings()
             banded = self.scopeBandCheckBox.isChecked()
@@ -2357,6 +2491,42 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
             pass
         for name, text in show.items():
             self.readout[name].setText(text)
+        text = self.plain_readout(d)
+        if text != self.readout_plain.text():
+            self.readout_plain.setText(text)
+            self.refit_open_group(self.readout_plain)
+
+    def plain_readout(self, d):
+        """What the settings come to, in sentences rather than figures
+
+        `d` is the backend's arithmetic, or None where there is none, in which
+        case only what the boxes themselves say is said."""
+        start, stop = self.startFreqSpinBox.value(), self.stopFreqSpinBox.value()
+        lines = [self.tr("You are watching {} around {:.3f} MHz.").format(
+            self.as_hz((stop - start) * 1e6), (start + stop) / 2.0)]
+        if d is None:
+            lines.append(self.tr("Signals closer together than about {} show "
+                                 "as one.").format(
+                self.as_hz(self.binSizeSpinBox.value() * 1e3)))
+            return " ".join(lines)
+
+        lines.append(self.tr("Signals closer together than {} show as one.")
+                     .format(self.as_hz(d["bin_hz"])))
+        sweep = self.as_seconds(d["sweep"])
+        if QtCore.QSettings().value("sweep_detector", "mean") == "peak":
+            lines.append(self.tr("Each sweep keeps the loudest moment of {} of "
+                                 "listening, so a short burst shows at full "
+                                 "height.").format(sweep))
+        else:
+            lines.append(self.tr("Each sweep is the average of {} of listening, "
+                                 "so a burst shorter than that looks weaker "
+                                 "than it is.").format(sweep))
+        lines.append(self.tr("A pulse shorter than {} is smeared over that "
+                             "long.").format(self.as_seconds(d["frame"])))
+        if self.scopeCheckBox.isChecked():
+            lines.append(self.tr("The oscilloscope gets a reading every {}.")
+                         .format(self.as_seconds(d["frame"] * d["frames_per_reading"])))
+        return " ".join(lines)
 
     def refresh_after_settings(self):
         """Settings that are not on the panel still decide what it says
@@ -2619,10 +2789,12 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
     # --- ready-made settings for a particular job ---------------------
 
     def populate_presets(self):
-        """Offer the jobs, without applying one"""
+        """Offer the presets for the job in hand, without applying one"""
         self.presetComboBox.blockSignals(True)
-        for label, note, _widgets, _settings in RADAR_PRESETS:
-            self.presetComboBox.addItem(label)
+        self.presetComboBox.clear()
+        for index in self.task_presets():
+            label, note, _widgets, _settings = RADAR_PRESETS[index]
+            self.presetComboBox.addItem(label, index)
             if note:
                 self.presetComboBox.setItemData(
                     self.presetComboBox.count() - 1, note, QtCore.Qt.ToolTipRole)
@@ -2630,9 +2802,10 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         self.presetComboBox.blockSignals(False)
 
     @QtCore.Slot(int)
-    def on_presetComboBox_currentIndexChanged(self, index):
+    def on_presetComboBox_currentIndexChanged(self, row):
         """Set every control at once for the chosen job"""
-        if not 0 < index < len(RADAR_PRESETS):
+        index = self.presetComboBox.itemData(row)
+        if index is None or not 0 < index < len(RADAR_PRESETS):
             return
         label, note, widgets, values = RADAR_PRESETS[index]
 
