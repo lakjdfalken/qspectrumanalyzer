@@ -1064,7 +1064,8 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         QtWidgets.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
         try:
             found, covered, step = periodicity.search(rows[:, 0], rows[:, 1])
-            lines = periodicity.report(rows[:, 0], rows[:, 1], self.rhythm_header())
+            lines = periodicity.report(rows[:, 0], rows[:, 1], self.rhythm_header(),
+                                       result=(found, covered, step))
         except (ValueError, MemoryError) as error:
             QtWidgets.QApplication.restoreOverrideCursor()
             self.show_status(self.tr("Could not search: {}").format(error), timeout=0)

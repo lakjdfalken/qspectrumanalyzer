@@ -208,8 +208,11 @@ def fold(power, step, period, max_bins=MAX_BINS):
     The whole point of the exercise: a pulse that is invisible in any single
     period lands in the same bin every time, and noise does not."""
     bins = int(min(max(round(period / step), 4), max_bins))
-    phase = (np.arange(len(power)) * step) % period
-    which = np.minimum((phase / period * bins).astype(np.int64), bins - 1)
+    # The fraction of a period each reading falls at. Taken with floor rather
+    # than %, which is most of the cost of a fold and this runs a few hundred
+    # times a search
+    cycles = np.arange(len(power)) * step / period
+    which = np.minimum(((cycles - np.floor(cycles)) * bins).astype(np.int64), bins - 1)
     total = np.bincount(which, weights=power, minlength=bins)
     count = np.bincount(which, minlength=bins)
     profile = total / np.maximum(count, 1)
@@ -441,11 +444,16 @@ def search(times, power_db, rates=DEFAULT_RATES, harmonics=HARMONICS,
     return found, covered, step
 
 
-def report(times, power_db, header=(), **kwargs):
-    """Look for a rhythm and say what was found, as lines of text"""
+def report(times, power_db, header=(), result=None, **kwargs):
+    """Look for a rhythm and say what was found, as lines of text
+
+    `result` is what search() already returned for this trace, for a caller
+    that needed it for something else as well. Searching a full tap buffer
+    takes seconds, and doing it twice made the user wait for both."""
     lines = list(header)
     try:
-        found, covered, step = search(times, power_db, **kwargs)
+        found, covered, step = result if result is not None else \
+            search(times, power_db, **kwargs)
     except ValueError as error:
         return lines + ["Cannot look for a rhythm here: {}".format(error)]
 
