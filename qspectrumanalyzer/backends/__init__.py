@@ -1,6 +1,6 @@
 import os, threading, shlex
 
-from Qt import QtCore
+from PySide6 import QtCore
 
 from qspectrumanalyzer import subprocess
 
@@ -37,6 +37,38 @@ class BaseInfo:
     additional_params = ''
     help_device = None
 
+    #: Backend to hand over to when this one cannot cover what was asked for,
+    #: by module name, or None to always attempt it anyway
+    fallback = None
+
+    @classmethod
+    def list_devices(cls):
+        """Devices this backend can see right now, as (value, label) pairs
+
+        `value` is what belongs in the device setting, `label` is what to show
+        for it. An empty list means this backend cannot enumerate, and the
+        device field stays a plain text box."""
+        return []
+
+    @classmethod
+    def stage_gains(cls, gain=-1, lna=None, vga=None):
+        """The separate analogue stages this backend would set, or None
+
+        Most radios take one gain figure and that is the end of it. A HackRF
+        has two stages that are not interchangeable, and answering here is
+        what makes the main window offer a box for each: given a total, say
+        how it would be divided; given a stage, say what the radio can
+        actually be put to."""
+        return None
+
+    @classmethod
+    def covers(cls, start_freq, stop_freq, sample_rate):
+        """Can this backend measure the requested range?
+
+        Most can measure anything they are pointed at, by retuning as needed.
+        One that cannot says so here, and names a fallback."""
+        return True
+
     @classmethod
     def help_params(cls, executable):
         cmdline = shlex.split(executable)
@@ -61,7 +93,34 @@ class BasePowerThread(QtCore.QThread):
         self.data_storage = data_storage
         self.alive = False
         self.process = None
+        #: True when this backend was substituted for the one the user chose,
+        #: because that one could not cover the requested range
+        self.substituted = False
         self._shutdown_lock = threading.Lock()
+
+    def additional_params(self, info):
+        """Extra parameters for this backend
+
+        The params setting belongs to the backend the user selected. When
+        another has been substituted for it, that string was written for
+        somebody else and would be rejected, so use this backend's own
+        defaults instead."""
+        if self.substituted:
+            return info.additional_params
+        return QtCore.QSettings().value("params", info.additional_params)
+
+    def executable(self, default):
+        """The program this backend runs
+
+        Like additional_params(), the executable setting belongs to the backend
+        the user selected: the settings dialog writes the backend's name into
+        it whenever the backend changes. So a substituted backend would be
+        handed the name of the one it stood in for — and hackrf_stream, which
+        has no executable at all because it drives the radio in process, would
+        hand over the name of a program that does not exist."""
+        if self.substituted:
+            return default
+        return QtCore.QSettings().value("executable", default)
 
     def stop(self):
         """Stop power process thread"""
@@ -70,8 +129,13 @@ class BasePowerThread(QtCore.QThread):
         self.wait()
 
     def setup(self, start_freq, stop_freq, bin_size, interval=10.0, gain=-1, ppm=0, crop=0,
-              single_shot=False, device=0, sample_rate=2560000, bandwidth=0, lnb_lo=0):
-        """Setup power process params"""
+              single_shot=False, device=0, sample_rate=2560000, bandwidth=0, lnb_lo=0,
+              amp=False, lna=None, vga=None):
+        """Setup power process params
+
+        `lna` and `vga` are the two analogue stages of a backend whose
+        stage_gains() answers with a pair; None means take them from `gain`.
+        Backends without such stages ignore them, as they do `amp`."""
         raise NotImplementedError
 
     def process_start(self):
@@ -111,7 +175,8 @@ class BasePowerThread(QtCore.QThread):
 
 
 # Build list of all backends
-__all__ = ['soapy_power', 'hackrf_sweep', 'rtl_power', 'rtl_power_fftw', 'rx_power']
+__all__ = ['soapy_power', 'hackrf_sweep', 'hackrf_stream', 'rtl_power', 'rtl_power_fftw', 'rx_power']
 
 # Import all backends
-from qspectrumanalyzer.backends import soapy_power, hackrf_sweep, rtl_power, rtl_power_fftw, rx_power
+from qspectrumanalyzer.backends import (soapy_power, hackrf_sweep, hackrf_stream,
+                                       rtl_power, rtl_power_fftw, rx_power)

@@ -1,7 +1,7 @@
 import shlex
 
 import numpy as np
-from Qt import QtCore
+from PySide6 import QtCore
 
 from qspectrumanalyzer import subprocess
 from qspectrumanalyzer.backends import BaseInfo, BasePowerThread
@@ -15,7 +15,8 @@ class Info(BaseInfo):
 class PowerThread(BasePowerThread):
     """Thread which runs rtl_power process"""
     def setup(self, start_freq, stop_freq, bin_size, interval=10.0, gain=-1, ppm=0, crop=0,
-              single_shot=False, device=0, sample_rate=2560000, bandwidth=0, lnb_lo=0):
+              single_shot=False, device=0, sample_rate=2560000, bandwidth=0, lnb_lo=0, amp=False,
+              lna=None, vga=None):
         """Setup rtl_power params"""
         if bin_size > 2800:
             bin_size = 2800
@@ -39,8 +40,7 @@ class PowerThread(BasePowerThread):
     def process_start(self):
         """Start rtl_power process"""
         if not self.process and self.params:
-            settings = QtCore.QSettings()
-            cmdline = shlex.split(settings.value("executable", "rtl_power"))
+            cmdline = shlex.split(self.executable("rtl_power"))
             cmdline.extend([
                 "-f", "{}M:{}M:{}k".format(self.params["start_freq"] - self.lnb_lo / 1e6,
                                            self.params["stop_freq"] - self.lnb_lo / 1e6,
@@ -58,7 +58,7 @@ class PowerThread(BasePowerThread):
             if self.params["single_shot"]:
                 cmdline.append("-1")
 
-            additional_params = settings.value("params", Info.additional_params)
+            additional_params = self.additional_params(Info)
             if additional_params:
                 cmdline.extend(shlex.split(additional_params))
 

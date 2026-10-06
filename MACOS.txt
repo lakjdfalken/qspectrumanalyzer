@@ -1,0 +1,24 @@
+Running QSpectrumAnalyzer on macOS
+==================================
+
+Dependencies (Qt 6 / PySide6):
+
+    python3 -m pip install PySide6 numpy pyqtgraph
+
+Backends (Homebrew):
+
+    brew install hackrf rtl-sdr
+
+soapy_power lives in its own venv and is called as an executable, so it does
+not need to be importable from this one. Point Settings -> Executable at it
+if it is not on PATH.
+
+Run:
+
+    python -m qspectrumanalyzer
+
+Regenerating the Qt Designer files after editing a .ui:
+
+    for f in qspectrumanalyzer/*.ui; do
+        pyside6-uic "$f" -o "qspectrumanalyzer/ui_$(basename "${f%.ui}").py"
+    done

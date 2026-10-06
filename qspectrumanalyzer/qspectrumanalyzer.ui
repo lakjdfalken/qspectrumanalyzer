@@ -42,6 +42,14 @@
         </sizepolicy>
        </property>
       </widget>
+      <widget class="GraphicsLayoutWidget" name="scopePlotLayout">
+       <property name="sizePolicy">
+        <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
+         <horstretch>0</horstretch>
+         <verstretch>0</verstretch>
+        </sizepolicy>
+       </property>
+      </widget>
      </widget>
     </item>
    </layout>
@@ -59,6 +67,8 @@
     <property name="title">
      <string>&amp;File</string>
     </property>
+    <addaction name="action_SaveRecording"/>
+    <addaction name="separator"/>
     <addaction name="action_Settings"/>
     <addaction name="separator"/>
     <addaction name="action_Quit"/>
@@ -97,28 +107,416 @@
    </attribute>
    <widget class="QWidget" name="controlsDockWidgetContents">
     <layout class="QGridLayout" name="gridLayout_2">
-     <item row="0" column="0">
-      <widget class="QPushButton" name="startButton">
+     <item row="0" column="0" colspan="2">
+      <widget class="QGroupBox" name="presetGroupBox">
+       <property name="title">
+        <string>Looking for</string>
+       </property>
+       <layout class="QGridLayout" name="presetGridLayout">
+        <item row="0" column="0">
+         <widget class="QComboBox" name="presetComboBox">
+          <property name="toolTip">
+           <string>Set every control at once for a particular job. These settings interact: the bin size decides how short a pulse survives being measured, the detector decides whether it survives at all, and the recording depth decides whether a whole scan cycle fits on screen. Getting one of them wrong quietly wastes an evening, so pick the job instead of the settings.</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+     </item>
+     <item row="1" column="0" colspan="2">
+      <widget class="QPushButton" name="runButton">
+       <property name="toolTip">
+        <string>Start measuring, or stop a run that is going. The button says which it will do, and the space bar does the same. Stopping leaves everything recorded on screen; starting again begins a new recording.</string>
+       </property>
        <property name="text">
         <string>&amp;Start</string>
        </property>
       </widget>
      </item>
-     <item row="0" column="1">
-      <widget class="QPushButton" name="stopButton">
-       <property name="text">
-        <string>S&amp;top</string>
-       </property>
-      </widget>
-     </item>
-     <item row="1" column="0" colspan="2">
+     <item row="2" column="0" colspan="2">
       <widget class="QPushButton" name="singleShotButton">
        <property name="text">
         <string>Si&amp;ngle shot</string>
        </property>
       </widget>
      </item>
-     <item row="2" column="0">
+     <item row="3" column="0" colspan="2">
+      <widget class="QGroupBox" name="historyGroupBox">
+       <property name="title">
+        <string>History</string>
+       </property>
+       <layout class="QGridLayout" name="historyGridLayout">
+        <item row="0" column="0" colspan="3">
+         <widget class="QCheckBox" name="browseHistoryCheckBox">
+          <property name="toolTip">
+           <string>Freeze the plots and step back through the recorded sweeps. Acquisition keeps running and keeps recording.</string>
+          </property>
+          <property name="text">
+           <string>&amp;Browse recorded sweeps</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="0">
+         <widget class="QPushButton" name="historyBackButton">
+          <property name="toolTip">
+           <string>Step back through the recorded sweeps</string>
+          </property>
+          <property name="text">
+           <string>&lt;</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="1">
+         <widget class="QSpinBox" name="historyStepSpinBox">
+          <property name="toolTip">
+           <string>How many sweeps each step moves</string>
+          </property>
+          <property name="minimum">
+           <number>1</number>
+          </property>
+          <property name="maximum">
+           <number>1000000</number>
+          </property>
+          <property name="value">
+           <number>1</number>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="2">
+         <widget class="QPushButton" name="historyForwardButton">
+          <property name="toolTip">
+           <string>Step forward through the recorded sweeps</string>
+          </property>
+          <property name="text">
+           <string>&gt;</string>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="0" colspan="3">
+         <widget class="QSlider" name="historySlider">
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+         </widget>
+        </item>
+        <item row="3" column="0" colspan="3">
+         <widget class="QLabel" name="historyPositionLabel">
+          <property name="text">
+           <string>Live</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignCenter</set>
+          </property>
+          <property name="wordWrap">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+     </item>
+     <item row="4" column="0" colspan="2">
+      <widget class="QGroupBox" name="plotsGroupBox">
+       <property name="title">
+        <string>Plots</string>
+       </property>
+       <layout class="QGridLayout" name="plotsGridLayout">
+        <item row="0" column="0" colspan="2">
+         <widget class="QCheckBox" name="waterfallCheckBox">
+          <property name="toolTip">
+           <string>Show the waterfall under the spectrum: the recording as an image, frequency across and time down.</string>
+          </property>
+          <property name="text">
+           <string>Waterfall</string>
+          </property>
+          <property name="checked">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="0" colspan="2">
+         <widget class="QCheckBox" name="scopeCheckBox">
+          <property name="toolTip">
+           <string>Show power over time under the waterfall: the recording along its other axis, so the shape a signal has in time is on screen beside the sweep being looked at. Stepping through the recorded sweeps moves a cursor along it, and dragging that cursor steps to a moment. A signal that comes back every so often shows as evenly spaced spikes.</string>
+          </property>
+          <property name="text">
+           <string>Power over &amp;time (scope)</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+     </item>
+     <item row="5" column="0" colspan="2">
+      <widget class="QGroupBox" name="scopeGroupBox">
+       <property name="enabled">
+        <bool>false</bool>
+       </property>
+       <property name="title">
+        <string>Oscilloscope</string>
+       </property>
+       <layout class="QGridLayout" name="scopeGridLayout">
+        <item row="0" column="0">
+         <widget class="QLabel" name="scopeSpanLabel">
+          <property name="text">
+           <string>Time span:</string>
+          </property>
+          <property name="buddy">
+           <cstring>scopeSpanSpinBox</cstring>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="1">
+         <widget class="QDoubleSpinBox" name="scopeSpanSpinBox">
+          <property name="toolTip">
+           <string>How much time is on screen. The window keeps this width and rolls forward with the newest data, the way a timebase does. Zero fits the whole recording instead. Zooming the plot with the mouse sets this too.</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+          </property>
+          <property name="suffix">
+           <string> ms</string>
+          </property>
+          <property name="decimals">
+           <number>3</number>
+          </property>
+          <property name="minimum">
+           <double>0.000000000000000</double>
+          </property>
+          <property name="maximum">
+           <double>3600000.000000000000000</double>
+          </property>
+          <property name="specialValueText">
+           <string>all</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="0" colspan="2">
+         <widget class="QCheckBox" name="scopeBandCheckBox">
+          <property name="toolTip">
+           <string>Reduce the scope to one stretch of the spectrum instead of all of it, which is a zero span view of that stretch. Set it below, or drag the shaded band on the spectrum plot.</string>
+          </property>
+          <property name="text">
+           <string>One fre&amp;quency band only</string>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="0">
+         <widget class="QLabel" name="scopeCentreLabel">
+          <property name="text">
+           <string>Band c&amp;entre:</string>
+          </property>
+          <property name="buddy">
+           <cstring>scopeCentreSpinBox</cstring>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="1">
+         <widget class="QDoubleSpinBox" name="scopeCentreSpinBox">
+          <property name="enabled">
+           <bool>false</bool>
+          </property>
+          <property name="toolTip">
+           <string>The frequency the scope watches.</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+          </property>
+          <property name="suffix">
+           <string> MHz</string>
+          </property>
+          <property name="decimals">
+           <number>4</number>
+          </property>
+          <property name="maximum">
+           <double>7250.000000000000000</double>
+          </property>
+         </widget>
+        </item>
+        <item row="3" column="0">
+         <widget class="QLabel" name="scopeWidthLabel">
+          <property name="text">
+           <string>Band wi&amp;dth:</string>
+          </property>
+          <property name="buddy">
+           <cstring>scopeWidthSpinBox</cstring>
+          </property>
+         </widget>
+        </item>
+        <item row="3" column="1">
+         <widget class="QDoubleSpinBox" name="scopeWidthSpinBox">
+          <property name="enabled">
+           <bool>false</bool>
+          </property>
+          <property name="toolTip">
+           <string>How wide a band around the centre to watch. This is the resolution bandwidth of the zero span view; it is snapped to whole bins, so nothing narrower than one bin is possible.</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+          </property>
+          <property name="suffix">
+           <string> kHz</string>
+          </property>
+          <property name="decimals">
+           <number>1</number>
+          </property>
+          <property name="minimum">
+           <double>0.100000000000000</double>
+          </property>
+          <property name="maximum">
+           <double>100000.000000000000000</double>
+          </property>
+          <property name="value">
+           <double>400.000000000000000</double>
+          </property>
+         </widget>
+        </item>
+        <item row="5" column="0" colspan="2">
+         <widget class="QCheckBox" name="scopeTriggerCheckBox">
+          <property name="toolTip">
+           <string>Start each sweep where the signal rises past a level, the way a scope does, instead of letting the trace slide through the window. A burst that comes back then lands in the same place every time and stands still, so its shape can be read. When nothing crosses the level the last sweep is held rather than moved.</string>
+          </property>
+          <property name="text">
+           <string>Trigger &amp;on a rising edge</string>
+          </property>
+         </widget>
+        </item>
+        <item row="6" column="0">
+         <widget class="QLabel" name="scopeTriggerLabel">
+          <property name="text">
+           <string>Trigger le&amp;vel:</string>
+          </property>
+          <property name="buddy">
+           <cstring>scopeTriggerSpinBox</cstring>
+          </property>
+         </widget>
+        </item>
+        <item row="7" column="0">
+         <widget class="QLabel" name="scopePreTriggerLabel">
+          <property name="text">
+           <string>Pre-trigger:</string>
+          </property>
+          <property name="buddy">
+           <cstring>scopePreTriggerSpinBox</cstring>
+          </property>
+         </widget>
+        </item>
+        <item row="7" column="1">
+         <widget class="QSpinBox" name="scopePreTriggerSpinBox">
+          <property name="enabled">
+           <bool>false</bool>
+          </property>
+          <property name="toolTip">
+           <string>How much of the window is drawn before the edge that started the sweep. A rising edge is where a burst says how it begins - whether it steps up in one reading or climbs over hundreds - and with no lead at all it is the very first reading on screen, with nothing behind it to be read against. The lead is taken from the same recorded trace as the rest of the sweep, so it costs nothing but window: at 40% a 20 ms sweep shows 8 ms of what led in and 12 ms of what followed.</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+          </property>
+          <property name="suffix">
+           <string> %</string>
+          </property>
+          <property name="maximum">
+           <number>90</number>
+          </property>
+          <property name="singleStep">
+           <number>5</number>
+          </property>
+          <property name="value">
+           <number>10</number>
+          </property>
+         </widget>
+        </item>
+        <item row="8" column="0" colspan="2">
+         <widget class="QCheckBox" name="scopeSingleCheckBox">
+          <property name="enabled">
+           <bool>false</bool>
+          </property>
+          <property name="toolTip">
+           <string>Catch one sweep and hold it, instead of triggering over and over. A burst that happens once, or once a minute, cannot be read off a display that has moved on by the time you look at it. The sweep the burst arrived in stays on screen until you press Arm for the next one. This is the scope's trigger mode - it holds one sweep of the trace. The Single shot button above is a different thing: it takes one measurement from the radio and stops.</string>
+          </property>
+          <property name="text">
+           <string>Single &amp;capture</string>
+          </property>
+         </widget>
+        </item>
+        <item row="11" column="1">
+         <widget class="QPushButton" name="rhythmButton">
+          <property name="toolTip">
+           <string>Look through the recorded high-rate trace for anything that repeats, rather than for anything loud. A trigger can only find a pulse that stands above the noise, and with six hundred thousand readings a second the noise itself reaches five or six decibels above its own floor - so a pulse below that cannot be caught however the level is set. A pulse train can still be found, because it comes back: a thousand pulses stacked in step stand thirty times clear of noise stacked out of step. Reports the interval between pulses, how wide they are and how far the stack stands above the noise.</string>
+          </property>
+          <property name="text">
+           <string>Loo&amp;k for a repeating pulse...</string>
+          </property>
+         </widget>
+        </item>
+        <item row="10" column="1">
+         <widget class="QPushButton" name="scopeSaveButton">
+          <property name="toolTip">
+           <string>Write the sweep on screen out as CSV, at full resolution, with the settings it was taken under and the time t=0 happened. A burst worth catching is worth keeping.</string>
+          </property>
+          <property name="text">
+           <string>Save sweep...</string>
+          </property>
+         </widget>
+        </item>
+        <item row="9" column="1">
+         <widget class="QPushButton" name="scopeArmButton">
+          <property name="enabled">
+           <bool>false</bool>
+          </property>
+          <property name="toolTip">
+           <string>Let go of the sweep on screen and wait for the next burst above the level.</string>
+          </property>
+          <property name="text">
+           <string>Ar&amp;m</string>
+          </property>
+         </widget>
+        </item>
+        <item row="6" column="1">
+         <widget class="QDoubleSpinBox" name="scopeTriggerSpinBox">
+          <property name="enabled">
+           <bool>false</bool>
+          </property>
+          <property name="toolTip">
+           <string>The power a rising edge has to cross to start a sweep, marked on the plot as a dashed line. At the lowest setting the level is taken from the trace itself, half way between the noise it sits at and the loudest thing in it.</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+          </property>
+          <property name="suffix">
+           <string> dB</string>
+          </property>
+          <property name="decimals">
+           <number>1</number>
+          </property>
+          <property name="minimum">
+           <double>-200.000000000000000</double>
+          </property>
+          <property name="maximum">
+           <double>50.000000000000000</double>
+          </property>
+          <property name="value">
+           <double>-200.000000000000000</double>
+          </property>
+          <property name="specialValueText">
+           <string>auto</string>
+          </property>
+         </widget>
+        </item>
+        <item row="4" column="0" colspan="2">
+         <widget class="QCheckBox" name="scopeFastCheckBox">
+          <property name="toolTip">
+           <string>Measure the band straight off the radio's frames instead of reading it back out of the delivered spectra, and draw it as a second, finer trace. hackrf_stream reaches 25.6 us per reading at 20 MSPS with 40 kHz bins, against 10 ms for a delivered sweep, so a burst far too short to survive the averaging is still measured at full height. The step is set in Settings. Readings are noisier than the spectra behind them, which is the price of the resolution. Only backends that can do it offer it.</string>
+          </property>
+          <property name="text">
+           <string>High-rate ta&amp;p</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+     </item>
+     <item row="6" column="0">
       <spacer name="verticalSpacer">
        <property name="orientation">
         <enum>Qt::Vertical</enum>
@@ -246,10 +644,114 @@
      <item row="2" column="0">
       <widget class="QLabel" name="label">
        <property name="text">
-        <string>&amp;Bin size:</string>
+        <string>Bin si&amp;ze:</string>
        </property>
        <property name="buddy">
         <cstring>binSizeSpinBox</cstring>
+       </property>
+      </widget>
+     </item>
+     <item row="3" column="0">
+      <widget class="QLabel" name="surveyDwellLabel">
+       <property name="text">
+        <string>D&amp;well:</string>
+       </property>
+       <property name="buddy">
+        <cstring>surveyDwellSpinBox</cstring>
+       </property>
+      </widget>
+     </item>
+     <item row="3" column="1">
+      <widget class="QSpinBox" name="surveyDwellSpinBox">
+       <property name="toolTip">
+        <string>How long a survey listens to each slice of the range before moving on. Long enough for whatever you are looking for to come round: a radar that turns every five seconds needs tens of seconds to be sure of catching several of its passes.</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+       </property>
+       <property name="suffix">
+        <string> s</string>
+       </property>
+       <property name="minimum">
+        <number>1</number>
+       </property>
+       <property name="maximum">
+        <number>3600</number>
+       </property>
+       <property name="value">
+        <number>30</number>
+       </property>
+      </widget>
+     </item>
+     <item row="4" column="0" colspan="2">
+      <widget class="QCheckBox" name="surveyVerifyCheckBox">
+       <property name="toolTip">
+        <string>Visit every slice twice, from two different tunes, and keep only what lands at the same frequency both times. A receiver's own spurs sit at a fixed offset from the tune, so they move when it does; an IQ image moves twice as far the other way; something on the air does not move at all. Costs twice the dwell and rejects three kinds of artifact that otherwise read as findings.</string>
+       </property>
+       <property name="text">
+        <string>Check for receiver sp&amp;urs</string>
+       </property>
+      </widget>
+     </item>
+     <item row="5" column="0" colspan="2">
+      <widget class="QPushButton" name="surveyButton">
+       <property name="toolTip">
+        <string>Walk the whole Start to Stop range one tune at a time, camping on each slice for the dwell and writing down what was ever heard in it and how often. Meant for a signal that is only there occasionally: sweeping past such a thing misses it, staying put does not. Press again to stop.</string>
+       </property>
+       <property name="text">
+        <string>Surve&amp;y the range...</string>
+       </property>
+      </widget>
+     </item>
+     <item row="6" column="0" colspan="2">
+      <widget class="QLabel" name="surveyProgressLabel">
+       <property name="text">
+        <string/>
+       </property>
+       <property name="wordWrap">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item row="7" column="0">
+      <widget class="QLabel" name="interferenceSecondsLabel">
+       <property name="text">
+        <string>&amp;Listen for:</string>
+       </property>
+       <property name="buddy">
+        <cstring>interferenceSecondsSpinBox</cstring>
+       </property>
+      </widget>
+     </item>
+     <item row="7" column="1">
+      <widget class="QSpinBox" name="interferenceSecondsSpinBox">
+       <property name="toolTip">
+        <string>How long to record for before reading the recording back. Longer sees more of anything that comes and goes, and costs memory at about three kilobytes a sweep: the recording is capped at 256 MB, so the button says how long actually fits before it starts and shortens the run rather than quietly recording less than was asked for.</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+       </property>
+       <property name="suffix">
+        <string> s</string>
+       </property>
+       <property name="minimum">
+        <number>1</number>
+       </property>
+       <property name="maximum">
+        <number>600</number>
+       </property>
+       <property name="value">
+        <number>20</number>
+       </property>
+      </widget>
+     </item>
+     <item row="8" column="0" colspan="2">
+      <widget class="QPushButton" name="interferenceButton">
+       <property name="toolTip">
+        <string>Record this tune for a while and say what in it was not Wi-Fi. Wi-Fi fills its whole channel every time it transmits, so energy narrower than the span is something else - a Bluetooth hop, a video sender, a cordless phone - and that can be told without decoding anything. The settings this needs are not a matter of taste and are not left to be got right by hand: the sweep detector goes to mean, which is worth about 4 dB against anything narrow, the delivery rate goes to as fast as the radio makes spectra, so that the gaps between frames survive, and the recording is made deep enough to hold the whole run. They are all put back afterwards. The recording is saved and the reading printed. Press again to stop.</string>
+       </property>
+       <property name="text">
+        <string>Look for i&amp;nterference...</string>
        </property>
       </widget>
      </item>
@@ -284,7 +786,7 @@
        </property>
       </widget>
      </item>
-     <item row="3" column="0" colspan="2">
+     <item row="9" column="0" colspan="2">
       <spacer name="verticalSpacer_3">
        <property name="orientation">
         <enum>Qt::Vertical</enum>
@@ -311,7 +813,7 @@
     <set>QDockWidget::DockWidgetFloatable|QDockWidget::DockWidgetMovable</set>
    </property>
    <property name="windowTitle">
-    <string>Settings</string>
+    <string>Adjustments</string>
    </property>
    <attribute name="dockWidgetArea">
     <number>2</number>
@@ -352,6 +854,58 @@
       </widget>
      </item>
      <item row="2" column="0">
+      <widget class="QLabel" name="label_lna">
+       <property name="text">
+        <string>&amp;LNA [dB]:</string>
+       </property>
+       <property name="buddy">
+        <cstring>lnaSpinBox</cstring>
+       </property>
+      </widget>
+     </item>
+     <item row="2" column="1">
+      <widget class="QLabel" name="label_vga">
+       <property name="text">
+        <string>VG&amp;A [dB]:</string>
+       </property>
+       <property name="buddy">
+        <cstring>vgaSpinBox</cstring>
+       </property>
+      </widget>
+     </item>
+     <item row="3" column="0">
+      <widget class="QSpinBox" name="lnaSpinBox">
+       <property name="toolTip">
+        <string>The first amplifier the signal meets, in 8 dB steps to 40. This is the stage that decides what the receiver can hear: gain here lifts the signal above the noise of everything after it, so it is the one to fill first. Gain sets it for you; change it to overrule that.</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+       </property>
+       <property name="maximum">
+        <number>40</number>
+       </property>
+       <property name="singleStep">
+        <number>8</number>
+       </property>
+      </widget>
+     </item>
+     <item row="3" column="1" colspan="2">
+      <widget class="QSpinBox" name="vgaSpinBox">
+       <property name="toolTip">
+        <string>Baseband gain, after the mixer, in 2 dB steps to 62. It amplifies whatever the LNA already let through, noise and all, so it makes the trace bigger without making the radio more sensitive. Worth raising only when the trace sits so low that the 8 bit converter, rather than the air, is setting the noise floor.</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+       </property>
+       <property name="maximum">
+        <number>62</number>
+       </property>
+       <property name="singleStep">
+        <number>2</number>
+       </property>
+      </widget>
+     </item>
+     <item row="4" column="0">
       <widget class="QLabel" name="label_5">
        <property name="text">
         <string>Corr. [ppm]:</string>
@@ -361,7 +915,7 @@
        </property>
       </widget>
      </item>
-     <item row="2" column="1">
+     <item row="4" column="1">
       <widget class="QLabel" name="label_7">
        <property name="text">
         <string>Crop [%]:</string>
@@ -371,7 +925,7 @@
        </property>
       </widget>
      </item>
-     <item row="3" column="0">
+     <item row="5" column="0">
       <widget class="QSpinBox" name="ppmSpinBox">
        <property name="alignment">
         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
@@ -384,7 +938,17 @@
        </property>
       </widget>
      </item>
-     <item row="4" column="0">
+     <item row="6" column="0" colspan="3">
+      <widget class="QCheckBox" name="ampCheckBox">
+       <property name="toolTip">
+        <string>Switch on the radio's own front end amplifier, worth about 14 dB on a HackRF. It sits ahead of the gain control, so it costs headroom that gain cannot give back: leave it off near a transmitter, and on for anything faint. Backends with no such amplifier ignore it.</string>
+       </property>
+       <property name="text">
+        <string>&amp;RF amp (+14 dB)</string>
+       </property>
+      </widget>
+     </item>
+     <item row="7" column="0">
       <widget class="QCheckBox" name="mainCurveCheckBox">
        <property name="text">
         <string>Main curve</string>
@@ -394,42 +958,42 @@
        </property>
       </widget>
      </item>
-     <item row="4" column="1" colspan="2">
+     <item row="7" column="1" colspan="2">
       <widget class="QPushButton" name="colorsButton">
        <property name="text">
         <string>Colors...</string>
        </property>
       </widget>
      </item>
-     <item row="5" column="0">
+     <item row="8" column="0">
       <widget class="QCheckBox" name="peakHoldMaxCheckBox">
        <property name="text">
         <string>Max. hold</string>
        </property>
       </widget>
      </item>
-     <item row="5" column="1" colspan="2">
+     <item row="8" column="1" colspan="2">
       <widget class="QCheckBox" name="peakHoldMinCheckBox">
        <property name="text">
         <string>Min. hold</string>
        </property>
       </widget>
      </item>
-     <item row="6" column="0">
+     <item row="9" column="0">
       <widget class="QCheckBox" name="averageCheckBox">
        <property name="text">
         <string>Average</string>
        </property>
       </widget>
      </item>
-     <item row="7" column="0">
+     <item row="10" column="0">
       <widget class="QCheckBox" name="smoothCheckBox">
        <property name="text">
         <string>Smoothing</string>
        </property>
       </widget>
      </item>
-     <item row="7" column="2">
+     <item row="10" column="2">
       <widget class="QToolButton" name="smoothButton">
        <property name="text">
         <string>...</string>
@@ -439,14 +1003,14 @@
        </property>
       </widget>
      </item>
-     <item row="8" column="0">
+     <item row="11" column="0">
       <widget class="QCheckBox" name="persistenceCheckBox">
        <property name="text">
         <string>Persistence</string>
        </property>
       </widget>
      </item>
-     <item row="8" column="2">
+     <item row="11" column="2">
       <widget class="QToolButton" name="persistenceButton">
        <property name="text">
         <string>...</string>
@@ -456,7 +1020,7 @@
        </property>
       </widget>
      </item>
-     <item row="11" column="0">
+     <item row="14" column="0">
       <spacer name="verticalSpacer_2">
        <property name="orientation">
         <enum>Qt::Vertical</enum>
@@ -469,7 +1033,7 @@
        </property>
       </spacer>
      </item>
-     <item row="3" column="1" colspan="2">
+     <item row="5" column="1" colspan="2">
       <widget class="QSpinBox" name="cropSpinBox">
        <property name="alignment">
         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
@@ -478,6 +1042,9 @@
      </item>
      <item row="1" column="1" colspan="2">
       <widget class="QDoubleSpinBox" name="gainSpinBox">
+       <property name="toolTip">
+        <string>How much the radio amplifies what it hears. On a HackRF this one figure is divided across two stages, and the boxes below show the division: it fills the LNA first, because that is the stage that decides what the receiver can hear. Set either box to overrule that. Too much gain overloads the front end and invents signals that are not on the air, which shows as a trace that stops moving when the gain does.</string>
+       </property>
        <property name="alignment">
         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
        </property>
@@ -501,14 +1068,14 @@
        </property>
       </widget>
      </item>
-     <item row="9" column="0">
+     <item row="12" column="0">
       <widget class="QCheckBox" name="baselineCheckBox">
        <property name="text">
         <string>Baseline</string>
        </property>
       </widget>
      </item>
-     <item row="9" column="2">
+     <item row="12" column="2">
       <widget class="QToolButton" name="baselineButton">
        <property name="text">
         <string>...</string>
@@ -518,7 +1085,7 @@
        </property>
       </widget>
      </item>
-     <item row="10" column="0">
+     <item row="13" column="0">
       <widget class="QCheckBox" name="subtractBaselineCheckBox">
        <property name="text">
         <string>Subtract baseline</string>
@@ -559,6 +1126,17 @@
     </layout>
    </widget>
   </widget>
+  <action name="action_SaveRecording">
+   <property name="text">
+    <string>Save &amp;recording...</string>
+   </property>
+   <property name="toolTip">
+    <string>Write every bin of every recorded sweep out as CSV: a row per sweep, a column per bin. The scope's Save sweep keeps one number per sweep, which answers questions about time and none about frequency; this keeps the recording itself, so a run can be asked afterwards which bin something was in.</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+S</string>
+   </property>
+  </action>
   <action name="action_Settings">
    <property name="text">
     <string>&amp;Settings...</string>
@@ -586,16 +1164,42 @@
   </customwidget>
  </customwidgets>
  <tabstops>
-  <tabstop>startButton</tabstop>
-  <tabstop>stopButton</tabstop>
+  <tabstop>presetComboBox</tabstop>
+  <tabstop>runButton</tabstop>
   <tabstop>singleShotButton</tabstop>
+  <tabstop>browseHistoryCheckBox</tabstop>
+  <tabstop>historyBackButton</tabstop>
+  <tabstop>historyStepSpinBox</tabstop>
+  <tabstop>historyForwardButton</tabstop>
+  <tabstop>historySlider</tabstop>
+  <tabstop>waterfallCheckBox</tabstop>
+  <tabstop>scopeCheckBox</tabstop>
+  <tabstop>scopeSpanSpinBox</tabstop>
+  <tabstop>scopeBandCheckBox</tabstop>
+  <tabstop>scopeCentreSpinBox</tabstop>
+  <tabstop>scopeWidthSpinBox</tabstop>
+  <tabstop>scopeFastCheckBox</tabstop>
+  <tabstop>scopeTriggerCheckBox</tabstop>
+  <tabstop>scopeTriggerSpinBox</tabstop>
+  <tabstop>scopePreTriggerSpinBox</tabstop>
+  <tabstop>scopeSingleCheckBox</tabstop>
+  <tabstop>scopeArmButton</tabstop>
+  <tabstop>scopeSaveButton</tabstop>
+  <tabstop>rhythmButton</tabstop>
   <tabstop>startFreqSpinBox</tabstop>
   <tabstop>stopFreqSpinBox</tabstop>
   <tabstop>binSizeSpinBox</tabstop>
+  <tabstop>surveyDwellSpinBox</tabstop>
+  <tabstop>surveyButton</tabstop>
+  <tabstop>interferenceSecondsSpinBox</tabstop>
+  <tabstop>interferenceButton</tabstop>
   <tabstop>intervalSpinBox</tabstop>
   <tabstop>gainSpinBox</tabstop>
+  <tabstop>lnaSpinBox</tabstop>
+  <tabstop>vgaSpinBox</tabstop>
   <tabstop>ppmSpinBox</tabstop>
   <tabstop>cropSpinBox</tabstop>
+  <tabstop>ampCheckBox</tabstop>
   <tabstop>mainCurveCheckBox</tabstop>
   <tabstop>colorsButton</tabstop>
   <tabstop>peakHoldMaxCheckBox</tabstop>
@@ -611,6 +1215,7 @@
   <tabstop>histogramPlotLayout</tabstop>
   <tabstop>mainPlotLayout</tabstop>
   <tabstop>waterfallPlotLayout</tabstop>
+  <tabstop>scopePlotLayout</tabstop>
  </tabstops>
  <resources/>
  <connections/>

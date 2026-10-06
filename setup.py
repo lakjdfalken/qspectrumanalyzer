@@ -59,14 +59,18 @@ setup(
     ],
     install_requires=[
         "soapy_power>=1.6.0",
-        "pyqtgraph>=0.10.0",
-        "Qt.py",
+        "pyqtgraph>=0.13.0",
+        "PySide6",
+        # Its own project now, and not on PyPI yet, so it comes from its
+        # repository at a release tag. Needed even without a HackRF: the
+        # plots use its noise_ceiling(). To work on both at once, install a
+        # clone over it with pip install -e
+        "hackrf_stream @ git+https://github.com/lakjdfalken/hackrf_stream.git@v0.3.0",
     ],
     options={
         'build_qt': {
             'packages': ['qspectrumanalyzer'],
             'languages': ['cs'],
-            'replacement_bindings': 'Qt',
         },
         'build_exe': {
             'datas': [

@@ -1,6 +1,6 @@
 import time, sys, os
 
-from Qt import QtCore
+from PySide6 import QtCore
 import numpy as np
 
 from qspectrumanalyzer.utils import smooth
@@ -8,31 +8,90 @@ from qspectrumanalyzer.backends import soapy_power
 
 
 class HistoryBuffer:
-    """Fixed-size NumPy array ring buffer"""
-    def __init__(self, data_size, max_history_size, dtype=float):
+    """Fixed-size NumPy array ring buffer
+
+    The data is kept in chronological order (newest last) in a contiguous
+    slice of an over-allocated array, so that get_buffer() can hand out a
+    plain view. append() only writes one row and slides the window forward;
+    the data is moved back to the start of the array once the window runs
+    out of slack, which is once every `slack` appends instead of rolling the
+    whole buffer on every single append."""
+    #: Refuse to allocate a ring buffer larger than this (bytes). The
+    #: recording depth is set in sweeps, but what it costs depends on the bin
+    #: count, which is not known until the first sweep arrives, so a depth
+    #: that is harmless at 500 bins can ask for gigabytes at 60000.
+    max_bytes = 256 * 1024 * 1024
+
+    @classmethod
+    def fits(cls, data_size, max_history_size, itemsize=4):
+        """Largest requested depth that stays inside the memory budget
+
+        itemsize defaults to what the recording actually stores, which is
+        float32: these are powers in dB, where the seventh significant digit
+        is far below the noise, and halving the row halves what a recording
+        costs and doubles how long a one can be."""
+        per_row = data_size * itemsize * 1.5  # 1.5: the slack in the buffer
+        return max(1, min(max_history_size, int(cls.max_bytes / per_row)))
+
+    def __init__(self, data_size, max_history_size, dtype=np.float32):
         self.data_size = data_size
         self.max_history_size = max_history_size
         self.history_size = 0
         self.counter = 0
-        self.buffer = np.empty(shape=(max_history_size, data_size), dtype=dtype)
+        self.slack = max(1, max_history_size // 2)
+        self.buffer = np.empty(shape=(max_history_size + self.slack, data_size), dtype=dtype)
+        self.end = 0
 
     def append(self, data):
         """Append new data to ring buffer"""
         self.counter += 1
         if self.history_size < self.max_history_size:
             self.history_size += 1
-        self.buffer = np.roll(self.buffer, -1, axis=0)
-        self.buffer[-1] = data
+
+        if self.end == len(self.buffer):
+            # Out of slack, move the data we still need back to the start
+            self.buffer[:self.max_history_size] = self.buffer[self.slack:]
+            self.end = self.max_history_size
+
+        self.buffer[self.end] = data
+        self.end += 1
+
+    def extend(self, rows):
+        """Append many rows at once
+
+        The bulk form of append(), for a source that produces far faster than
+        it is read: the high rate band monitor hands over a few hundred
+        samples at a time, and doing that a row at a time would be all Python
+        and no copying."""
+        rows = np.asarray(rows, dtype=self.buffer.dtype)
+        if rows.ndim == 1:
+            rows = rows.reshape(-1, self.data_size)
+        # Rows beyond the buffer's depth still happened, so they still count
+        # towards the counter that numbers the sweeps; they just cannot be kept
+        total = len(rows)
+        if not total:
+            return
+        rows = rows[-self.max_history_size:]
+        count = len(rows)
+
+        if self.end + count > len(self.buffer):
+            # Out of slack, move back what will still be wanted afterwards
+            keep = max(0, min(self.history_size, self.max_history_size - count))
+            if keep:
+                self.buffer[:keep] = self.buffer[self.end - keep:self.end]
+            self.end = keep
+
+        self.buffer[self.end:self.end + count] = rows
+        self.end += count
+        self.counter += total
+        self.history_size = min(self.max_history_size, self.history_size + total)
 
     def get_buffer(self):
         """Return buffer stripped to size of actual data"""
-        if self.history_size < self.max_history_size:
-            return self.buffer[-self.history_size:]
-        else:
-            return self.buffer
+        return self.buffer[self.end - self.history_size:self.end]
 
     def __getitem__(self, key):
-        return self.buffer[key]
+        return self.get_buffer()[key]
 
 
 class TaskSignals(QtCore.QObject):
@@ -90,6 +149,7 @@ class DataStorage(QtCore.QObject):
         self.wait()
         self.x = None
         self.history = None
+        self.timestamps = None
         self.reset_data()
 
     def reset_data(self):
@@ -115,6 +175,15 @@ class DataStorage(QtCore.QObject):
         if self.y is not None and len(data["y"]) != len(self.y):
             print("{:d} bins coming from backend, expected {:d}".format(len(data["y"]), len(self.y)))
             return
+
+        # When this sweep was measured, for the band power plot's time axis.
+        # A backend that reports a number knows better than we do — it can say
+        # when the signal arrived rather than when the sweep reached us, which
+        # is later by however long delivery took. Several report a formatted
+        # date string instead, and those fall back to arrival time.
+        measured = data.get("timestamp")
+        data["received"] = (float(measured) if isinstance(measured, (int, float))
+                            else time.time())
 
         self.average_counter += 1
 
@@ -144,10 +213,27 @@ class DataStorage(QtCore.QObject):
     def update_history(self, data):
         """Update spectrum measurements history"""
         if self.history is None:
-            self.history = HistoryBuffer(len(data["y"]), self.max_history_size)
+            depth = HistoryBuffer.fits(len(data["y"]), self.max_history_size)
+            if depth < self.max_history_size:
+                print("Recording depth reduced from {} to {} sweeps to stay under {} MB "
+                      "at {} bins".format(self.max_history_size, depth,
+                                          HistoryBuffer.max_bytes // (1024 * 1024),
+                                          len(data["y"])))
+            self.history = HistoryBuffer(len(data["y"]), depth)
+            # One arrival time per recorded sweep, kept in step with it, so
+            # that the recording can be plotted against time rather than
+            # against sweep number. A sweep of powers dwarfs it.
+            self.timestamps = HistoryBuffer(1, depth, dtype=np.float64)
 
         self.history.append(data["y"])
+        self.timestamps.append(data["received"])
         self.history_updated.emit(self)
+
+    def recorded_times(self):
+        """When each recorded sweep arrived, aligned with history.get_buffer()"""
+        if self.timestamps is None:
+            return None
+        return self.timestamps.get_buffer()[:, 0]
 
     def update_average(self, data):
         """Update average data"""
@@ -226,6 +312,13 @@ class DataStorage(QtCore.QObject):
         # Emit signal only when we have valid data
         self.baseline_updated.emit(self)
 
+        # A file that yielded nothing - the wrong format, or no readings in it -
+        # would otherwise leave the box ticked with nothing behind it. update()
+        # then quietly subtracts nothing at all, and the only way to find out
+        # is to notice that the trace never moved.
+        if toggle and baseline is None:
+            print("No baseline in {}, so nothing is being subtracted".format(baseline_file))
+            toggle = False
         self.subtract_baseline = toggle
 
         # Only recalculate if we have valid data

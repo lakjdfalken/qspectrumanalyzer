@@ -10,3 +10,19 @@ bin/
 debug.txt
 lib/
 pyvenv.cfg
+
+# macOS finder metadata
+.DS_Store
+
+# setup.py data_files, installed into the venv that shares this directory
+share/
+
+# Reference material — other people's documents, kept beside the work but not
+# part of it, and not ours to redistribute
+refs/
+
+# Survey and sweep captures, which are measurements rather than source
+survey-*.csv
+sweep-*.csv
+recording-*.csv
+captures/

@@ -1,4 +1,4 @@
-from Qt import QtCore, QtWidgets
+from PySide6 import QtCore, QtWidgets
 
 from qspectrumanalyzer.ui_qspectrumanalyzer_baseline import Ui_QSpectrumAnalyzerBaseline
 

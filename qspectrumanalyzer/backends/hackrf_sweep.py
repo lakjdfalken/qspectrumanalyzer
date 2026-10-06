@@ -1,7 +1,7 @@
 import struct, shlex, sys, time
 
 import numpy as np
-from Qt import QtCore
+from PySide6 import QtCore
 
 from qspectrumanalyzer import subprocess
 from qspectrumanalyzer.backends import BaseInfo, BasePowerThread
@@ -32,12 +32,35 @@ class Info(BaseInfo):
     crop_max = 0
     crop = 0
 
+    @classmethod
+    def list_devices(cls):
+        """Attached HackRFs, by serial number
+
+        The same radios the hackrf_stream backend drives, so the listing is
+        shared rather than reimplemented against the hackrf_sweep executable
+        (which has no way to report them without being run)."""
+        from qspectrumanalyzer.backends.hackrf_stream import list_hackrfs
+        return list_hackrfs()
+
+    @classmethod
+    def help_device(cls, executable, device):
+        """What the Device field can be set to"""
+        from qspectrumanalyzer.backends.hackrf_stream import Info as StreamInfo
+        return StreamInfo.help_device(executable, device)
+
+    @classmethod
+    def stage_gains(cls, gain=-1, lna=None, vga=None):
+        """The LNA and VGA passed to hackrf_sweep as -l and -g"""
+        from qspectrumanalyzer.backends.hackrf_stream import Info as StreamInfo
+        return StreamInfo.stage_gains(gain, lna, vga)
+
 
 class PowerThread(BasePowerThread):
     """Thread which runs hackrf_sweep process"""
     def setup(self, start_freq=0, stop_freq=6000, bin_size=1000,
               interval=0.0, gain=40, ppm=0, crop=0, single_shot=False,
-              device=0, sample_rate=20000000, bandwidth=0, lnb_lo=0):
+              device=0, sample_rate=20000000, bandwidth=0, lnb_lo=0, amp=False,
+              lna=None, vga=None):
         """Setup hackrf_sweep params"""
         # Small bin sizes (<40 kHz) are only suitable with an arbitrarily
         # reduced sweep interval. Bin sizes smaller than 3 kHz showed to be
@@ -55,21 +78,23 @@ class PowerThread(BasePowerThread):
         total_bandwidth = step_count * step_bandwidth
         stop_freq = start_freq + total_bandwidth
 
-        # distribute gain between two analog gain stages
-        if gain > 102:
-            gain = 102
-        lna_gain = 8 * (gain // 18) if gain >= 0 else 0
-        vga_gain = 2 * ((gain - lna_gain) // 2) if gain >= 0 else 0
+        # Fill the LNA before the VGA unless the two were set apart from each
+        # other. The LNA sets what the receiver can hear; the VGA is at
+        # baseband and lifts the noise with the signal. Shared with the
+        # streaming backend so the two agree about what a gain figure means.
+        from hackrf_stream.dsp import stage_gains
+        lna_gain, vga_gain = stage_gains(gain, lna, vga)
 
         self.params = {
             "start_freq": start_freq,  # MHz
             "stop_freq": stop_freq,  # MHz
             "hops": 0,
-            "device": 0,
+            "device": device,
             "sample_rate": 20e6,  # sps
             "bin_size": bin_size,  # kHz
             "interval": interval,  # seconds
             "gain": gain,
+            "amp": bool(amp),
             "lna_gain": lna_gain,
             "vga_gain": vga_gain,
             "ppm": 0,
@@ -78,14 +103,15 @@ class PowerThread(BasePowerThread):
         }
         self.lnb_lo = lnb_lo
         self.databuffer = {"timestamp": [], "x": [], "y": []}
+        self.x_chunks = []
+        self.y_chunks = []
         self.lastsweep = 0
         self.interval = interval
 
     def process_start(self):
         """Start hackrf_sweep process"""
         if not self.process and self.params:
-            settings = QtCore.QSettings()
-            cmdline = shlex.split(settings.value("executable", "hackrf_sweep"))
+            cmdline = shlex.split(self.executable("hackrf_sweep"))
             cmdline.extend([
                 "-f", "{}:{}".format(int(self.params["start_freq"] - self.lnb_lo / 1e6),
                                      int(self.params["stop_freq"] - self.lnb_lo / 1e6)),
@@ -93,21 +119,37 @@ class PowerThread(BasePowerThread):
                 "-w", "{}".format(int(self.params["bin_size"] * 1000)),
             ])
 
+            if self.params["device"]:
+                cmdline.extend(["-d", str(self.params["device"])])
+
             if self.params["gain"] >= 0:
                 cmdline.extend([
                     "-l", "{}".format(int(self.params["lna_gain"])),
                     "-g", "{}".format(int(self.params["vga_gain"])),
                 ])
 
+            if self.params["amp"]:
+                cmdline.extend(["-a", "1"])
+
             if self.params["single_shot"]:
                 cmdline.append("-1")
 
-            additional_params = settings.value("params", Info.additional_params)
+            additional_params = self.additional_params(Info)
             if additional_params:
                 cmdline.extend(shlex.split(additional_params))
 
-            print('Starting backend:')
+            print('HackRF Starting backend:')
             print(' '.join(cmdline))
+            # Only when -l/-g were passed above; without them hackrf_sweep
+            # picks its own LNA and VGA and saying otherwise would be a guess
+            if self.params["gain"] >= 0:
+                from hackrf_stream.dsp import describe_gain
+                for line in describe_gain(self.params["lna_gain"], self.params["vga_gain"],
+                                          self.params["amp"]):
+                    print('  ' + line)
+            else:
+                print('  gain not set, so hackrf_sweep chooses the LNA and VGA itself; '
+                      'RF amp {}'.format('on' if self.params["amp"] else 'off'))
             print()
             self.process = subprocess.Popen(cmdline, stdout=subprocess.PIPE,
                                             universal_newlines=False, console=False)
@@ -118,16 +160,18 @@ class PowerThread(BasePowerThread):
         data = np.frombuffer(buf[16:], dtype='<f4')  # frombuffer is faster than fromstring
         step = (high_edge - low_edge) / len(data)
 
+        # Start of a new sweep
         if (low_edge // 1000000) <= (self.params["start_freq"] - self.lnb_lo / 1e6):
-            self.databuffer = {"timestamp": np.array([]), 
-                              "x": np.array([]), 
-                              "y": np.array([])}
-        
-        x_axis = np.arange(low_edge + self.lnb_lo + step / 2, 
-                           high_edge + self.lnb_lo, step)
-        
-        self.databuffer["x"] = np.concatenate([self.databuffer["x"], x_axis])
-        self.databuffer["y"] = np.concatenate([self.databuffer["y"], data])
+            self.x_chunks = []
+            self.y_chunks = []
+
+        # linspace() instead of arange(), which can be off by one bin because
+        # of floating point rounding of the step
+        self.x_chunks.append(np.linspace(low_edge + self.lnb_lo + step / 2,
+                                         high_edge + self.lnb_lo - step / 2,
+                                         len(data)))
+        self.y_chunks.append(data)
+
         if (high_edge / 1e6) >= (self.params["stop_freq"] - self.lnb_lo / 1e6):
             # We've reached the end of a pass. If it went too fast for our sweep interval, ignore it
             t_finish = time.time()
@@ -135,9 +179,13 @@ class PowerThread(BasePowerThread):
                 return
             self.lastsweep = t_finish
 
-            # otherwise sort and display the data.
-            sorted_data = sorted(zip(self.databuffer["x"], self.databuffer["y"]))
-            self.databuffer["x"], self.databuffer["y"] = [list(x) for x in zip(*sorted_data)]
+            # hackrf_sweep emits the tiles out of order, so join the whole
+            # sweep in one go and sort it with argsort() (concatenating and
+            # sorting in Python on every tile is much slower)
+            x = np.concatenate(self.x_chunks, dtype=np.float64)
+            y = np.concatenate(self.y_chunks, dtype=np.float64)
+            order = np.argsort(x, kind="stable")
+            self.databuffer = {"timestamp": t_finish, "x": x[order], "y": y[order]}
             self.data_storage.update(self.databuffer)
 
     def run(self):
