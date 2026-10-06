@@ -1868,6 +1868,9 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
                         if widget in inner)
             widget.setVisible(open_ and widget not in self.more_hidden
                               and widget not in self.backend_hidden)
+        # What is showing has changed, so the height it needs has too
+        if widgets:
+            self.refit_open_group(widgets[0])
 
     def make_view_banner(self):
         """A line over the plots saying whether they show the air or a recording"""
@@ -2222,13 +2225,43 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         # a group whose contents grow later still grows with them.
         if open_:
             box.setMaximumHeight(16777215)
-            box.setMinimumHeight(box.sizeHint().height())
+            self.fit_group(box)
         else:
             # Cleared first: a minimum left over from being open is larger
             # than the cap about to be set, and Qt honours the minimum
             box.setMinimumHeight(0)
             box.setMaximumHeight(box.fontMetrics().height() + 14)
         QtCore.QSettings().setValue("open_" + name, int(open_))
+
+    def fit_group(self, box):
+        """Hold an open group at the height its contents need now
+
+        Needed whenever what is showing inside it changes, not only when it
+        opens: shutting a "More settings" left the group at the height it had
+        open, because nothing told the panel its floor had come down. And the
+        height is asked for at the group's own width where it has one, since a
+        wrapped paragraph needs more lines in a narrow panel than a wide one -
+        the size hint guesses at a width and left a gap under the readout."""
+        box.setMinimumHeight(0)
+        layout = box.layout()
+        if layout is not None:
+            layout.invalidate()
+            layout.activate()
+        if box.hasHeightForWidth() and box.isVisible() and box.width() > 0:
+            need = box.heightForWidth(box.width())
+        else:
+            need = box.sizeHint().height()
+        box.setMinimumHeight(need)
+        box.updateGeometry()
+
+    def refit_open_group(self, widget):
+        """Fit the folded group `widget` sits in again, if it is open"""
+        folded = getattr(self, "folded", {})
+        for box, inner in folded.values():
+            if widget in inner or widget is box:
+                if box.isChecked():
+                    self.fit_group(box)
+                return
 
     def build_readout(self):
         """A panel saying what the settings actually come to
