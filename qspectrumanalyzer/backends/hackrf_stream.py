@@ -352,6 +352,10 @@ class PowerThread(BasePowerThread):
         #: every spectrum made rather than the few that are delivered
         self.peak_hold = None
         self.peak_spectra = 0
+        #: Every spectrum the radio makes, while a capture wants them; see
+        #: record(). None the rest of the time, which costs on_spectrum() one
+        #: attribute read
+        self.recording = None
         self.delivered = 0
         self.reported_drops = 0
         self.reported_band_error = None
@@ -787,6 +791,57 @@ class PowerThread(BasePowerThread):
         else:
             np.maximum(hold, powers_db, out=hold)
         self.peak_spectra += 1
+
+        recording = self.recording
+        if recording is not None:
+            self.keep(recording, powers_db, timestamp)
+
+    def record(self, rows):
+        """Keep every spectrum the radio makes from now, up to `rows` of them
+
+        Delivered sweeps cannot do this. They are folded down to the delivery
+        rate and handed over by a loop that sleeps between passes, and on macOS
+        that caps them near 170 a second whatever --max-rate asks - one sweep
+        every 5.8 ms, against Wi-Fi frames and beacons well under one. A
+        capture looking for what happens *between* frames needs each of the
+        1500 spectra a second the radio makes, so they are kept here as they
+        are made, in the bins the display uses: a copy of a few hundred floats
+        each, on the radio's own thread, and nothing more."""
+        self.recording = {"capacity": int(rows), "count": 0, "overflow": 0,
+                          "powers": None, "times": None}
+
+    def keep(self, recording, powers_db, timestamp):
+        """Add one spectrum to the recording record() started"""
+        row = powers_db[self.crop_mask] if self.crop_mask is not None else powers_db
+        if recording["powers"] is None:
+            # Allocated on the first spectrum rather than in record(), which
+            # can run before the radio has said how many bins it makes
+            recording["powers"] = np.empty((recording["capacity"], row.size), np.float32)
+            recording["times"] = np.empty(recording["capacity"], np.float64)
+        count = recording["count"]
+        if count < recording["capacity"] and row.size == recording["powers"].shape[1]:
+            recording["powers"][count] = row
+            recording["times"][count] = timestamp
+            recording["count"] = count + 1
+        else:
+            recording["overflow"] += 1
+
+    def take_recording(self):
+        """Stop keeping spectra and hand over what was kept
+
+        Returns (times, frequencies, powers), or None if nothing was. Taken
+        after the radio has stopped, so nothing is still writing to it."""
+        recording, self.recording = self.recording, None
+        if recording is None or not recording["count"] or self.x is None:
+            return None
+        count = recording["count"]
+        return (recording["times"][:count], np.asarray(self.x),
+                recording["powers"][:count])
+
+    @property
+    def tune_centre(self):
+        """Where the radio is tuned, in the frequencies the display shows"""
+        return self.params["center_freq"] + self.lnb_lo
 
     def take_peak_hold(self):
         """The highest each bin reached since the last call, and how many

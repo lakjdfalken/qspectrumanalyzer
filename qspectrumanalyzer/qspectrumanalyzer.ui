@@ -713,6 +713,48 @@
        </property>
       </widget>
      </item>
+     <item row="7" column="0">
+      <widget class="QLabel" name="interferenceSecondsLabel">
+       <property name="text">
+        <string>&amp;Listen for:</string>
+       </property>
+       <property name="buddy">
+        <cstring>interferenceSecondsSpinBox</cstring>
+       </property>
+      </widget>
+     </item>
+     <item row="7" column="1">
+      <widget class="QSpinBox" name="interferenceSecondsSpinBox">
+       <property name="toolTip">
+        <string>How long to record for before reading the recording back. Longer sees more of anything that comes and goes, and costs memory at about three kilobytes a sweep: the recording is capped at 256 MB, so the button says how long actually fits before it starts and shortens the run rather than quietly recording less than was asked for.</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+       </property>
+       <property name="suffix">
+        <string> s</string>
+       </property>
+       <property name="minimum">
+        <number>1</number>
+       </property>
+       <property name="maximum">
+        <number>600</number>
+       </property>
+       <property name="value">
+        <number>20</number>
+       </property>
+      </widget>
+     </item>
+     <item row="8" column="0" colspan="2">
+      <widget class="QPushButton" name="interferenceButton">
+       <property name="toolTip">
+        <string>Record this tune for a while and say what in it was not Wi-Fi. Wi-Fi fills its whole channel every time it transmits, so energy narrower than the span is something else - a Bluetooth hop, a video sender, a cordless phone - and that can be told without decoding anything. The settings this needs are not a matter of taste and are not left to be got right by hand: the sweep detector goes to mean, which is worth about 4 dB against anything narrow, the delivery rate goes to as fast as the radio makes spectra, so that the gaps between frames survive, and the recording is made deep enough to hold the whole run. They are all put back afterwards. The recording is saved and the reading printed. Press again to stop.</string>
+       </property>
+       <property name="text">
+        <string>Look for i&amp;nterference...</string>
+       </property>
+      </widget>
+     </item>
      <item row="2" column="1">
       <widget class="QDoubleSpinBox" name="binSizeSpinBox">
        <property name="sizePolicy">
@@ -744,7 +786,7 @@
        </property>
       </widget>
      </item>
-     <item row="7" column="0" colspan="2">
+     <item row="9" column="0" colspan="2">
       <spacer name="verticalSpacer_3">
        <property name="orientation">
         <enum>Qt::Vertical</enum>
@@ -1149,6 +1191,8 @@
   <tabstop>binSizeSpinBox</tabstop>
   <tabstop>surveyDwellSpinBox</tabstop>
   <tabstop>surveyButton</tabstop>
+  <tabstop>interferenceSecondsSpinBox</tabstop>
+  <tabstop>interferenceButton</tabstop>
   <tabstop>intervalSpinBox</tabstop>
   <tabstop>gainSpinBox</tabstop>
   <tabstop>lnaSpinBox</tabstop>

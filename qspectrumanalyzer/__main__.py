@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import sys, os, csv, signal, time, argparse
+import sys, os, csv, math, signal, time, argparse
 
 import numpy as np
 from PySide6 import QtCore, QtGui, QtWidgets
@@ -8,7 +8,7 @@ from PySide6 import QtCore, QtGui, QtWidgets
 from qspectrumanalyzer import backends
 from qspectrumanalyzer.version import __version__
 from qspectrumanalyzer.data import DataStorage, HistoryBuffer
-from qspectrumanalyzer import findings, periodicity
+from qspectrumanalyzer import findings, interference, periodicity, recording
 from qspectrumanalyzer import lockwatch
 from qspectrumanalyzer.plot import (ScopePlotWidget, SpectrumPlotWidget,
                                     WaterfallPlotWidget, time_length)
@@ -258,6 +258,32 @@ RADAR_PRESETS = [
      {'tap_resolution': 100.0, 'tap_detector': 'mean', 'record_depth': 10000, 'sweep_detector': 'mean'}),
 ]
 
+
+#: What a capture meant to be read back afterwards has to be taken at, as
+#: against what a person would pick. These are arithmetic rather than taste,
+#: which is the whole reason the button sets them instead of asking.
+#:
+#: The detector, because a delivered sweep is a reduction of many frames and
+#: the two reductions are not close. The peak of 26 frames of noise stands
+#: 7.5 dB over its own median where the mean of the same 26 stands 3.5, and a
+#: bin has to clear that before it counts as carrying anything - so a peak
+#: detector hands four decibels of the threshold straight to the noise. It is
+#: the right detector for catching a pulse and the wrong one for finding what
+#: else is on a channel.
+INTERFERENCE_DETECTOR = "mean"
+
+#: Where a capture taken by the button is put. Its own directory because
+#: these arrive on their own and in pairs, and a working directory with a
+#: hundred of them mixed in with the surveys is one nobody can read.
+CAPTURE_DIR = "captures"
+
+#: And the sweep length, because narrowband energy is seen in the gaps between
+#: Wi-Fi frames. A frame runs to about 5.5 ms at the transmit opportunity
+#: limit, so a sweep longer than this puts one in nearly every sweep of a busy
+#: channel and the gaps stop existing. The capture asks for every spectrum the
+#: radio makes, which is far under this; the number is here to say when even
+#: that is not enough.
+INTERFERENCE_MAX_SWEEP = 2e-3
 
 #: Periods to put on screen when the scope span is set from a rhythm that was
 #: found. One pulse with nothing either side of it is not an interval; it is a
@@ -646,6 +672,12 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         self.survey_timer = QtCore.QTimer()
         self.survey_timer.setSingleShot(True)
         self.survey_timer.timeout.connect(self.advance_survey)
+
+        # The interference capture running on this tune, or None
+        self.interference = None
+        self.interference_timer = QtCore.QTimer()
+        self.interference_timer.setSingleShot(True)
+        self.interference_timer.timeout.connect(self.finish_interference)
 
         # What the display has had to give up to keep the backend fed
         self.refresh_rate = None
@@ -1138,46 +1170,65 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
             self.show_status(self.tr("There is no recording to save"), timeout=5000)
             return
 
-        history = storage.history.get_buffer()
-        stamps = storage.timestamps.get_buffer()[:, 0]
-        rows = min(len(history), len(stamps))
-        history, stamps = history[:rows], stamps[:rows]
-        x = np.asarray(storage.x)
-
-        suggested = time.strftime("recording-%Y%m%d-%H%M%S.csv")
+        suggested = time.strftime("recording-%Y%m%d-%H%M%S.json")
         filename = QtWidgets.QFileDialog.getSaveFileName(
             self, self.tr("Save recording - QSpectrumAnalyzer"), suggested,
-            self.tr("Comma separated values (*.csv);;All files (*)"))[0]
+            self.tr("Recording sidecar (*.json);;All files (*)"))[0]
         if not filename:
             return
 
         try:
-            with open(filename, "w", newline="") as handle:
-                for line in self.recording_header(rows, len(x)):
-                    handle.write("# {}\n".format(line))
-                whole = int(stamps[0])
-                micros = int(round((stamps[0] - whole) * 1e6))
-                if micros >= 1000000:
-                    whole, micros = whole + 1, micros - 1000000
-                handle.write("# t=0 is {}.{:06d} UTC\n".format(
-                    time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(whole)), micros))
-                handle.write("# time_s counts from t=0; every other column is a "
-                             "bin, headed by its frequency in Hz\n")
-                out = csv.writer(handle)
-                out.writerow(["time_s"] + ["{:.0f}".format(f) for f in x.tolist()])
-                offsets = (stamps - stamps[0]).tolist()
-                # A generator, because a deep recording is millions of numbers
-                # and a Python loop per row would take longer than the run did
-                out.writerows(
-                    [format(t, ".6f")] + [format(v, ".2f") for v in row]
-                    for t, row in zip(offsets, history.tolist()))
-        except OSError as error:
+            sidecar, rows, bins = self.write_recording(filename)
+        except (OSError, ValueError) as error:
             self.show_status(self.tr("Could not write {}: {}").format(
                 filename, error), timeout=8000)
             return
 
-        self.show_status(self.tr("Saved {} sweeps x {} bins to {}").format(
-            rows, len(x), os.path.basename(filename)), timeout=5000)
+        self.show_status(self.tr("Saved {} sweeps x {} bins to {} and its data")
+                         .format(rows, bins, os.path.basename(sidecar)), timeout=5000)
+
+    def write_recording(self, filename, kept=None):
+        """Write the recording out, and return the sidecar, sweeps and bins
+
+        Separate from the menu item that asks where to put it, because a
+        capture that runs on a timer has nobody at the keyboard to ask.
+        `kept` is (times, frequencies, powers) from a backend that kept every
+        spectrum itself; without it the display's history is written."""
+        if kept is not None:
+            stamps, x, history = kept
+        else:
+            storage = self.data_storage
+            history = storage.history.get_buffer()
+            stamps = storage.timestamps.get_buffer()[:, 0]
+            x = np.asarray(storage.x)
+        rows = min(len(history), len(stamps))
+
+        settings = QtCore.QSettings()
+        sidecar, data, rows, bins = recording.write(
+            filename, stamps[:rows], x, history[:rows],
+            meta={
+                "core:datetime": time.strftime("%Y-%m-%dT%H:%M:%SZ",
+                                               time.gmtime(stamps[0])),
+                "qsa:recorder": "QSpectrumAnalyzer {}".format(__version__),
+                "qsa:backend": self.active_backend,
+                "qsa:tune_hz": [float(self.startFreqSpinBox.value()) * 1e6,
+                                float(self.stopFreqSpinBox.value()) * 1e6],
+                "qsa:bin_size_hz": float(self.binSizeSpinBox.value()) * 1e3,
+                "qsa:gain": self.gain_summary(),
+                "qsa:sweep_detector": settings.value("sweep_detector", "mean"),
+                "qsa:passband_hz": self.passband_hz(),
+                # Where the radio was tuned, which is what a second recording
+                # with the tune moved is compared against
+                "qsa:tune_centre_hz": getattr(self.power_thread, "tune_centre", None),
+                "qsa:settings": "backend {}, tune {:g}-{:g} MHz, bin size {:g} "
+                                "kHz, {}".format(
+                                    self.active_backend,
+                                    self.startFreqSpinBox.value(),
+                                    self.stopFreqSpinBox.value(),
+                                    self.binSizeSpinBox.value(),
+                                    self.gain_summary()),
+            })
+        return sidecar, rows, bins
 
     @QtCore.Slot()
     def on_rhythmButton_clicked(self):
@@ -3003,6 +3054,254 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         self.apply_scope_band()
         self.apply_scope_trigger()
         self.show_status(self.tr("{} - press Start").format(label), timeout=0)
+
+    # --- recording a tune to read back afterwards ---------------------
+
+    def passband_hz(self):
+        """What the receiver's baseband filter actually passes of this tune
+
+        Written down with the recording because it cannot be worked out from
+        the recording: the bins outside it are the filter's roll-off and they
+        look exactly like the band going quiet at one end. Anything reading
+        the file afterwards has to be able to leave them out."""
+        try:
+            centre = self.power_thread.params["center_freq"] + self.power_thread.lnb_lo
+            half = hackrf_stream.baseband_filter_bw(
+                0.75 * self.power_thread.params["sample_rate"]) / 2.0
+            return [float(centre - half), float(centre + half)]
+        except Exception:
+            return None
+
+    def sweep_seconds(self):
+        """How long one delivered spectrum covers, before one has arrived
+
+        The rate the radio *makes* spectra at, which is not the rate it is
+        delivering them at: the delivered rate is a setting, and an
+        interference capture is about to change it. Taken from the backend's
+        own arithmetic so it cannot drift from what the run then does."""
+        try:
+            return backends.hackrf_stream.derive(
+                rate=self.tune_width(),
+                bin_hz=max(1.0, self.binSizeSpinBox.value() * 1e3),
+                low=self.startFreqSpinBox.value() * 1e6,
+                high=self.stopFreqSpinBox.value() * 1e6,
+                window=self.configured_window(),
+                average=self.configured_average())["sweep"]
+        except Exception:
+            return None
+
+    def interference_plan(self, seconds):
+        """What a capture of this length needs, and what will actually fit
+
+        Returns (seconds, rate, depth, bins, lines). The seconds come back
+        shortened when the recording cannot hold the run: the memory budget is
+        fixed and the alternative is to record for the time asked for and keep
+        only the end of it, which is the failure ensure_record_depth() exists
+        to stop happening silently."""
+        sweep = self.sweep_seconds()
+        bins = self.expected_bins()
+        if not sweep or not bins:
+            return 0.0, 0.0, 0, 0, []
+
+        rate = 1.0 / sweep
+        wanted = int(seconds * rate) + 1
+        depth = HistoryBuffer.fits(bins, wanted)
+        lines = ["  {:<10} {:g} s at {:.0f} sweeps a second, {:.2f} ms each"
+                 .format("capture", seconds, rate, sweep * 1e3)]
+        if sweep > INTERFERENCE_MAX_SWEEP:
+            lines.append("  {:<10} a sweep is {:.2f} ms, longer than the {:.0f} ms "
+                         "this wants - a busy channel will put a frame in nearly "
+                         "every one and hide the gaps".format(
+                             "warning", sweep * 1e3, INTERFERENCE_MAX_SWEEP * 1e3))
+        if depth < wanted:
+            seconds = depth / rate
+            lines.append("  {:<10} {} sweeps x {} bins is over the {} MB the "
+                         "recording may have; shortened to {:.1f} s".format(
+                             "check", wanted, bins,
+                             HistoryBuffer.max_bytes // (1024 * 1024), seconds))
+        return seconds, rate, depth, bins, lines
+
+    #: How far the second half of a capture moves the tune. Anything on the air
+    #: stays where it is; the receiver's own spurs move by this much
+    INTERFERENCE_RETUNE_MHZ = 1.0
+
+    @QtCore.Slot()
+    def on_interferenceButton_clicked(self):
+        """Record this tune for a while, then say what in it was not Wi-Fi"""
+        if self.interference is not None:
+            self.finish_interference(self.tr("Interference capture stopped"))
+            return
+
+        asked = float(self.interferenceSecondsSpinBox.value())
+        seconds, rate, depth, bins, lines = self.interference_plan(asked)
+        if not seconds:
+            self.show_status(self.tr(
+                "Cannot work out what this backend makes a sweep of - set the "
+                "frequency range and bin size first"), timeout=8000)
+            return
+
+        settings = QtCore.QSettings()
+        # Everything this changes is put back in finish_interference(), so that
+        # a capture is something that happened rather than something the panel
+        # is left in the middle of afterwards
+        self.interference = {
+            "seconds": seconds,
+            "params": settings.value("params", ""),
+            "sweep_detector": settings.value("sweep_detector", "mean"),
+            "record_depth": settings.value("record_depth", 1000, int),
+            "span": (self.startFreqSpinBox.value(), self.stopFreqSpinBox.value()),
+            "files": [],
+            "stamp": time.strftime("%Y%m%d-%H%M%S"),
+        }
+        settings.setValue("sweep_detector", INTERFERENCE_DETECTOR)
+        self.setup_power_thread()
+        keeps = hasattr(self.power_thread, "record")
+        self.interference["keeps"] = keeps
+
+        print("Recording {:.1f} s of {:g}-{:g} MHz to read back:".format(
+            seconds, self.startFreqSpinBox.value(), self.stopFreqSpinBox.value()))
+        for line in lines:
+            print(line)
+        if keeps:
+            # Every spectrum kept by the backend itself, so the delivery rate
+            # no longer matters - and the spectra must be means, which a
+            # --peak left in the parameters would quietly undo
+            settings.setValue("params", " ".join(
+                word for word in (self.interference["params"] or "").split()
+                if word != "--peak"))
+            self.interference["rows"] = int(seconds / 2.0 * rate) + 2
+            print("  {:<10} every spectrum kept, half at this tune and half "
+                  "{:g} MHz up to tell the air from the receiver; mean "
+                  "detector, put back afterwards".format(
+                      "settings", self.INTERFERENCE_RETUNE_MHZ))
+        else:
+            settings.setValue("params", self.with_max_rate(
+                self.interference["params"], int(math.ceil(rate))))
+            settings.setValue("record_depth", depth)
+            print("  {:<10} sweep detector {} and every spectrum delivered, both "
+                  "put back afterwards".format("settings", INTERFERENCE_DETECTOR))
+
+        self.interferenceButton.setText(self.tr("Stop the i&nterference capture"))
+        self.setup_power_thread()
+        self.start_interference_half()
+
+    def start_interference_half(self):
+        """Start the radio for one half of a capture, and time it"""
+        state = self.interference
+        self.start()
+        seconds = state["seconds"]
+        if state["keeps"]:
+            # After start(), which resets the backend for the run
+            self.power_thread.record(state["rows"])
+            seconds /= 2.0
+        self.interference_timer.start(int(seconds * 1000))
+        self.show_status(self.tr("Recording {:.1f} s for interference ({})...")
+                         .format(seconds, "second half, tune moved"
+                                 if state["files"] else "first half"
+                                 if state["keeps"] else "one tune"), timeout=0)
+
+    def write_interference_half(self):
+        """Stop the radio and write what this half of the capture recorded
+
+        Written as each half ends rather than at the end, because the tune is
+        part of what the file records and the second half moves it."""
+        state = self.interference
+        self.stop()
+        kept = self.power_thread.take_recording() if state["keeps"] else None
+        storage = self.data_storage
+        if kept is None and (state["keeps"] or storage.history is None
+                             or not storage.history.history_size
+                             or storage.x is None):
+            return None
+        filename = os.path.join(CAPTURE_DIR, "interference-{}-{}.json".format(
+            state["stamp"], "ab"[len(state["files"])]))
+        os.makedirs(CAPTURE_DIR, exist_ok=True)
+        filename, rows, bins = self.write_recording(filename, kept)
+        state["files"].append((filename, rows, bins))
+        return filename
+
+    @staticmethod
+    def with_max_rate(params, rate):
+        """The backend parameters with --max-rate set to `rate`
+
+        Rewritten rather than appended: the same option twice is the last one
+        winning, which would silently depend on which end it was added at."""
+        out, seen = [], False
+        words = (params or "").split()
+        index = 0
+        while index < len(words):
+            if words[index] == "--max-rate":
+                out.extend(["--max-rate", str(rate)])
+                seen = True
+                index += 2
+                continue
+            out.append(words[index])
+            index += 1
+        if not seen:
+            out.extend(["--max-rate", str(rate)])
+        return " ".join(out)
+
+    @QtCore.Slot()
+    def finish_interference(self, why=None):
+        """End one half of the capture, or the whole of it, and read it back
+
+        The first half ending on its own timer moves the tune and records the
+        second. Otherwise this writes whatever is recording, puts back every
+        setting the capture changed - only now, because the recording's header
+        names the detector it was made with - and reads the halves back."""
+        state = self.interference
+        self.interference_timer.stop()
+        if state is None:
+            return
+        try:
+            QtWidgets.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
+            try:
+                self.write_interference_half()
+            finally:
+                QtWidgets.QApplication.restoreOverrideCursor()
+        except (OSError, ValueError) as error:
+            why = self.tr("{} - {}").format(why or self.tr("Interference capture"), error)
+
+        if why is None and state["keeps"] and len(state["files"]) == 1:
+            # The first half is in: move the tune and record the second
+            low, high = state["span"]
+            self.startFreqSpinBox.setValue(low + self.INTERFERENCE_RETUNE_MHZ)
+            self.stopFreqSpinBox.setValue(high + self.INTERFERENCE_RETUNE_MHZ)
+            self.setup_power_thread()
+            self.start_interference_half()
+            return
+
+        self.interference = None
+        self.interferenceButton.setText(self.tr("Look for i&nterference..."))
+        if why is None:
+            why = self.tr("Interference capture finished")
+
+        settings = QtCore.QSettings()
+        settings.setValue("params", state["params"])
+        settings.setValue("sweep_detector", state["sweep_detector"])
+        settings.setValue("record_depth", state["record_depth"])
+        self.startFreqSpinBox.setValue(state["span"][0])
+        self.stopFreqSpinBox.setValue(state["span"][1])
+        self.setup_power_thread()
+
+        files = state["files"]
+        if not files:
+            self.show_status(self.tr("{} - nothing was recorded").format(why),
+                             timeout=0)
+            return
+        try:
+            lines = interference.report(
+                files[0][0], retuned=files[1][0] if len(files) > 1 else None)
+        except (OSError, ValueError) as error:
+            self.show_status(self.tr("{} - {}").format(why, error), timeout=0)
+            return
+
+        print("\n".join(lines))
+        rows = sum(entry[1] for entry in files)
+        self.show_status(self.tr("{} - {} sweeps x {} bins in {}").format(
+            why, rows, files[0][2], ", ".join(entry[0] for entry in files)),
+            timeout=0)
+        TextReport(lines, self.tr("What was not Wi-Fi"), self).finish_and_show()
 
     # --- walking a range one tune at a time ---------------------------
 

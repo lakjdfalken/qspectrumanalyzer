@@ -390,6 +390,25 @@ class Ui_QSpectrumAnalyzerMainWindow(object):
 
         self.formLayout.setWidget(6, QFormLayout.ItemRole.SpanningRole, self.surveyProgressLabel)
 
+        self.interferenceSecondsLabel = QLabel(self.frequencyDockWidgetContents)
+        self.interferenceSecondsLabel.setObjectName(u"interferenceSecondsLabel")
+
+        self.formLayout.setWidget(7, QFormLayout.ItemRole.LabelRole, self.interferenceSecondsLabel)
+
+        self.interferenceSecondsSpinBox = QSpinBox(self.frequencyDockWidgetContents)
+        self.interferenceSecondsSpinBox.setObjectName(u"interferenceSecondsSpinBox")
+        self.interferenceSecondsSpinBox.setAlignment(Qt.AlignRight|Qt.AlignTrailing|Qt.AlignVCenter)
+        self.interferenceSecondsSpinBox.setMinimum(1)
+        self.interferenceSecondsSpinBox.setMaximum(600)
+        self.interferenceSecondsSpinBox.setValue(20)
+
+        self.formLayout.setWidget(7, QFormLayout.ItemRole.FieldRole, self.interferenceSecondsSpinBox)
+
+        self.interferenceButton = QPushButton(self.frequencyDockWidgetContents)
+        self.interferenceButton.setObjectName(u"interferenceButton")
+
+        self.formLayout.setWidget(8, QFormLayout.ItemRole.SpanningRole, self.interferenceButton)
+
         self.binSizeSpinBox = QDoubleSpinBox(self.frequencyDockWidgetContents)
         self.binSizeSpinBox.setObjectName(u"binSizeSpinBox")
         sizePolicy3.setHeightForWidth(self.binSizeSpinBox.sizePolicy().hasHeightForWidth())
@@ -405,7 +424,7 @@ class Ui_QSpectrumAnalyzerMainWindow(object):
 
         self.verticalSpacer_3 = QSpacerItem(20, 0, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
 
-        self.formLayout.setItem(7, QFormLayout.ItemRole.SpanningRole, self.verticalSpacer_3)
+        self.formLayout.setItem(9, QFormLayout.ItemRole.SpanningRole, self.verticalSpacer_3)
 
         self.frequencyDockWidget.setWidget(self.frequencyDockWidgetContents)
         QSpectrumAnalyzerMainWindow.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.frequencyDockWidget)
@@ -606,6 +625,7 @@ class Ui_QSpectrumAnalyzerMainWindow(object):
         self.label_3.setBuddy(self.stopFreqSpinBox)
         self.label.setBuddy(self.binSizeSpinBox)
         self.surveyDwellLabel.setBuddy(self.surveyDwellSpinBox)
+        self.interferenceSecondsLabel.setBuddy(self.interferenceSecondsSpinBox)
         self.label_4.setBuddy(self.intervalSpinBox)
         self.label_6.setBuddy(self.gainSpinBox)
         self.label_lna.setBuddy(self.lnaSpinBox)
@@ -639,7 +659,9 @@ class Ui_QSpectrumAnalyzerMainWindow(object):
         QWidget.setTabOrder(self.stopFreqSpinBox, self.binSizeSpinBox)
         QWidget.setTabOrder(self.binSizeSpinBox, self.surveyDwellSpinBox)
         QWidget.setTabOrder(self.surveyDwellSpinBox, self.surveyButton)
-        QWidget.setTabOrder(self.surveyButton, self.intervalSpinBox)
+        QWidget.setTabOrder(self.surveyButton, self.interferenceSecondsSpinBox)
+        QWidget.setTabOrder(self.interferenceSecondsSpinBox, self.interferenceButton)
+        QWidget.setTabOrder(self.interferenceButton, self.intervalSpinBox)
         QWidget.setTabOrder(self.intervalSpinBox, self.gainSpinBox)
         QWidget.setTabOrder(self.gainSpinBox, self.lnaSpinBox)
         QWidget.setTabOrder(self.lnaSpinBox, self.vgaSpinBox)
@@ -798,14 +820,23 @@ class Ui_QSpectrumAnalyzerMainWindow(object):
 #endif // QT_CONFIG(tooltip)
         self.surveyDwellSpinBox.setSuffix(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u" s", None))
 #if QT_CONFIG(tooltip)
-        self.surveyButton.setToolTip(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Walk the whole Start to Stop range one tune at a time, camping on each slice for the dwell and writing down what was ever heard in it and how often. Meant for a signal that is only there occasionally: sweeping past such a thing misses it, staying put does not. Press again to stop.", None))
-#endif // QT_CONFIG(tooltip)
-#if QT_CONFIG(tooltip)
         self.surveyVerifyCheckBox.setToolTip(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Visit every slice twice, from two different tunes, and keep only what lands at the same frequency both times. A receiver's own spurs sit at a fixed offset from the tune, so they move when it does; an IQ image moves twice as far the other way; something on the air does not move at all. Costs twice the dwell and rejects three kinds of artifact that otherwise read as findings.", None))
 #endif // QT_CONFIG(tooltip)
         self.surveyVerifyCheckBox.setText(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Check for receiver sp&urs", None))
+#if QT_CONFIG(tooltip)
+        self.surveyButton.setToolTip(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Walk the whole Start to Stop range one tune at a time, camping on each slice for the dwell and writing down what was ever heard in it and how often. Meant for a signal that is only there occasionally: sweeping past such a thing misses it, staying put does not. Press again to stop.", None))
+#endif // QT_CONFIG(tooltip)
         self.surveyButton.setText(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Surve&y the range...", None))
         self.surveyProgressLabel.setText("")
+        self.interferenceSecondsLabel.setText(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"&Listen for:", None))
+#if QT_CONFIG(tooltip)
+        self.interferenceSecondsSpinBox.setToolTip(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"How long to record for before reading the recording back. Longer sees more of anything that comes and goes, and costs memory at about three kilobytes a sweep: the recording is capped at 256 MB, so the button says how long actually fits before it starts and shortens the run rather than quietly recording less than was asked for.", None))
+#endif // QT_CONFIG(tooltip)
+        self.interferenceSecondsSpinBox.setSuffix(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u" s", None))
+#if QT_CONFIG(tooltip)
+        self.interferenceButton.setToolTip(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Record this tune for a while and say what in it was not Wi-Fi. Wi-Fi fills its whole channel every time it transmits, so energy narrower than the span is something else - a Bluetooth hop, a video sender, a cordless phone - and that can be told without decoding anything. The settings this needs are not a matter of taste and are not left to be got right by hand: the sweep detector goes to mean, which is worth about 4 dB against anything narrow, the delivery rate goes to as fast as the radio makes spectra, so that the gaps between frames survive, and the recording is made deep enough to hold the whole run. They are all put back afterwards. The recording is saved and the reading printed. Press again to stop.", None))
+#endif // QT_CONFIG(tooltip)
+        self.interferenceButton.setText(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Look for i&nterference...", None))
         self.binSizeSpinBox.setSuffix(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u" kHz", None))
         self.settingsDockWidget.setWindowTitle(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Adjustments", None))
         self.label_4.setText(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"&Interval [s]:", None))
