@@ -96,6 +96,97 @@ class RelativeTimeAxis(pg.AxisItem):
                 for v in values]
 
 
+class FrameClock:
+    """The one beat every plot redraws on
+
+    Each plot used to keep its own timer, and timed its next frame from the
+    end of the last one. That made the real period the interval plus however
+    long the draw took plus however late the event loop got round to it:
+    measured at a median of 17.6 ms for an interval of 16.7, so 57 frames a
+    second on a 60 Hz screen, and a frame held twice as long about three
+    times a second, which shows as a scope that stutters. On one beat it is
+    16.7 ms, p95 18.2.
+
+    So the beats are fixed in time instead: a precise timer aimed at the next
+    whole multiple of the interval, kept in floating point so the phase does
+    not drift with the millisecond rounding. A draw that runs long skips the
+    beats it missed rather than catching up on them, so an overloaded GUI
+    thread still gets time for everything else. And all the plots draw on
+    the same beat, so the window repaints once per frame rather than once per
+    plot at three unrelated moments."""
+    def __init__(self):
+        self.throttles = []
+        #: Called at the start of every beat, for whatever feeds the plots by
+        #: being asked rather than by pushing
+        self.before_beat = []
+        #: When the last beat was meant to land, and when the next one is
+        self.last_beat = self.next_beat = None
+        self.last_request = 0.0
+        self.timer = QtCore.QTimer()
+        self.timer.setSingleShot(True)
+        self.timer.setTimerType(QtCore.Qt.PreciseTimer)
+        self.timer.timeout.connect(self.beat)
+
+    def interval(self):
+        """Seconds between beats: the fastest any plot is allowed"""
+        intervals = [throttle._interval for throttle in self.throttles
+                     if throttle._interval > 0]
+        return min(intervals) if intervals else 0.0
+
+    #: Seconds the beat carries on after the last request. Asking only when
+    #: there is something to draw left a beat out whenever no sweep happened
+    #: to arrive inside one - and the tap, which is drained on the beat, then
+    #: waited for it too. So while data is flowing the beat keeps going
+    #: whether or not it is asked; a beat with nothing to draw is free.
+    KEEP_BEATING = 0.5
+
+    def request(self):
+        """Make sure a beat is coming, at the next one the phase allows"""
+        self.last_request = time.monotonic()
+        self.arm()
+
+    def arm(self):
+        """Start the timer for the next beat, unless it is already running"""
+        if self.timer.isActive():
+            return
+        interval, now = self.interval(), time.monotonic()
+        if interval <= 0:
+            return
+        if self.last_beat is None or now - self.last_beat > 1.0:
+            # Idle for a while: start a fresh phase rather than counting
+            # thousands of beats nobody drew on
+            due = now
+        else:
+            beats = max(1, math.ceil((now - self.last_beat) / interval - 1e-6))
+            due = self.last_beat + beats * interval
+        self.next_beat = due
+        self.timer.start(max(0, round((due - now) * 1000)))
+
+    def beat(self):
+        """Redraw every plot that is due, then wait for more work"""
+        self.last_beat = self.next_beat
+        for prepare in self.before_beat:
+            prepare()
+        for throttle in self.throttles:
+            throttle.on_beat(self.last_beat)
+        # Carry on while data is flowing, and for a plot held to a slower
+        # rate than the beat that still has something waiting
+        if (time.monotonic() - self.last_request < self.KEEP_BEATING
+                or any(throttle.waiting() for throttle in self.throttles)):
+            self.arm()
+
+
+_frame_clock = None
+
+
+def frame_clock():
+    """The clock all the plots share, made once there is an application"""
+    global _frame_clock
+    if _frame_clock is None:
+        _frame_clock = FrameClock()
+    return _frame_clock
+
+
 class RedrawThrottle:
     """Coalesce redraws down to a maximum rate
 
@@ -108,25 +199,29 @@ class RedrawThrottle:
 
     Only drawing is throttled. Every sweep still reaches DataStorage, so the
     history, the average and the peak hold see all of the data; what is
-    dropped is redundant repaints of data that is about to be overwritten."""
+    dropped is redundant repaints of data that is about to be overwritten.
+    When the drawing happens is up to the FrameClock all the plots share."""
     def __init__(self, max_refresh_rate, flush):
         self._flush = flush
         self.set_max_refresh_rate(max_refresh_rate)
         self._dirty = set()
         self._storage = None
-        self._last_draw = 0.0
+        self._last_draw = None
         #: Browsing recorded sweeps, so the live view is held still
         self.frozen = False
         #: Not on screen at all, so drawing it would be work for nobody
         self.hidden = False
-        self._timer = QtCore.QTimer()
-        self._timer.setSingleShot(True)
-        self._timer.timeout.connect(self.flush_now)
+        self.clock = frame_clock()
+        self.clock.throttles.append(self)
 
     @property
     def stalled(self):
         """Whether anything is currently holding drawing back"""
         return self.frozen or self.hidden
+
+    def waiting(self):
+        """Whether there is something to draw that is allowed to be drawn"""
+        return bool(self._dirty) and self._storage is not None and not self.stalled
 
     def schedule(self, kind, data_storage):
         """Mark one kind of curve as needing a redraw"""
@@ -142,14 +237,22 @@ class RedrawThrottle:
             self.flush_now()
             return
 
-        now = time.monotonic()
-        due = self._last_draw + self._interval
-        if now >= due:
-            self.flush_now()
-        elif not self._timer.isActive():
-            # Draw the newest data once the rate limit allows it. Anything
-            # arriving before then just overwrites what is pending.
-            self._timer.start(max(0, int((due - now) * 1000)))
+        # Draw the newest data on the next beat. Anything arriving before
+        # then just overwrites what is pending.
+        self.clock.request()
+
+    def on_beat(self, beat):
+        """Draw if anything is pending and this plot's own rate allows it
+
+        The clock beats at the fastest rate any plot has; a plot held to a
+        slower one sits out the beats in between. The millisecond of slack is
+        for the timer, which lands on whole milliseconds."""
+        if not self.waiting():
+            return
+        if self._last_draw is not None and beat - self._last_draw < self._interval - 1e-3:
+            return
+        self.flush_now()
+        self._last_draw = beat
 
     def set_frozen(self, frozen):
         """Stop drawing (while recorded sweeps are being browsed)"""
@@ -163,9 +266,7 @@ class RedrawThrottle:
 
     def resume_or_hold(self):
         """Act on whatever the two holds now add up to"""
-        if self.stalled:
-            self._timer.stop()
-        else:
+        if not self.stalled:
             self.flush_now()
 
     def set_max_refresh_rate(self, max_refresh_rate):
@@ -180,18 +281,12 @@ class RedrawThrottle:
         dirty, storage = self._dirty, self._storage
         self._dirty = set()
         self._flush(storage, dirty)
-        # Timed from the end of the draw, not the start. A draw that overruns
-        # the interval would otherwise already be due again the moment it
-        # finished, and the next sweep to arrive would start another one
-        # straight away, leaving the GUI thread doing nothing but drawing.
-        self._last_draw = time.monotonic()
 
     def reset(self):
         """Forget anything pending (used when the plot is cleared)"""
-        self._timer.stop()
         self._dirty = set()
         self._storage = None
-        self._last_draw = 0.0
+        self._last_draw = None
 
 
 class ThrottledPlotWidget:
@@ -955,6 +1050,14 @@ class ScopePlotWidget(ThrottledPlotWidget):
     #: top of each other, at full price.
     CURVE_POINTS = 2000
 
+    #: Newest sweeps drawn live with no timebase set. The whole recording was
+    #: drawn instead, and that got dearer for as long as the run went on: at
+    #: 100 sweeps a second the 85000 a hunt keeps takes fourteen minutes to
+    #: fill, and drawing it took the GUI thread from 41% of a core to an
+    #: extrapolated 75%. As many sweeps as a curve gets points, so the live
+    #: window needs no thinning and costs the same at any age.
+    LIVE_SWEEPS = 2000
+
     #: Fewest delivered sweeps worth joining up inside a sweep window. Two
     #: samples 13 ms apart joined by a straight line say nothing whatever
     #: about the 13 ms in between, and a straight line is exactly what it
@@ -996,6 +1099,14 @@ class ScopePlotWidget(ThrottledPlotWidget):
         self.fitting_all = True
         #: Seconds the window is to be wide, or None to fit the whole recording
         self.time_span = None
+        #: Whether "the whole recording" means all of it, or only the newest
+        #: LIVE_SWEEPS. The owner turns it on for whatever looks back over a
+        #: recording: browsing, analysing, a capture.
+        self.show_all = False
+        #: Seconds the live window covers; see live_span()
+        self.live_window = None
+        #: The sweeps' trace as drawn, before it was thinned for the curve
+        self.sweep_points = None
         #: Power in dB a rising edge must cross for the sweep to start, None
         #: to free run, or "auto" to take a level from the data
         self.trigger = None
@@ -1123,9 +1234,10 @@ class ScopePlotWidget(ThrottledPlotWidget):
 
         The browsing cursor when there is one, the trigger while the sweep is
         triggered, and otherwise the newest data."""
-        if self.time_span:
-            # A sweep is already drawn relative to what it was built about,
-            # so the axis counts from where the data sits, which is zero
+        if self.time_span or not self.show_all:
+            # A sweep, and the live window, are already drawn relative to what
+            # they were built about, so the axis counts from where the data
+            # sits, which is zero
             return 0.0
         if self.cursor.isVisible():
             return self.cursor.value()
@@ -1409,7 +1521,10 @@ class ScopePlotWidget(ThrottledPlotWidget):
             self.on_span_changed(high - low)
 
     def set_time_span(self, span):
-        """Fix how much time is on screen, or None to fit the whole recording"""
+        """Fix how much time is on screen, or None for the automatic window
+
+        Which is the newest LIVE_SWEEPS live, and the whole recording while
+        show_all is set."""
         self.time_span = span if span else None
         self.following = True
         self.release_capture()
@@ -1483,8 +1598,8 @@ class ScopePlotWidget(ThrottledPlotWidget):
         coordinates until the next readings arrive. The window is left where
         it is while everything is still inside it with no more than
         FIT_SLACK of it empty at the old end, which is most redraws."""
-        if not self.fitting_all or self.time_span is not None or self.offsets is None \
-                or not len(self.offsets):
+        if not self.fitting_all or self.time_span is not None or not self.show_all \
+                or self.offsets is None or not len(self.offsets):
             return
         oldest, newest = float(self.offsets[0]), float(self.offsets[-1])
         if self.fast is not None and self.fast.history_size:
@@ -1496,6 +1611,18 @@ class ScopePlotWidget(ThrottledPlotWidget):
                 and newest <= high <= newest + 2 * self.FIT_HEADROOM * span):
             return
         self.plot.vb.setXRange(oldest, newest + self.FIT_HEADROOM * span, padding=0)
+
+    def set_show_all(self, show_all):
+        """Draw the whole recording, or only the newest LIVE_SWEEPS of it
+
+        The tap trace is cut at the same place, so it has to be handed over
+        again; the window refits itself on the next draw, because its old end
+        is no longer where the recording's is. Returns whether it changed."""
+        if show_all == self.show_all:
+            return False
+        self.show_all = show_all
+        self.fast_dirty = self.fast is not None
+        return True
 
     def fit_x_range(self):
         """Roll the time window forward to keep the newest data on screen
@@ -1646,6 +1773,16 @@ class ScopePlotWidget(ThrottledPlotWidget):
         self.fast_points = None
         self.curve_fast.clear()
 
+    def show_sweeps(self, x, power):
+        """Draw the delivered sweeps' trace, reduced to something worth drawing
+
+        Kept whole beside the curve, as the tap's readings are, so that saving
+        and the capture report see every sweep rather than the outline. Not
+        copied: unlike the tap's ring buffer, the trace is rebuilt rather than
+        written into, so a slice of it stays what it was."""
+        self.sweep_points = (x, power)
+        self.curve.setData(*self.envelope(x, power, self.CURVE_POINTS // 2))
+
     def show_fast(self, x, power):
         """Draw the high rate trace, reduced to something worth drawing
 
@@ -1700,7 +1837,7 @@ class ScopePlotWidget(ThrottledPlotWidget):
 
         if self.trace is None or times is None:
             self.curve.clear()
-            self.times = self.newest = None
+            self.times = self.newest = self.sweep_points = None
             return
 
         # The recording is appended to from a worker thread, so the two
@@ -1708,7 +1845,7 @@ class ScopePlotWidget(ThrottledPlotWidget):
         count = min(len(times), len(self.trace))
         if count < 1:
             self.curve.clear()
-            self.times = self.newest = None
+            self.times = self.newest = self.sweep_points = None
             return
         times, trace = times[-count:], self.trace[-count:]
         self.times = times
@@ -1719,8 +1856,10 @@ class ScopePlotWidget(ThrottledPlotWidget):
 
         if self.time_span:
             self.draw_sweep(trace)
-        else:
+        elif self.show_all:
             self.draw_whole_recording(trace)
+        else:
+            self.draw_live(trace)
 
     def newest_drawable(self, recorded):
         """The newest moment both traces reach
@@ -1743,7 +1882,7 @@ class ScopePlotWidget(ThrottledPlotWidget):
         that comes back every few seconds, useless for looking at the shape of
         one, which is what draw_sweep() is for."""
         self.sweep_origin = None
-        self.curve.setData(self.offsets, trace)
+        self.show_sweeps(self.offsets, trace)
 
         low, high = float(np.min(trace)), float(np.max(trace))
         low, high = self.draw_fast(float(self.times[0]), low, high)
@@ -1753,6 +1892,52 @@ class ScopePlotWidget(ThrottledPlotWidget):
 
         view_low, view_high = self.plot.vb.viewRange()[0]
         self.time_axis.configure(self.reference_time(), view_high - view_low)
+
+    def draw_live(self, trace):
+        """Draw the newest LIVE_SWEEPS' worth of time, rolling like a scope
+
+        Drawn the way a sweep is: the axis stays where it is, from minus the
+        window to zero, and the data moves along it. A window that moved over
+        the data instead would either change the plot's range on every frame,
+        which pyqtgraph pays for with a second paint, or move in jumps, which
+        is what refitting it only when the data reached an edge did: a few
+        percent of the window at a time, several times a second."""
+        self.sweep_origin = None
+        span = self.live_span()
+        origin = self.newest
+        start = origin - span
+        first = int(np.searchsorted(self.offsets, start, side="left"))
+        low = high = None
+        if len(trace) - first >= self.SWEEP_MIN_POINTS:
+            piece = trace[first:]
+            self.show_sweeps(self.offsets[first:] - origin, piece)
+            low, high = float(np.min(piece)), float(np.max(piece))
+        else:
+            self.curve.clear()
+            self.sweep_points = None
+        low, high = self.draw_fast_sweep(origin, start, origin, low, high)
+        if low is not None:
+            self.fit_y_range(low, high)
+        self.hold_sweep_view(span, span)
+        self.time_axis.configure(0.0, span)
+
+    def live_span(self):
+        """Seconds the live window covers: LIVE_SWEEPS at the rate they come
+
+        Rounded to 1, 2 or 5 of a decade and kept until the rate has really
+        changed, because every change of span is a change of range, and the
+        rate wanders by a few percent from one moment to the next."""
+        offsets = self.offsets
+        count = min(len(offsets), 200)
+        if count < 2:
+            return self.live_window or 1.0
+        per_sweep = (float(offsets[-1]) - float(offsets[-count])) / (count - 1)
+        wanted = max(per_sweep * self.LIVE_SWEEPS, 1e-3)
+        if self.live_window is None or not 0.7 < wanted / self.live_window < 1.4:
+            decade = 10.0 ** math.floor(math.log10(wanted))
+            self.live_window = min((step * decade for step in (1, 2, 5, 10)),
+                                   key=lambda span: abs(math.log(span / wanted)))
+        return self.live_window
 
     #: How much of a triggered window comes before the edge by default, so
     #: that the rise itself is on screen rather than hard against the left of
@@ -1834,12 +2019,13 @@ class ScopePlotWidget(ThrottledPlotWidget):
         low = high = None
         if last - first >= self.SWEEP_MIN_POINTS:
             piece = trace[first:last]
-            self.curve.setData(self.offsets[first:last] - origin, piece)
+            self.show_sweeps(self.offsets[first:last] - origin, piece)
             low, high = float(np.min(piece)), float(np.max(piece))
         else:
             # A window this short holds one delivered sweep or none, and
             # joining those up would draw a line nobody measured
             self.curve.clear()
+            self.sweep_points = None
 
         low, high = self.draw_fast_sweep(origin, start, end, low, high)
         if self.caught is not None:
@@ -1878,7 +2064,7 @@ class ScopePlotWidget(ThrottledPlotWidget):
         x, y = self.fast_points if self.fast_points is not None else (None, None)
         source = "the tap"
         if x is None or y is None or not len(x):
-            x, y = self.curve.xData, self.curve.yData
+            x, y = self.sweep_points if self.sweep_points is not None else (None, None)
             source = "the delivered sweeps"
         if x is None or y is None or not len(x):
             print("scope: caught a sweep, but nothing is drawn in it")
@@ -1976,9 +2162,11 @@ class ScopePlotWidget(ThrottledPlotWidget):
         traces = []
         for name, curve in (("sweep", self.curve), ("tap", self.curve_fast)):
             x, y = curve.xData, curve.yData
+            # What the curves are drawing is an outline of these
             if name == "tap" and self.fast_points is not None and x is not None:
-                # What the curve is drawing is an outline of these
                 x, y = self.fast_points
+            if name == "sweep" and self.sweep_points is not None and x is not None:
+                x, y = self.sweep_points
             if x is not None and y is not None and len(x):
                 traces.append((name, np.asarray(x), np.asarray(y)))
         if not traces:
@@ -1992,7 +2180,8 @@ class ScopePlotWidget(ThrottledPlotWidget):
 
         return {"traces": traces, "band": self.band, "span": self.time_span,
                 "started": started, "trigger": self.trigger,
-                "level": self.level_used, "held": self.single and self.captured}
+                "level": self.level_used, "held": self.single and self.captured,
+                "all": self.show_all}
 
     def hold_sweep_view(self, span, lead):
         """Keep the window exactly where it is, so nothing on it moves
@@ -2108,6 +2297,7 @@ class ScopePlotWidget(ThrottledPlotWidget):
         self.throttle.reset()
         self.curve.clear()
         self.trace = self.trace_counter = self.times = None
+        self.sweep_points = self.live_window = None
         self.epoch = self.newest = None
         self.offsets = self.sweep_origin = self.browse_offset = None
         self.trigger_time = None

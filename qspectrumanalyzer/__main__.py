@@ -10,7 +10,7 @@ from qspectrumanalyzer.version import __version__
 from qspectrumanalyzer.data import DataStorage, HistoryBuffer
 from qspectrumanalyzer import findings, interference, periodicity, receiver, recording
 from qspectrumanalyzer import binsize, fontscale, lockwatch
-from qspectrumanalyzer.plot import (ScopePlotWidget, SpectrumPlotWidget,
+from qspectrumanalyzer.plot import (frame_clock, ScopePlotWidget, SpectrumPlotWidget,
                                     WaterfallPlotWidget, time_length)
 from qspectrumanalyzer.utils import guard_against_the_wheel, str_to_color, human_time
 
@@ -72,8 +72,8 @@ SPEED_OPTIONS = [
 # on but a person. The bin size decides how short a pulse survives being measured (a 1 us
 # pulse smeared over a 25.6 us frame loses 14 dB); the detector decides whether
 # it survives at all (a mean destroys it, a peak keeps it); the zero span step
-# decides how far back the trace reaches; and the recording depth decides
-# whether a whole scan cycle fits on screen. Any one of them wrong quietly
+# decides how far back the trace reaches; and the recording depth and the
+# scope's span decide whether a whole scan cycle fits on screen. Any one of them wrong quietly
 # wastes an evening, so the job is what gets chosen and the settings follow.
 #
 # Each entry is (label, note printed when chosen, widgets to set, settings to
@@ -113,8 +113,8 @@ RADAR_PRESETS = [
      "seventeen minutes, and the recording is deepened to match. Look for a "
      "dwell every 15-22 seconds for three minutes, then two minutes of "
      "silence: that five minute cycle is what tells a weather radar from an "
-     "airport one.",
-     {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': False, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'gainSpinBox': 40.0, 'startFreqSpinBox': 5615.0, 'stopFreqSpinBox': 5635.0, 'binSizeSpinBox': 625.0, 'waterfallCheckBox': False, 'scopeCheckBox': True, 'scopeBandCheckBox': True, 'scopeCentreSpinBox': 5625.0, 'scopeWidthSpinBox': 2000.0, 'scopeFastCheckBox': True, 'scopeSpanSpinBox': 0.0, 'scopeTriggerCheckBox': False, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': False},
+     "airport one. The scope shows the last six minutes of it.",
+     {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': False, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'gainSpinBox': 40.0, 'startFreqSpinBox': 5615.0, 'stopFreqSpinBox': 5635.0, 'binSizeSpinBox': 625.0, 'waterfallCheckBox': False, 'scopeCheckBox': True, 'scopeBandCheckBox': True, 'scopeCentreSpinBox': 5625.0, 'scopeWidthSpinBox': 2000.0, 'scopeFastCheckBox': True, 'scopeSpanSpinBox': 360000.0, 'scopeTriggerCheckBox': False, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': False},
      {'tap_resolution': 1000.0, 'tap_detector': 'peak', 'record_depth': 85000, 'sweep_detector': 'peak'}),
 
     ("S-band airport radar \u2014 find the channel",
@@ -672,6 +672,12 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         self.update_status_timer = QtCore.QTimer()
         self.update_status_timer.timeout.connect(self.update_status)
         self.update_status_timer.timeout.connect(self.drain_fast_band)
+        # And before every frame, which is what the scope is drawn at: drained
+        # only on the timer, the tap trace arrived in lumps a tenth of a
+        # second long, and the live window, which ends where the tap does,
+        # jumped forward ten times a second. The timer stays for when no
+        # sweeps are arriving to keep the frames coming.
+        frame_clock().before_beat.append(self.drain_fast_band)
         self.prev_data_timestamp = None
         self.start_timestamp = None
         #: Sweeps counted since the rate was last worked out, and when that was
@@ -1065,7 +1071,31 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
             return
         if self.scopeBandCheckBox.isChecked():
             self.keep_band_in_span()
+        self.scopePlotWidget.set_show_all(self.looking_back())
         self.scopePlotWidget.throttle.schedule("plot", data_storage)
+
+    def update_scope_reach(self):
+        """Redraw the scope at once if what it should cover just changed
+
+        A sweep arriving does this anyway; this is for the radio being
+        stopped, when nothing is arriving."""
+        scope = getattr(self, "scopePlotWidget", None)
+        storage = getattr(self, "data_storage", None)
+        if scope is not None and scope.set_show_all(self.looking_back()) \
+                and storage is not None and storage.history is not None:
+            scope.redraw_now(storage)
+
+    def looking_back(self):
+        """Whether the whole recording is wanted on the scope, or only its newest
+
+        Live, the scope only needs what is happening now; the recording behind
+        it is there for going back over afterwards. Browsing it, the Analyse
+        tab and a capture are what do that. Read with getattr because the tab
+        can change while the window is still being built."""
+        return (getattr(self, "browse_counter", None) is not None
+                or self.workspaces.currentIndex() == self.ANALYSE_TAB
+                or getattr(self, "survey", None) is not None
+                or getattr(self, "interference", None) is not None)
 
     def keep_band_in_span(self):
         """Move the band back into view if the frequency range left it behind
@@ -1216,7 +1246,8 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         lines.append("band {}".format(self.band_measured(band)))
         lines.append("sweep span {}".format(
             "{:g} ms".format(sweep["span"] * 1e3) if sweep["span"]
-            else "the whole recording"))
+            else "the whole recording" if sweep["all"]
+            else "the newest {} sweeps".format(self.scopePlotWidget.LIVE_SWEEPS)))
         if self.scopeFastCheckBox.isChecked():
             lines.append("zero span step {}, {} detector".format(
                 "{:g} us".format(step) if step else "finest",
@@ -1418,7 +1449,7 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         was = float(self.scopeSpanSpinBox.value()) / 1e3
         self.scopeSpanSpinBox.setValue(span * 1e3)
 
-        previous = time_length(was) if was else "the whole recording"
+        previous = time_length(was) if was else "auto"
         print("scope: span {} -> {}, {} periods of {} at about {} readings"
               .format(previous, time_length(span), RHYTHM_SPAN_PERIODS,
                       time_length(candidate.period), readings))
@@ -1761,6 +1792,8 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         # being steered by, so freezing it would defeat the point
         if not browsing:
             self.scopePlotWidget.show_cursor(None)
+        # Before the cursor goes on: it is placed on whatever the scope covers
+        self.update_scope_reach()
 
         if browsing:
             self.show_browsed_sweep()
@@ -2035,6 +2068,7 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
     def on_workspace_changed(self, index):
         QtCore.QSettings().setValue("workspace", index)
         self.carry_shared_groups(index)
+        self.update_scope_reach()
         if index == self.ANALYSE_TAB:
             self.unseen_results = 0
             self.label_analyse_tab()
