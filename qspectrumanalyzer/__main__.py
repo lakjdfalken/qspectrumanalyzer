@@ -11,7 +11,7 @@ from qspectrumanalyzer.data import DataStorage, HistoryBuffer
 from qspectrumanalyzer import findings, periodicity
 from qspectrumanalyzer import lockwatch
 from qspectrumanalyzer.plot import (ScopePlotWidget, SpectrumPlotWidget,
-                                    WaterfallPlotWidget)
+                                    WaterfallPlotWidget, time_length)
 from qspectrumanalyzer.utils import guard_against_the_wheel, str_to_color, human_time
 
 from qspectrumanalyzer.settings import QSpectrumAnalyzerSettings
@@ -259,6 +259,21 @@ RADAR_PRESETS = [
 ]
 
 
+#: Periods to put on screen when the scope span is set from a rhythm that was
+#: found. One pulse with nothing either side of it is not an interval; it is a
+#: single pulse with nothing to measure it against.
+RHYTHM_SPAN_PERIODS = 4
+
+
+#: Fewest high rate readings such a span may hold before it is not offered at
+#: all. The step is a setting and can have been changed since the trace was
+#: recorded, so four periods measured at one step can be a handful of readings
+#: at another - and a window of a dozen dots is not a trace, whatever is in it.
+#: Eight readings a period is the least that shows a pulse has a shape, and
+#: four periods of that is this.
+RHYTHM_SPAN_MIN_READINGS = 32
+
+
 class Survey:
     """A walk across a frequency range, one tune at a time
 
@@ -434,37 +449,80 @@ class SurveyFindings(QtWidgets.QDialog):
         return self.found[row] if 0 <= row < len(self.found) else None
 
 
-class RepeatingPulse(QtWidgets.QDialog):
-    """What the high rate trace turned out to have a rhythm at
+class TextReport(QtWidgets.QDialog):
+    """A page of text, and room under it for one thing to do about it
 
-    A page of text rather than a table, because the answer is one paragraph
-    long and every number in it needs its neighbours to mean anything: an
-    interval without the count that was stacked at it, or a height without the
-    width it was measured over, is a number to be misled by."""
+    A page rather than a table, because these answers are a paragraph long and
+    every number in them needs its neighbours to mean anything: an interval
+    without the count that was stacked at it, or a width without the noise it
+    was measured over, is a number to be misled by. Monospaced, because the
+    reports line their columns up with spaces and a proportional font takes
+    that apart again."""
 
-    def __init__(self, lines, found, parent=None):
+    def __init__(self, lines, title, parent=None):
         super().__init__(parent)
-        self.found = found
-        self.setWindowTitle(self.tr("Repeating pulses"))
+        self.setWindowTitle(title)
         self.resize(700, 420)
 
-        layout = QtWidgets.QVBoxLayout(self)
+        self.column = QtWidgets.QVBoxLayout(self)
         text = QtWidgets.QPlainTextEdit(self)
         text.setReadOnly(True)
         text.setLineWrapMode(QtWidgets.QPlainTextEdit.NoWrap)
         text.setFont(QtGui.QFontDatabase.systemFont(QtGui.QFontDatabase.FixedFont))
         text.setPlainText("\n".join(lines))
-        layout.addWidget(text)
+        self.column.addWidget(text)
 
-        buttons = QtWidgets.QDialogButtonBox()
-        if found:
+        self.buttons = QtWidgets.QDialogButtonBox()
+        self.buttons.accepted.connect(self.accept)
+        self.buttons.rejected.connect(self.reject)
+
+    def finish(self):
+        """Add Close last, so whatever else was added sits before it"""
+        self.buttons.addButton(QtWidgets.QDialogButtonBox.Close)
+        self.column.addWidget(self.buttons)
+
+    def finish_and_show(self):
+        """For a report with nothing to do about it but read it"""
+        self.finish()
+        return self.exec()
+
+
+class RepeatingPulse(TextReport):
+    """What the high rate trace turned out to have a rhythm at"""
+
+    def __init__(self, lines, found, span=0.0, readings=0, parent=None):
+        super().__init__(lines, self.tr("Repeating pulses"), parent)
+        self.found = found
+        layout = self.column
+
+        # The span is the one setting on this screen that somebody chose by
+        # hand, and the box it is written to is the only record of what it was.
+        # So the button carries the number it is about to set rather than
+        # leaving it to be discovered afterwards: a window that was working,
+        # replaced by one derived from a measurement, with nothing said, is a
+        # measurement lost to a button press.
+        if found and readings < RHYTHM_SPAN_MIN_READINGS:
+            refused = QtWidgets.QLabel(self.tr(
+                "The scope span is not offered for this one. {} periods of it "
+                "is {}, and at the step the tap is delivering that window "
+                "holds {} readings - too few to draw the pulse that was "
+                "found, whatever is in it. Ask for a finer zero span step in "
+                "Settings and search again.").format(
+                    RHYTHM_SPAN_PERIODS, time_length(span), readings))
+            refused.setWordWrap(True)
+            layout.addWidget(refused)
+
+        buttons = self.buttons
+        if found and readings >= RHYTHM_SPAN_MIN_READINGS:
             self.look = buttons.addButton(
-                self.tr("&Set the scope to this period"),
+                self.tr("&Set the scope span to {}").format(time_length(span)),
                 QtWidgets.QDialogButtonBox.AcceptRole)
-        buttons.addButton(QtWidgets.QDialogButtonBox.Close)
-        buttons.accepted.connect(self.accept)
-        buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
+            self.look.setToolTip(self.tr(
+                "{} periods of the rhythm found, about {} readings of the high "
+                "rate trace. This replaces the span the scope is on now, and "
+                "closing this does not put it back - the terminal says what it "
+                "was.").format(RHYTHM_SPAN_PERIODS, readings))
+        self.finish()
 
 
 class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMainWindow):
@@ -1158,11 +1216,46 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
             else self.tr("A pulse every {:.4f} ms, {:.0f} times over").format(
                 found[0].period * 1e3, found[0].repeats), timeout=0)
 
-        dialog = RepeatingPulse(lines, found, self)
-        if dialog.exec() and found:
-            # Four periods on screen, which shows the interval as an interval
-            # rather than as a single pulse with nothing to measure it against
-            self.scopeSpanSpinBox.setValue(found[0].period * 4e3)
+        span, readings = self.span_for_rhythm(found, step)
+        dialog = RepeatingPulse(lines, found, span, readings, self)
+        if dialog.exec() and readings >= RHYTHM_SPAN_MIN_READINGS:
+            self.set_scope_span(span, found[0], readings)
+
+    def span_for_rhythm(self, found, searched_step):
+        """The span that shows a found rhythm, and what that window would hold
+
+        Four periods on screen, which shows the interval as an interval rather
+        than as a single pulse with nothing to measure it against.
+
+        The readings are counted against the step the tap is delivering now
+        rather than the one the trace was recorded at. The two are usually the
+        same, and when they are not it is the one now that decides what gets
+        drawn: a rhythm found at 25.6 us a reading is four periods of nothing
+        much if the step has since been taken to a millisecond."""
+        if not found:
+            return 0.0, 0
+        step = getattr(self.power_thread, "tap_resolution", None) or searched_step
+        span = found[0].period * RHYTHM_SPAN_PERIODS
+        return span, int(span / step) if step > 0 else 0
+
+    def set_scope_span(self, span, candidate, readings):
+        """Move the timebase onto a found rhythm, saying what it was moved from
+
+        Deliberately loud for a setting that is only one number. The span is
+        chosen by hand, the spin box is the only record of what was chosen, and
+        this overwrites it - so the old value goes to the terminal, where it can
+        be read back and typed in again, rather than being lost to the press."""
+        was = float(self.scopeSpanSpinBox.value()) / 1e3
+        self.scopeSpanSpinBox.setValue(span * 1e3)
+
+        previous = time_length(was) if was else "the whole recording"
+        print("scope: span {} -> {}, {} periods of {} at about {} readings"
+              .format(previous, time_length(span), RHYTHM_SPAN_PERIODS,
+                      time_length(candidate.period), readings))
+        self.show_status(
+            self.tr("Scope span {} - {} periods of the {} found. It was {}")
+            .format(time_length(span), RHYTHM_SPAN_PERIODS,
+                    time_length(candidate.period), previous), timeout=0)
 
     def rhythm_header(self):
         """What the trace being searched was, for the top of the report
