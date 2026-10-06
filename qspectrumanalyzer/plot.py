@@ -1446,13 +1446,23 @@ class ScopePlotWidget(ThrottledPlotWidget):
 
         The plot's A button and View All switch pyqtgraph's auto range on.
         That is taken as asking for the whole recording, and handed straight
-        back to fitting_all, which fits it without the second paint."""
+        back to fitting_all, which fits it without the second paint. From a
+        sweep it means leaving the sweep too: the span goes back to zero
+        through whoever owns the Span control, so that the control and the
+        plot cannot end up saying different things."""
         super().on_view_state_changed(*args)
-        if self.plot.vb.autoRangeEnabled()[0]:
-            self.plot.vb.disableAutoRange(axis=self.plot.vb.XAxis)
-            self.fitting_all = True
-            self.following = True
-            self.fit_whole_x_range()
+        if not self.plot.vb.autoRangeEnabled()[0]:
+            return
+        self.plot.vb.disableAutoRange(axis=self.plot.vb.XAxis)
+        if self.time_span is not None:
+            if self.on_span_changed is not None:
+                self.on_span_changed(0.0)
+            else:
+                self.set_time_span(None)
+            return
+        self.fitting_all = True
+        self.following = True
+        self.fit_whole_x_range()
 
     #: Room left past the newest sweep when the whole recording is fitted,
     #: and the slack allowed at the old end, as fractions of what is shown.
