@@ -582,9 +582,6 @@ class PowerThread(BasePowerThread):
         else:
             say("dc spike", "left alone, so the receiver's own carrier is on "
                             "screen at the centre of the tune")
-        if inside:
-            say("", "the band tap reads raw bins, so a zero span watch over "
-                    "there measures the receiver and not the air")
 
         if source.band is None:
             say("zero span", "no band being watched, so the scope has only the "
@@ -615,6 +612,12 @@ class PowerThread(BasePowerThread):
                                  step * 1e6, int(round(step / frame)),
                                  "" if round(step / frame) == 1 else "s",
                                  source.band_detector))
+            if source.band_skips_dc:
+                say("", "the dc spike's bins are left out of it, so the "
+                        "receiver's own carrier is not what every reading keeps")
+            elif low < high_dc - self.lnb_lo and high > low_dc - self.lnb_lo:
+                say("", "that is the dc spike and nothing else, so it measures "
+                        "the receiver and not the air")
         return lines
 
     def choose_tune(self, options, fft_size):

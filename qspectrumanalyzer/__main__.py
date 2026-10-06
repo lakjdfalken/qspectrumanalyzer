@@ -147,13 +147,21 @@ RADAR_PRESETS = [
      "The way to actually find a rotating radar. It is transmitting four "
      "ten-thousandths of one per cent of the time, so a sweep that is only on "
      "any given tile a tenth of the time throws away nine pulses in ten: camp "
-     "on twenty megahertz instead and catch them all. 625 kHz bins put a 1 us "
-     "pulse in a 1.6 us frame, and the tap reads frames rather than averaged "
+     "on one tune instead and catch them all. 625 kHz bins put a 1 us pulse "
+     "in a 1.6 us frame, and the tap reads frames rather than averaged "
      "spectra, which together are worth 26 dB over hunting the same pulse with "
-     "40 kHz bins on the delivered sweeps. Give each tune a couple of minutes "
-     "and step Start and Stop on by 20 MHz to cover the band. A radar shows as "
-     "evenly spaced spikes on the scope, one every rotation.",
-     {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': True, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'gainSpinBox': 40.0, 'startFreqSpinBox': 2790.0, 'stopFreqSpinBox': 2810.0, 'binSizeSpinBox': 625.0, 'waterfallCheckBox': False, 'scopeCheckBox': True, 'scopeBandCheckBox': False, 'scopeCentreSpinBox': 2800.0, 'scopeWidthSpinBox': 2000.0, 'scopeFastCheckBox': True, 'scopeSpanSpinBox': 0.0, 'scopeTriggerCheckBox': False, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': False},
+     "40 kHz bins on the delivered sweeps. The tap watches the whole span, "
+     "because the radar's frequency is what is not known yet; that costs about "
+     "6 dB against watching one bin, and the receiver's own carrier at the "
+     "centre is left out of it. The span is 15 MHz rather than 20 because at "
+     "20 MSPS the receiver's filter passes 15: the outer 2.5 MHz either side "
+     "would be its roll-off, and a radar there would be weakened or missed "
+     "while looking as if it were being heard. Give each tune a couple of "
+     "minutes and step Start and Stop on by 15 MHz to cover 2700-2900. The "
+     "1.9 MHz at the centre of each tune is the carrier and is not heard; a "
+     "second pass offset by 7.5 MHz covers those. A radar shows as evenly "
+     "spaced spikes on the scope, one every rotation.",
+     {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': True, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'gainSpinBox': 40.0, 'startFreqSpinBox': 2792.5, 'stopFreqSpinBox': 2807.5, 'binSizeSpinBox': 625.0, 'waterfallCheckBox': False, 'scopeCheckBox': True, 'scopeBandCheckBox': False, 'scopeCentreSpinBox': 2800.0, 'scopeWidthSpinBox': 2000.0, 'scopeFastCheckBox': True, 'scopeSpanSpinBox': 0.0, 'scopeTriggerCheckBox': False, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': False},
      {'tap_resolution': 1000.0, 'tap_detector': 'peak', 'record_depth': 85000, 'sweep_detector': 'peak'}),
 
     ("Airport transponder replies \u2014 1090 MHz",
@@ -186,11 +194,11 @@ RADAR_PRESETS = [
      "of a frame legible. Free running, so the traffic scrolls past. The tune "
      "is the channel centre give or take 2.5 MHz rather than the whole 20 MHz, "
      "for the same reason the beacon presets are: a 20 MHz span is the whole "
-     "sample rate, so the tune cannot be offset and the receiver's own carrier "
-     "lands in the middle of the channel - and the tap keeps the loudest bin "
-     "of whatever it watches, so that carrier becomes every reading it makes "
-     "and the trace sits flat at its height for ever. A 5 MHz span moves the "
-     "carrier out of the tune altogether. Signal and noise both scale with "
+     "sample rate, so the tune cannot be offset: the receiver's own carrier "
+     "lands in the middle of the channel, where the spectrum can only "
+     "interpolate, and both edges fall in the receiver's filter roll-off. A "
+     "5 MHz span moves the carrier out of the tune altogether and keeps every "
+     "bin inside the filter. Signal and noise both scale with "
      "width, so a quarter of the channel costs nothing in signal to noise.",
      {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': False, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'gainSpinBox': 24.0, 'startFreqSpinBox': 5177.5, 'stopFreqSpinBox': 5182.5, 'binSizeSpinBox': 40.0, 'waterfallCheckBox': False, 'scopeCheckBox': True, 'scopeBandCheckBox': False, 'scopeCentreSpinBox': 5180.0, 'scopeWidthSpinBox': 5000.0, 'scopeFastCheckBox': True, 'scopeSpanSpinBox': 20.0, 'scopeTriggerCheckBox': False, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': False},
      {'tap_resolution': 100.0, 'tap_detector': 'mean', 'record_depth': 10000, 'sweep_detector': 'mean'}),
@@ -1402,10 +1410,11 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
 
         Two different warnings about one place. The spectrum interpolates
         across it, so the trace there is drawn rather than measured and the
-        shading is what says so. The band tap does not interpolate — it reads
-        raw bins — so a zero span watch over the centre has the carrier in
-        every reading at full height, which a peak detector will hold on to
-        and a trigger can sit on for ever.
+        shading is what says so. The band tap leaves the carrier's bins out of
+        any band that has others in it, so it only needs warning about when a
+        band is nothing but the carrier: then the carrier is every reading, at
+        full height, which a peak detector will hold on to and a trigger can
+        sit on for ever.
 
         Both go quiet when the tune has been offset clear of the span, which
         is the case worth arriving at."""
@@ -1414,17 +1423,15 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
             band = self.spectrumPlotWidget.band()
 
         # No band chosen does not mean nothing is being watched: the tap is
-        # pointed at the whole tune instead, and the whole tune is the one
-        # stretch guaranteed to contain the carrier. It matters more here than
-        # for a chosen band, because the tap reduces each frame to its loudest
-        # bin - so a carrier thirty decibels up is not merely included in the
-        # reading, it is the reading, and the trace sits flat at its height
-        # for ever. Checked against the same span the tap was given.
+        # pointed at the whole tune instead. Checked against the same span the
+        # tap was given. A band reaching past the carrier on either side is
+        # read without it; one inside it has nothing else to read.
         watched = band if band is not None else self.display_span()
 
         self.scopePlotWidget.band_at_dc = bool(
             dc and watched is not None and watched[1] > watched[0]
-            and min(watched[1], dc[1]) > max(watched[0], dc[0]))
+            and min(watched[1], dc[1]) > max(watched[0], dc[0])
+            and watched[0] >= dc[0] and watched[1] <= dc[1])
 
         first, last = self.display_span()
         self.spectrumPlotWidget.set_dc_band(

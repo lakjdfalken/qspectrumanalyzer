@@ -346,14 +346,18 @@ Peak-detecting sixteen bins of noise instead of one should lift the floor about
 6.6 dB and narrow its spread to about 3. The floor went up 14.6 dB and the
 spread collapsed to 1.3, which noise cannot do: a spread that small means the
 reading is pinned by something deterministic. It is the receiver's own DC
-carrier. The whole tune includes the centre bins, and **the band tap reads raw
-bins — it is never flattened, whatever the spectrum shows.**
+carrier. The whole tune included the centre bins, and the band tap read them
+raw.
 
-So watching everything cost 15 dB of sensitivity and put a signal that stood
-16 dB clear on one bin down to 6-9 dB. If you must widen the band, widen it to
-one side of the centre — 2772-2779 rather than the lot — or offset-tune so the
-spike is outside the span in the first place. The scope readout says so when
-the band covers the centre; it is worth believing.
+It no longer does: since hackrf_stream 0.3 the tap leaves the spike's bins out
+of any band that has other bins in it, and the startup report says so on the
+`zero span` line. That takes back the 8 dB the carrier was costing. The 6.6 dB
+that sixteen bins of noise cost against one is not a fault and stays: the
+loudest of many noisy bins is louder than one. So a narrow band on a known
+frequency is still the most sensitive watch, and the whole tune is the one to
+use when the frequency is not known. A band that is nothing but the spike
+still reads it, as there is nothing else to read, and the scope readout says
+so.
 
 
 Antenna lengths

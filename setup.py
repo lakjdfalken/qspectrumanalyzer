@@ -65,7 +65,7 @@ setup(
         # repository at a release tag. Needed even without a HackRF: the
         # plots use its noise_ceiling(). To work on both at once, install a
         # clone over it with pip install -e
-        "hackrf_stream @ git+https://github.com/lakjdfalken/hackrf_stream.git@v0.2.0",
+        "hackrf_stream @ git+https://github.com/lakjdfalken/hackrf_stream.git@v0.3.0",
     ],
     options={
         'build_qt': {

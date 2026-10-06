@@ -1002,9 +1002,9 @@ class ScopePlotWidget(ThrottledPlotWidget):
         #: Set when the band being watched is not inside what the radio is
         #: tuned to, which is silent otherwise: the tap simply hears nothing
         self.band_outside = False
-        #: Set when the band sits over the centre of the tune. The tap reads
-        #: raw bins, so unlike the spectrum it is not flattened there — the
-        #: receiver's own carrier is in every reading, at full height
+        #: Set when the band is nothing but the centre of the tune. The tap
+        #: leaves the carrier out of a wider band, but here there is nothing
+        #: else to read, so the carrier is in every reading at full height
         self.band_at_dc = False
         #: The lowest reading in the last search, for saying when a level is
         #: under the whole trace and so has no rising edge to find
@@ -1176,12 +1176,11 @@ class ScopePlotWidget(ThrottledPlotWidget):
                     "move it inside the frequency range, or the range around it")
 
         if self.band_at_dc:
-            return ("The tap is watching the centre of the tune, where the "
-                    "receiver's own carrier is \u2014 it reads raw bins and "
-                    "keeps the loudest, so that carrier is not merely in "
-                    "every reading, it is every reading. Watch one frequency "
-                    "band clear of the centre, or narrow the frequency range "
-                    "so the tune steps aside")
+            return ("The tap is watching only the centre of the tune, where "
+                    "the receiver's own carrier is \u2014 so that carrier is "
+                    "every reading. Widen the band past it, move it clear of "
+                    "the centre, or narrow the frequency range so the tune "
+                    "steps aside")
 
         if self.trigger is not None:
             if self.single and self.captured:
