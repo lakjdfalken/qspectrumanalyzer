@@ -2,7 +2,7 @@ import re
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
-from qspectrumanalyzer import backends
+from qspectrumanalyzer import backends, fontscale
 from qspectrumanalyzer.data import HistoryBuffer
 from qspectrumanalyzer.plot import ScopePlotWidget
 from qspectrumanalyzer.utils import guard_against_the_wheel, human_time
@@ -340,6 +340,5 @@ class QSpectrumAnalyzerSettingsHelp(QtWidgets.QDialog, Ui_QSpectrumAnalyzerSetti
         # Ask the platform for its fixed-width font instead of guessing a
         # family name. 'monospace' does not exist on macOS, and looking it
         # up cost ~90 ms of font aliasing every time this dialog opened.
-        monospace_font = QtGui.QFontDatabase.systemFont(QtGui.QFontDatabase.SystemFont.FixedFont)
-        self.helpTextEdit.setFont(monospace_font)
+        fontscale.set_fixed_font(self.helpTextEdit)
         self.helpTextEdit.setPlainText(text)

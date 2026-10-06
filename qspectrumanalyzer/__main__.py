@@ -9,7 +9,7 @@ from qspectrumanalyzer import backends
 from qspectrumanalyzer.version import __version__
 from qspectrumanalyzer.data import DataStorage, HistoryBuffer
 from qspectrumanalyzer import findings, interference, periodicity, receiver, recording
-from qspectrumanalyzer import lockwatch
+from qspectrumanalyzer import fontscale, lockwatch
 from qspectrumanalyzer.plot import (ScopePlotWidget, SpectrumPlotWidget,
                                     WaterfallPlotWidget, time_length)
 from qspectrumanalyzer.utils import guard_against_the_wheel, str_to_color, human_time
@@ -494,7 +494,7 @@ class TextReport(QtWidgets.QDialog):
         text = QtWidgets.QPlainTextEdit(self)
         text.setReadOnly(True)
         text.setLineWrapMode(QtWidgets.QPlainTextEdit.NoWrap)
-        text.setFont(QtGui.QFontDatabase.systemFont(QtGui.QFontDatabase.FixedFont))
+        fontscale.set_fixed_font(text)
         text.setPlainText("\n".join(lines))
         self.column.addWidget(text)
 
@@ -705,6 +705,33 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         self.load_settings()
         self.setup_speed_hints()
         self.update_history_controls()
+        self.make_text_size()
+
+    def make_text_size(self):
+        """A View menu that makes all the text bigger or smaller, Cmd +/- style
+
+        Last in __init__, because FontScale has to find every widget still at
+        the platform's size. Both Cmd+= and Cmd++ make it bigger: on a US
+        keyboard + is Shift+=, on a Danish one it has a key of its own."""
+        settings = QtCore.QSettings()
+        self.font_scale = fontscale.FontScale(QtWidgets.QApplication.instance(),
+                                              settings.value("font_scale", 1.0, float))
+        menu = QtWidgets.QMenu(self.tr("&View"), self.menubar)
+        self.menubar.insertMenu(self.menu_Help.menuAction(), menu)
+        for text, keys, slot in (
+                (self.tr("&Bigger text"), [QtGui.QKeySequence.ZoomIn, "Ctrl+=", "Ctrl++"],
+                 self.font_scale.bigger),
+                (self.tr("&Smaller text"), [QtGui.QKeySequence.ZoomOut, "Ctrl+-"],
+                 self.font_scale.smaller),
+                (self.tr("&Actual size"), ["Ctrl+0"], self.font_scale.reset)):
+            action = menu.addAction(text)
+            sequences = []
+            for key in keys:
+                sequence = QtGui.QKeySequence(key)
+                if not sequence.isEmpty() and sequence not in sequences:
+                    sequences.append(sequence)
+            action.setShortcuts(sequences)
+            action.triggered.connect(slot)
 
     def setup_power_thread(self):
         """Create power_thread and connect signals to slots"""
@@ -2956,13 +2983,11 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         form.setLabelAlignment(QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter)
         form.setFieldGrowthPolicy(QtWidgets.QFormLayout.FieldsStayAtSizeHint)
         form.setHorizontalSpacing(12)
-        mono = QtGui.QFontDatabase.systemFont(QtGui.QFontDatabase.FixedFont)
-        mono.setPointSizeF(max(8.0, mono.pointSizeF() - 1.0))
         small = box.font()
         small.setPointSizeF(max(8.0, small.pointSizeF() - 1.0))
         for name in self.READOUT:
             value = QtWidgets.QLabel("\u2013")
-            value.setFont(mono)
+            fontscale.set_fixed_font(value, smaller=1.0)
             value.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
             value.setTextInteractionFlags(QtCore.Qt.TextSelectableByMouse)
             caption = QtWidgets.QLabel(name)
@@ -3238,6 +3263,7 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
     def save_settings(self):
         """Save spectrum analyzer settings and window geometry"""
         settings = QtCore.QSettings()
+        settings.setValue("font_scale", self.font_scale.scale)
         settings.setValue("start_freq", self.startFreqSpinBox.value())
         settings.setValue("stop_freq", self.stopFreqSpinBox.value())
         settings.setValue("bin_size", self.binSizeSpinBox.value())
