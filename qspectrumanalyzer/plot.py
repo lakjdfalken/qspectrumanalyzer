@@ -987,6 +987,13 @@ class ScopePlotWidget(ThrottledPlotWidget):
         #: in keeps it; panning back into the recording gives it up, so that a
         #: stretch being looked at is not dragged out from under.
         self.following = True
+        #: Whether the window is fitted to the whole recording, which
+        #: draw_whole_recording() does itself on every redraw. Not pyqtgraph's
+        #: auto range: that refits while painting, and the refit asks for a
+        #: second paint, so every redraw of the scope was painted twice -
+        #: measured at 75 paints a second for 37 redraws, 200 ms of GUI thread
+        #: a second, a third of all the display cost. See also FIT_HEADROOM.
+        self.fitting_all = True
         #: Seconds the window is to be wide, or None to fit the whole recording
         self.time_span = None
         #: Power in dB a rising edge must cross for the sweep to start, None
@@ -1076,6 +1083,8 @@ class ScopePlotWidget(ThrottledPlotWidget):
         self.curve_fast.setZValue(800)
         self.curve = self.plot.plot(pen=(255, 255, 0))
         self.curve.setZValue(900)
+        # The X range is fitted by draw_whole_recording(); see fitting_all
+        self.plot.vb.disableAutoRange(axis=self.plot.vb.XAxis)
 
         # Where the history browser is sitting, and a handle to move it
         self.cursor = pg.InfiniteLine(angle=90, movable=True, pen=(255, 0, 0))
@@ -1390,6 +1399,7 @@ class ScopePlotWidget(ThrottledPlotWidget):
         """Keep rolling forward only while the window still reaches the data"""
         super().on_range_changed_manually(*args)
         low, high = self.plot.vb.viewRange()[0]
+        self.fitting_all = False
         self.following = self.newest is None or self.newest <= high
         # Zooming by hand is the other way of setting the timebase, so a span
         # that was asked for follows the mouse rather than fighting it
@@ -1405,7 +1415,8 @@ class ScopePlotWidget(ThrottledPlotWidget):
         self.release_capture()
         if self.time_span is None:
             # Back to showing everything; the sweep view had the axis pinned
-            self.plot.vb.enableAutoRange(axis=self.plot.vb.XAxis)
+            self.fitting_all = True
+            self.fit_whole_x_range()
             self.fit_x_range()
             low, high = self.plot.vb.viewRange()[0]
             self.time_axis.configure(self.reference_time(), high - low)
@@ -1425,16 +1436,56 @@ class ScopePlotWidget(ThrottledPlotWidget):
         """How wide the window should be, or None while it fits everything"""
         if self.time_span is not None:
             return self.time_span
-        if self.plot.vb.autoRangeEnabled()[0]:
+        if self.fitting_all:
             return None
         low, high = self.plot.vb.viewRange()[0]
         return high - low
 
     def on_view_state_changed(self, *args):
-        """Fitting the whole recording again also means following it again"""
+        """Fitting the whole recording again also means following it again
+
+        The plot's A button and View All switch pyqtgraph's auto range on.
+        That is taken as asking for the whole recording, and handed straight
+        back to fitting_all, which fits it without the second paint."""
         super().on_view_state_changed(*args)
         if self.plot.vb.autoRangeEnabled()[0]:
+            self.plot.vb.disableAutoRange(axis=self.plot.vb.XAxis)
+            self.fitting_all = True
             self.following = True
+            self.fit_whole_x_range()
+
+    #: Room left past the newest sweep when the whole recording is fitted,
+    #: and the slack allowed at the old end, as fractions of what is shown.
+    #: The window moves only when the data reaches its edge, not on every
+    #: redraw: pyqtgraph applies a new range while painting, and the axes it
+    #: invalidates there ask for a second paint of the whole plot.
+    FIT_HEADROOM = 0.05
+    FIT_SLACK = 0.02
+
+    def fit_whole_x_range(self):
+        """Fit the window to everything recorded, while that is what is asked
+
+        Done here, before the paint, rather than by pyqtgraph's auto range
+        during it; see fitting_all. The recording sets the old end, since the
+        tap is only drawn back as far as it reaches; the tap can reach a
+        little past the newest sweep, so both count at the new end - read off
+        the tap's readings, not its curve, which still holds a sweep's
+        coordinates until the next readings arrive. The window is left where
+        it is while everything is still inside it with no more than
+        FIT_SLACK of it empty at the old end, which is most redraws."""
+        if not self.fitting_all or self.time_span is not None or self.offsets is None \
+                or not len(self.offsets):
+            return
+        oldest, newest = float(self.offsets[0]), float(self.offsets[-1])
+        if self.fast is not None and self.fast.history_size:
+            newest = max(newest, float(self.fast.get_buffer()[-1, 0] + self.fast_shift))
+        span = max(newest - oldest, 1e-3)
+        low, high = self.plot.vb.viewRange()[0]
+        shown = max(high - low, 1e-9)
+        if (low <= oldest <= low + self.FIT_SLACK * shown
+                and newest <= high <= newest + 2 * self.FIT_HEADROOM * span):
+            return
+        self.plot.vb.setXRange(oldest, newest + self.FIT_HEADROOM * span, padding=0)
 
     def fit_x_range(self):
         """Roll the time window forward to keep the newest data on screen
@@ -1687,6 +1738,7 @@ class ScopePlotWidget(ThrottledPlotWidget):
         low, high = float(np.min(trace)), float(np.max(trace))
         low, high = self.draw_fast(float(self.times[0]), low, high)
         self.fit_y_range(low, high)
+        self.fit_whole_x_range()
         self.fit_x_range()
 
         view_low, view_high = self.plot.vb.viewRange()[0]
@@ -2022,9 +2074,9 @@ class ScopePlotWidget(ThrottledPlotWidget):
 
         Zooming in is how a burst a few sweeps long is looked at, and stepping
         would otherwise walk the cursor straight off the edge of the plot.
-        Only when the user has zoomed: while the view is auto-ranging it
-        already covers the whole recording, cursor included."""
-        if self.plot.vb.autoRangeEnabled()[0]:
+        Only when the user has zoomed: while the view is fitting everything
+        it already covers the whole recording, cursor included."""
+        if self.fitting_all and self.time_span is None:
             return
         low, high = self.plot.vb.viewRange()[0]
         if low <= offset <= high:
