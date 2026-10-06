@@ -444,8 +444,14 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         self.order_the_scope()
         self.build_readout()
         self.consolidate_docks()
+        #: Controls hidden because their "More settings" section is shut, and
+        #: because the backend in use has no such setting; see apply_visibility()
+        self.more_hidden, self.backend_hidden = set(), set()
+        self.make_capture_groups()
+        self.make_more_settings()
         self.make_foldable()
-        self.make_docks_scrollable()
+        self.make_workspaces()
+        self.make_view_banner()
         self.wheel_guard = guard_against_the_wheel(self)
 
         # Create progress bar
@@ -592,9 +598,12 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
                                != backend_module.Info.ppm_min),
                               (self.cropSpinBox, backend_module.Info.crop_max
                                != backend_module.Info.crop_min)):
-                box.setVisible(info)
                 buddy = self.label_5 if box is self.ppmSpinBox else self.label_7
-                buddy.setVisible(info)
+                if info:
+                    self.backend_hidden.difference_update((box, buddy))
+                else:
+                    self.backend_hidden.update((box, buddy))
+                self.apply_visibility((box, buddy))
             self.ppmSpinBox.setMinimum(backend_module.Info.ppm_min)
             self.ppmSpinBox.setMaximum(backend_module.Info.ppm_max)
             self.ppmSpinBox.setValue(backend_module.Info.ppm)
@@ -783,6 +792,7 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
             y = self.data_storage.smooth_data(y)
         self.spectrumPlotWidget.show_sweep(self.data_storage.x, y)
         self.show_scope_cursor()
+        self.update_view_banner()
         self.update_history_controls()
 
     def update_scope(self, data_storage):
@@ -1415,6 +1425,7 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
             self.show_browsed_sweep()
         else:
             self.update_history_controls()
+            self.update_view_banner()
 
     def step_history(self, sweeps):
         """Move the browse position by the given number of sweeps"""
@@ -1449,8 +1460,12 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
     def show_gain_stages(self, stages):
         """Offer a box per stage, or hide them for a radio with one gain"""
         self.gain_stages = stages is not None
-        for widget in (self.label_lna, self.lnaSpinBox, self.label_vga, self.vgaSpinBox):
-            widget.setVisible(self.gain_stages)
+        widgets = (self.label_lna, self.lnaSpinBox, self.label_vga, self.vgaSpinBox)
+        if self.gain_stages:
+            self.backend_hidden.difference_update(widgets)
+        else:
+            self.backend_hidden.update(widgets)
+        self.apply_visibility(widgets)
         if stages is not None:
             self.set_gain_stages(*stages)
 
@@ -1556,38 +1571,351 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         return "gain {:g} dB (LNA {} + VGA {})".format(
             self.gainSpinBox.value(), self.lnaSpinBox.value(), self.vgaSpinBox.value())
 
-    def make_docks_scrollable(self):
-        """Let a dock be shorter than the controls inside it
+    #: The panel's three tabs, named for what is being done rather than for
+    #: what the controls are, each with the line that says so and its groups.
+    #: A group not named here lands on Live rather than going missing, and one
+    #: named on two tabs is shared: it moves to whichever of them is showing.
+    WORKSPACES = (
+        ("Live", "What to look at, and how to see it.",
+         ("presetGroupBox", "frequencyGroupBox", "plotsGroupBox", "receiverGroupBox",
+          "scopeGroupBox", "displayGroupBox", "levelsGroupBox", "readoutGroupBox")),
+        ("Capture", "Recordings of the frequency range set here, which is the "
+                    "same one the Live tab watches. Each runs for a while, then "
+                    "says what it found.",
+         ("frequencyGroupBox", "surveyGroupBox", "interferenceGroupBox")),
+        ("Analyse", "Going back over what was recorded.",
+         ("historyGroupBox", "traceGroupBox")),
+    )
 
-        Qt gives a dock a minimum height that fits everything it holds, and a
-        main window a minimum height that fits its docks. These two hold enough
-        now that the window could not be made short enough for a laptop screen,
-        so it stuck to the full height of the display and sprang back to the
-        top whenever it was moved. Inside a scroll area a dock can be any
-        height and its contents scroll."""
-        for dock in (self.controlsDockWidget,):
-            contents = dock.widget()
-            if contents is None:
-                continue
-            area = QtWidgets.QScrollArea(dock)
+    def blurb(self, text):
+        """A line of plain explanation at the top of a tab or a group"""
+        label = QtWidgets.QLabel(self.tr(text))
+        label.setWordWrap(True)
+        label.setStyleSheet("color: palette(mid);")
+        return label
+
+    def make_workspaces(self):
+        """Split the one long panel into Live, Capture and Analyse tabs
+
+        The panel had grown to two and a half thousand pixels in a window of
+        nine hundred, with settings, recordings and the reading back of them
+        interleaved - a capture button between the frequency boxes, a history
+        browser between the oscilloscope and the curves. Each tab holds what
+        one kind of work needs, and scrolls on its own. Start and Single shot
+        stay pinned above all three, because a run is stopped from wherever
+        you happen to be.
+
+        A dock is still allowed to be shorter than what it holds: Qt would
+        otherwise give it, and so the window, a minimum height that fits every
+        control, which no laptop screen has."""
+        dock = self.controlsDockWidget
+        contents = dock.widget()
+        header = self.pinned_controls(dock, contents)
+        column = contents.layout()
+        margins = column.contentsMargins()
+
+        groups = {}
+        for index in reversed(range(column.count())):
+            widget = column.itemAt(index).widget()
+            if widget is not None:
+                groups[widget.objectName()] = widget
+                release_widget(column, widget)
+        for name in ("surveyGroupBox", "interferenceGroupBox", "traceGroupBox"):
+            if getattr(self, name, None) is not None:
+                groups[name] = getattr(self, name)
+        placed = {name for _, _, names in self.WORKSPACES for name in names}
+        leftovers = tuple(name for name in groups if name not in placed)
+
+        settings = QtCore.QSettings()
+        tabs = QtWidgets.QTabWidget(dock)
+        tabs.setDocumentMode(True)
+        widest = 0
+        # Where each shared group sits on each tab that has it: tab index ->
+        # (layout, position). It is laid out on the first and only moves when
+        # another of its tabs is shown, so nothing is spent while running
+        self.shared_groups = {}
+        for index, (title, explanation, names) in enumerate(self.WORKSPACES):
+            page = QtWidgets.QWidget()
+            layout = QtWidgets.QVBoxLayout(page)
+            layout.setContentsMargins(margins)
+            layout.addWidget(self.blurb(explanation))
+            for name in names + (leftovers if title == "Live" else ()):
+                widget = groups.get(name)
+                if widget is None:
+                    continue
+                homes = self.shared_groups.setdefault(widget, {})
+                homes[index] = (layout, layout.count())
+                if len(homes) == 1:
+                    layout.addWidget(widget)
+                    widget.show()
+            layout.addStretch(1)
+            area = QtWidgets.QScrollArea()
             area.setWidgetResizable(True)
             area.setFrameShape(QtWidgets.QFrame.NoFrame)
             area.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
-            # Detach before re-attaching, so the dock is never holding both
-            contents.setParent(None)
-            area.setWidget(contents)
+            area.setWidget(page)
+            tabs.addTab(area, self.tr(title))
+            widest = max(widest, page.minimumSizeHint().width())
+        self.shared_groups = {widget: homes for widget, homes
+                              in self.shared_groups.items() if len(homes) > 1}
 
-            header = self.pinned_controls(dock, contents)
-            if header is None:
-                dock.setWidget(area)
+        holder = QtWidgets.QWidget(dock)
+        stack = QtWidgets.QVBoxLayout(holder)
+        stack.setContentsMargins(0, 0, 0, 0)
+        stack.setSpacing(0)
+        if header is not None:
+            stack.addWidget(header)
+        stack.addWidget(tabs)
+        dock.setWidget(holder)
+        contents.deleteLater()
+
+        # Wide enough for what the tabs hold. Narrower, and the spin boxes
+        # were cut off mid-number - "5.620,000 M" - with no way to scroll to
+        # the rest, since the panel only scrolls up and down
+        scrollbar = self.style().pixelMetric(QtWidgets.QStyle.PM_ScrollBarExtent)
+        dock.setMinimumWidth(widest + scrollbar + 8)
+
+        tabs.setCurrentIndex(min(max(settings.value("workspace", 0, int), 0),
+                                 tabs.count() - 1))
+        self.carry_shared_groups(tabs.currentIndex())
+        tabs.currentChanged.connect(self.on_workspace_changed)
+        self.workspaces = tabs
+
+    def on_workspace_changed(self, index):
+        QtCore.QSettings().setValue("workspace", index)
+        self.carry_shared_groups(index)
+
+    def carry_shared_groups(self, index):
+        """Move each shared group onto the tab being shown, if it is one of its own
+
+        The Frequency group is wanted on Capture as much as on Live - a survey
+        or a capture of another range should not mean going back to Live to set
+        it - and a widget can only be in one place. Removing it shifts what is
+        under it up by one, so putting it back at the position it was laid out
+        at puts it back where it was."""
+        for widget, homes in self.shared_groups.items():
+            if index not in homes:
                 continue
-            holder = QtWidgets.QWidget(dock)
-            column = QtWidgets.QVBoxLayout(holder)
-            column.setContentsMargins(0, 0, 0, 0)
-            column.setSpacing(0)
-            column.addWidget(header)
-            column.addWidget(area)
-            dock.setWidget(holder)
+            layout, position = homes[index]
+            if layout.indexOf(widget) >= 0:
+                continue
+            for other, _ in homes.values():
+                if other.indexOf(widget) >= 0:
+                    other.removeWidget(widget)
+            layout.insertWidget(position, widget)
+            widget.show()
+
+    def make_capture_groups(self):
+        """Give each kind of recording a group of its own
+
+        The survey and the interference capture lived in the Frequency group,
+        as buttons between the boxes that set what they record, and the
+        oscilloscope's save and rhythm buttons sat under its trigger. They are
+        things done with the settings rather than settings, so they move to
+        the Capture and Analyse tabs, each with a line saying what it does."""
+        def group(name, title, explanation, rows):
+            # A group whose controls this build has not got is left out
+            # rather than made empty
+            if not all(hasattr(self, widget) for entry in rows for widget in entry):
+                return None
+            box = QtWidgets.QGroupBox(self.tr(title))
+            box.setObjectName(name)
+            grid = QtWidgets.QGridLayout(box)
+            grid.addWidget(self.blurb(explanation), 0, 0, 1, 2)
+            for row, entry in enumerate(rows, start=1):
+                widgets = [getattr(self, widget) for widget in entry]
+                for widget in widgets:
+                    parent = widget.parentWidget()
+                    if parent is not None and parent.layout() is not None:
+                        release_widget(parent.layout(), widget)
+                if len(widgets) == 1:
+                    grid.addWidget(widgets[0], row, 0, 1, 2)
+                else:
+                    grid.addWidget(widgets[0], row, 0)
+                    grid.addWidget(widgets[1], row, 1)
+            setattr(self, name, box)
+            return box
+
+        group("surveyGroupBox", "Survey a range",
+              "Walks the frequency range above one tune at a time, and "
+              "lists what stood above the noise.",
+              (("surveyDwellLabel", "surveyDwellSpinBox"), ("surveyVerifyCheckBox",),
+               ("surveyButton",), ("surveyProgressLabel",)))
+        group("interferenceGroupBox", "Look for interference",
+              "Records this tune - half at it, half 1 MHz up - and says what in "
+              "it was not Wi-Fi. It checks first that the receiver hears your "
+              "access point.",
+              (("interferenceSecondsLabel", "interferenceSecondsSpinBox"),
+               ("interferenceButton",)))
+        group("traceGroupBox", "Oscilloscope capture",
+              "The sweep the oscilloscope caught, and the trace behind it.",
+              (("scopeSaveButton",), ("rhythmButton",)))
+
+    #: Each group's controls as rows: the few a newcomer needs, then a "More
+    #: settings" fold, then what only an experienced hand reaches for. A row
+    #: is (label, control) or a control on its own. The fold sits above what
+    #: it opens, so the rows appear where the arrow points.
+    MORE_SETTINGS = {
+        "receiverGroupBox": (
+            (("label_6", "gainSpinBox"), ("ampCheckBox",)),
+            (("label_lna", "lnaSpinBox"), ("label_vga", "vgaSpinBox"),
+             ("label_4", "intervalSpinBox"), ("label_5", "ppmSpinBox"),
+             ("label_7", "cropSpinBox"))),
+        "displayGroupBox": (
+            (("mainCurveCheckBox", "colorsButton"), ("peakHoldMaxCheckBox",)),
+            (("peakHoldMinCheckBox",), ("averageCheckBox",),
+             ("smoothCheckBox", "smoothButton"),
+             ("persistenceCheckBox", "persistenceButton"),
+             ("baselineCheckBox", "baselineButton"), ("subtractBaselineCheckBox",))),
+    }
+
+    def make_more_settings(self):
+        """Lay each group out as its basic rows, a "More settings" fold, and the rest"""
+        settings = QtCore.QSettings()
+        self.more_toggles = {}
+        for name, (basic, advanced) in self.MORE_SETTINGS.items():
+            box = self.findChild(QtWidgets.QGroupBox, name)
+            if box is None:
+                continue
+            grid = box.layout()
+            # Everything out first, so the rows below are the whole layout;
+            # anything the table does not name keeps a row at the end of the
+            # basic ones rather than disappearing
+            named = {member for row in basic + advanced for member in row}
+            others = []
+            for index in reversed(range(grid.count())):
+                widget = grid.itemAt(index).widget()
+                if widget is not None:
+                    release_widget(grid, widget)
+                    if widget.objectName() not in named:
+                        others.append((widget,))
+
+            def place(rows, start):
+                placed = []
+                for offset, row in enumerate(rows):
+                    widgets = [getattr(self, member, None) if isinstance(member, str) else member
+                               for member in row]
+                    widgets = [widget for widget in widgets if widget is not None]
+                    if len(widgets) == 1:
+                        grid.addWidget(widgets[0], start + offset, 0, 1, 2)
+                    elif widgets:
+                        grid.addWidget(widgets[0], start + offset, 0)
+                        right = widgets[1]
+                        grid.addWidget(right, start + offset, 1,
+                                       QtCore.Qt.AlignRight
+                                       if isinstance(right, QtWidgets.QToolButton)
+                                       else QtCore.Qt.Alignment())
+                    placed.extend(widgets)
+                return placed
+
+            place(basic, 0)
+            place(tuple(reversed(others)), len(basic))
+            toggle = QtWidgets.QToolButton(box)
+            toggle.setCheckable(True)
+            toggle.setAutoRaise(True)
+            toggle.setToolButtonStyle(QtCore.Qt.ToolButtonTextBesideIcon)
+            row = len(basic) + len(others)
+            grid.addWidget(toggle, row, 0, 1, 2)
+            widgets = tuple(place(advanced, row + 1))
+            grid.setColumnStretch(1, 1)
+
+            self.more_toggles[name] = (toggle, widgets)
+            toggle.toggled.connect(lambda shown, n=name: self.show_more(n, shown))
+            for widget in widgets:
+                if isinstance(widget, QtWidgets.QAbstractButton) and widget.isCheckable():
+                    widget.toggled.connect(lambda *_, n=name: self.label_more(n))
+            shown = bool(settings.value("more_" + name, 0, int))
+            toggle.setChecked(shown)
+            self.show_more(name, shown)
+
+    def show_more(self, name, shown):
+        """Open or shut one group's "More settings", and remember which"""
+        toggle, widgets = self.more_toggles[name]
+        if shown:
+            self.more_hidden.difference_update(widgets)
+        else:
+            self.more_hidden.update(widgets)
+        toggle.setArrowType(QtCore.Qt.DownArrow if shown else QtCore.Qt.RightArrow)
+        QtCore.QSettings().setValue("more_" + name, int(shown))
+        self.apply_visibility(widgets)
+        self.label_more(name)
+
+    def label_more(self, name):
+        """Name the fold, and count what is switched on inside it while shut
+
+        A setting that is on but out of sight is the one that confuses: a
+        persistence or a baseline still shaping the trace with no box on
+        screen to say so. So a shut fold says how many of them are on."""
+        toggle, widgets = self.more_toggles[name]
+        on = sum(1 for widget in widgets
+                 if isinstance(widget, QtWidgets.QAbstractButton)
+                 and widget.isCheckable() and widget.isChecked())
+        text = self.tr("More settings")
+        if not toggle.isChecked() and on:
+            text = self.tr("More settings ({} on)").format(on)
+        toggle.setText(text)
+
+    def apply_visibility(self, widgets):
+        """Show each control only if nothing has a reason to hide it
+
+        Three things hide controls - a folded group, a shut "More settings",
+        a backend without that setting - and each used to set visibility on
+        its own, so whichever ran last won: a backend showing its LNA box
+        inside a folded group left it squashed into the group's title."""
+        folded = getattr(self, "folded", {})
+        for widget in widgets:
+            open_ = all(box.isChecked() for box, inner in folded.values()
+                        if widget in inner)
+            widget.setVisible(open_ and widget not in self.more_hidden
+                              and widget not in self.backend_hidden)
+
+    def make_view_banner(self):
+        """A line over the plots saying whether they show the air or a recording"""
+        self.view_banner = QtWidgets.QLabel(self.centralwidget)
+        self.view_banner_text = None
+        layout = self.horizontalLayout
+        layout.removeWidget(self.plotSplitter)
+        column = QtWidgets.QVBoxLayout()
+        column.setSpacing(2)
+        column.addWidget(self.view_banner)
+        column.addWidget(self.plotSplitter)
+        layout.addLayout(column)
+        self.update_view_banner()
+
+    def update_view_banner(self):
+        """Say what the plots are showing: the air now, a recorded sweep, or neither
+
+        Called when that changes - a run starting or stopping, browsing on or
+        off, the browsed sweep moving - and never per sweep, so it costs
+        nothing while the radio runs. Frozen plots look exactly like live ones
+        until something says which they are."""
+        if not hasattr(self, "view_banner"):
+            return
+        counter = getattr(self, "browse_counter", None)
+        if counter is not None:
+            oldest, newest = self.history_range()
+            times = self.data_storage.recorded_times()
+            when = ""
+            if times is not None and oldest is not None and 0 <= counter - oldest < len(times):
+                when = time.strftime(" · %H:%M:%S", time.localtime(times[counter - oldest]))
+            text = self.tr("■ RECORDING · sweep {} of {}{} — untick Browse on "
+                           "the Analyse tab to go back to live").format(
+                               counter - oldest + 1, newest - oldest + 1, when)
+            colour = "#c77800"
+        elif getattr(getattr(self, "power_thread", None), "alive", False):
+            text = self.tr("● LIVE · {:g}–{:g} MHz · {}").format(
+                self.startFreqSpinBox.value(), self.stopFreqSpinBox.value(),
+                self.active_backend)
+            colour = "#2e9e44"
+        else:
+            text = self.tr("■ STOPPED — the plots hold the last sweeps; "
+                           "press Start to go live")
+            colour = "palette(mid)"
+        if text != self.view_banner_text:
+            self.view_banner_text = text
+            self.view_banner.setText(text)
+            self.view_banner.setStyleSheet(
+                "color: {}; font-weight: 600; padding: 1px 4px;".format(colour))
 
     def pinned_controls(self, dock, contents):
         """The buttons that stay on screen while the rest of the dock scrolls
@@ -1700,8 +2028,6 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         ("scopeTriggerLabel", "scopeTriggerSpinBox"),
         ("scopePreTriggerLabel", "scopePreTriggerSpinBox"),
         ("scopeSingleCheckBox",), (None, "scopeArmButton"),
-        "Then",
-        (None, "scopeSaveButton"), (None, "rhythmButton"),
     )
 
     def section_header(self, text):
@@ -1879,7 +2205,8 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         """Show or hide one group's contents, and remember which"""
         box, inner = self.folded[name]
         for child in inner:
-            child.setVisible(open_)
+            child.setVisible(open_ and child not in self.more_hidden
+                             and child not in self.backend_hidden)
         box.setFlat(not open_)
         # Hiding the contents is not enough: the frame keeps the height its
         # layout still wants, so a shut group leaves an empty box under its
@@ -2759,11 +3086,13 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
     def on_power_thread_started(self):
         """Update buttons state when power thread is started"""
         self.update_buttons()
+        self.update_view_banner()
         self.progressbar.setVisible(False)
 
     def on_power_thread_stopped(self):
         """Update buttons state and status bar when power thread is stopped"""
         self.update_buttons()
+        self.update_view_banner()
         self.update_status_timer.stop()
         self.update_status()
         self.progressbar.setVisible(False)
