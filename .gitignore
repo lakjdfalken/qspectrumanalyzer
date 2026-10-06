@@ -25,3 +25,4 @@ refs/
 survey-*.csv
 sweep-*.csv
 recording-*.csv
+captures/
