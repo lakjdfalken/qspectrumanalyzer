@@ -9,6 +9,7 @@ from qspectrumanalyzer import backends
 from qspectrumanalyzer.version import __version__
 from qspectrumanalyzer.data import DataStorage, HistoryBuffer
 from qspectrumanalyzer import findings, periodicity
+from qspectrumanalyzer import lockwatch
 from qspectrumanalyzer.plot import (ScopePlotWidget, SpectrumPlotWidget,
                                     WaterfallPlotWidget)
 from qspectrumanalyzer.utils import guard_against_the_wheel, str_to_color, human_time
@@ -524,6 +525,12 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         self.print_load_lines = os.environ.get(LOAD_ENV, "") not in ("", "0")
         self.printed_load = None
         self.load_gui_mark = None
+        #: Says who held the interpreter lock when it was held long enough
+        #: to cost the radio samples; only with the load line, since checking
+        #: costs a few percent of a core
+        self.lock_watch = lockwatch.LockWatch() if self.print_load_lines else None
+        if self.lock_watch is not None:
+            self.lock_watch.start()
 
         self.populate_presets()
         self.update_buttons()
@@ -2610,6 +2617,10 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         a backend that does not measure itself prints nothing."""
         if not self.print_load_lines:
             return
+        # Before the line it belongs to, so that a stream short of 100% is
+        # printed underneath the stall that explains it
+        for event in self.lock_watch.take():
+            print("\n".join(lockwatch.describe(event)))
         load = getattr(self.power_thread, "load", None)
         if load is None or load is self.printed_load:
             return
@@ -2623,7 +2634,8 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         gui = (cpu - mark[1]) / (now - mark[0])
         ceiling = self.configured_refresh_rate()
         print("load: FFT thread {cpu:.0%} on CPU, {busy:.0%} in its work | "
-              "queue peak {queue_peak}/{queue_depth} | stream {stream:.1%} | "
+              "queue peak {queue_peak}/{queue_depth} | stream {stream:.1%}, "
+              "callback gap max {gap_ms:.0f} ms | "
               "{spectra:.0f} spectra/s, {delivered:.0f} delivered/s | "
               "dropped {dropped} | GUI thread {gui:.0%} | redraw {rate}/{ceiling} Hz"
               .format(gui=gui, rate=self.refresh_rate,

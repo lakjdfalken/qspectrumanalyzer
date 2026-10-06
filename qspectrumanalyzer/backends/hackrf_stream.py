@@ -1051,6 +1051,7 @@ class PowerThread(BasePowerThread):
                     "dropped": totals["dropped"] - before["dropped"],
                     "queue_peak": peak,
                     "queue_depth": stats["queue_depth"],
+                    "gap_ms": self.source.take_gap_peak() * 1e3,
                 }
         self.load_mark = (now, totals, seconds)
 
