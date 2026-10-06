@@ -44,7 +44,7 @@ setup(
     author_email="m.krenek@gmail.com",
     url="https://github.com/xmikos/qspectrumanalyzer",
     license="GNU GPLv3",
-    packages=["qspectrumanalyzer", "qspectrumanalyzer.backends", "hackrf_stream"],
+    packages=["qspectrumanalyzer", "qspectrumanalyzer.backends"],
     package_data={
         "qspectrumanalyzer": [
             "qspectrumanalyzer.svg",
@@ -61,6 +61,11 @@ setup(
         "soapy_power>=1.6.0",
         "pyqtgraph>=0.13.0",
         "PySide6",
+        # Its own project now, and not on PyPI yet, so it comes from its
+        # repository at a release tag. Needed even without a HackRF: the
+        # plots use its noise_ceiling(). To work on both at once, install a
+        # clone over it with pip install -e
+        "hackrf_stream @ git+https://github.com/lakjdfalken/hackrf_stream.git@v0.2.0",
     ],
     options={
         'build_qt': {
