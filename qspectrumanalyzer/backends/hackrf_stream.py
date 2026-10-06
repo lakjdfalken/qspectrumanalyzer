@@ -980,6 +980,17 @@ class PowerThread(BasePowerThread):
         return self.source.dropped if self.source is not None else 0
 
     @property
+    def backlog(self):
+        """How full the DSP's queue is right now, from 0 to 1
+
+        Rises for seconds before anything is dropped, so it is what the
+        display steps down on: by the time `dropped` moves it is too late."""
+        source = self.source
+        if source is None:
+            return 0.0
+        return source.backlog / max(1, source.queue_depth)
+
+    @property
     def tap_magnitude(self):
         """True while the tap reads samples rather than bins
 

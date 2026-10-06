@@ -577,6 +577,20 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
     REFRESH_RECOVER = 15.0
     REFRESH_CLIMB = 2.0
 
+    #: How full the backend's queue may get before the display stands down,
+    #: and how empty before it may climb again. A quarter of hackrf_stream's
+    #: is about 200 ms behind at 20 MSPS: a DSP that far behind and still
+    #: losing ground fills the rest in seconds. Measured on an S-band camp:
+    #: at 60 Hz the queue grew 11, 39, 64, 87, 114 a second and then dropped.
+    BACKLOG_HIGH = 0.25
+    BACKLOG_LOW = 0.05
+    #: Seconds between steps down for a backlog, so a queue that is already
+    #: draining is not stepped down for again every tenth of a second
+    BACKLOG_SETTLE = 1.0
+    #: Seconds clean before the rate that caused trouble may be tried again;
+    #: what the display costs changes as a recording fills or a pane closes
+    REFRESH_FORGET = 120.0
+
     #: Sweep length given to the scope when a trigger is asked for and none
     #: has been chosen, in milliseconds
     DEFAULT_SWEEP_MS = 10.0
@@ -694,6 +708,10 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         self.dropped_seen = 0
         self.dropped_at = None
         self.warned_about_drops = False
+        #: When the display last stood down and last climbed, and the rate it
+        #: may climb back to; see adapt_refresh_rate()
+        self.stepped_at = self.climbed_at = None
+        self.refresh_cap = None
 
         #: Print a load line to the terminal every second, for testing how far
         #: the settings can be pushed. Off unless asked for: it is a
@@ -4060,16 +4078,23 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
                       ceiling=ceiling if ceiling > 0 else "unlimited", **load))
 
     def adapt_refresh_rate(self):
-        """Give frames back to the backend when it is losing samples
+        """Give frames back to the backend before it starts losing samples
 
         Drawing and demodulating share one interpreter lock, so a display
         redrawing as fast as it can can starve a backend that has to keep up
         with a radio in real time. The two are not worth the same: a frame
         that is never drawn is a frame nobody was going to see anyway, while a
-        sample that arrived with nowhere to put it is gone for good. So when
-        the backend reports drops the display stands down, halving its rate
-        until they stop, and creeps back up once they have."""
+        sample that arrived with nowhere to put it is gone for good.
+
+        Dropped samples are the last sign of it, not the first. A starved DSP
+        falls behind for seconds before its queue is full, so the display
+        stands down when the queue passes BACKLOG_HIGH, and halves on an
+        actual drop. Either way it remembers the rate that did it and climbs
+        back only to short of that, rather than straight back into the same
+        trouble every fifteen seconds; the memory lapses after REFRESH_FORGET
+        clean, since the cost of a frame changes as a run goes on."""
         dropped = getattr(self.power_thread, "dropped", 0)
+        backlog = getattr(self.power_thread, "backlog", 0.0)
         if self.refresh_rate is None:
             self.set_refresh_rate(self.configured_refresh_rate())
 
@@ -4079,28 +4104,43 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
             return
 
         now = time.monotonic()
-        if dropped > self.dropped_seen:
+        lost = dropped > self.dropped_seen
+        behind = (backlog > self.BACKLOG_HIGH
+                  and now - (self.stepped_at or 0.0) > self.BACKLOG_SETTLE)
+        if lost or behind:
             self.dropped_seen = dropped
-            self.dropped_at = now
-            if self.refresh_rate > self.REFRESH_FLOOR:
-                self.set_refresh_rate(max(self.REFRESH_FLOOR, self.refresh_rate // 2))
+            self.dropped_at = self.stepped_at = now
+            was = self.refresh_rate
+            if was > self.REFRESH_FLOOR:
+                self.refresh_cap = max(self.REFRESH_FLOOR, was - max(1, was // 5))
+                self.set_refresh_rate(max(self.REFRESH_FLOOR,
+                                          was // 2 if lost else was * 2 // 3))
                 if not self.warned_about_drops:
                     self.warned_about_drops = True
-                    print("Redrawing at {} Hz instead of {}: the backend was losing "
-                          "samples while the display held the interpreter lock."
-                          .format(self.refresh_rate, ceiling))
+                    print("Redrawing at {} Hz instead of {}: the backend {} while "
+                          "the display held the interpreter lock.".format(
+                              self.refresh_rate, ceiling,
+                              "was losing samples" if lost else "was falling behind"))
             return
 
-        # Quick to climb while nothing has been lost yet, slow once something
+        # dropped_at is the last trouble, or the start of the run
+        if self.dropped_at is None:
+            return
+        if self.refresh_cap is not None and now - self.dropped_at > self.REFRESH_FORGET:
+            self.refresh_cap = None
+
+        # Quick to climb while nothing has gone wrong yet, slow once something
         # has: the first is a display warming up, the second is a display that
         # already knows it can starve the backend
         patience = self.REFRESH_RECOVER if self.warned_about_drops else self.REFRESH_CLIMB
-        if (self.dropped_at is not None and self.refresh_rate < ceiling
-                and now - self.dropped_at > patience):
+        limit = min(ceiling, self.refresh_cap or ceiling)
+        last = max(self.dropped_at, self.climbed_at or 0.0)
+        if (self.refresh_rate < limit and backlog < self.BACKLOG_LOW
+                and now - last > patience):
             # Clean for a while, so try a little more drawing again
-            self.dropped_at = now
-            self.set_refresh_rate(min(ceiling, max(self.refresh_rate + 1,
-                                                   int(self.refresh_rate * 1.5))))
+            self.climbed_at = now
+            self.set_refresh_rate(min(limit, max(self.refresh_rate + 1,
+                                                 int(self.refresh_rate * 1.5))))
 
     def update_status(self):
         """Update status bar"""
@@ -4219,6 +4259,8 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         self.dropped_seen = 0
         self.dropped_at = time.monotonic()
         self.warned_about_drops = False
+        self.stepped_at = self.climbed_at = None
+        self.refresh_cap = None
         # Start gently and climb, so the backend gets the first second to
         # itself instead of paying for the display's most expensive frames
         ceiling = self.configured_refresh_rate()
