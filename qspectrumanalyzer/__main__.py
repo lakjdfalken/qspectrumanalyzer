@@ -9,7 +9,7 @@ from qspectrumanalyzer import backends
 from qspectrumanalyzer.version import __version__
 from qspectrumanalyzer.data import DataStorage, HistoryBuffer
 from qspectrumanalyzer import findings, interference, periodicity, receiver, recording
-from qspectrumanalyzer import fontscale, lockwatch
+from qspectrumanalyzer import binsize, fontscale, lockwatch
 from qspectrumanalyzer.plot import (ScopePlotWidget, SpectrumPlotWidget,
                                     WaterfallPlotWidget, time_length)
 from qspectrumanalyzer.utils import guard_against_the_wheel, str_to_color, human_time
@@ -714,6 +714,55 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         self.setup_speed_hints()
         self.update_history_controls()
         self.make_text_size()
+        self.make_bin_size_help()
+
+    def make_bin_size_help(self):
+        """A ? beside Bin size, opening a window that explains it as it turns
+
+        The spin box and the button share the form row the spin box had."""
+        layout = self.binSizeSpinBox.parentWidget().layout()
+        row, _role = layout.getWidgetPosition(self.binSizeSpinBox)
+        layout.removeWidget(self.binSizeSpinBox)
+        holder = QtWidgets.QWidget(self.binSizeSpinBox.parentWidget())
+        line = QtWidgets.QHBoxLayout(holder)
+        line.setContentsMargins(0, 0, 0, 0)
+        line.setSpacing(4)
+        line.addWidget(self.binSizeSpinBox, 1)
+        button = QtWidgets.QToolButton(holder)
+        button.setText("?")
+        button.setToolTip(self.tr("What the bin size means, and what changing it "
+                                  "would do - redrawn as you turn it"))
+        button.clicked.connect(self.show_bin_size_help)
+        line.addWidget(button)
+        layout.setWidget(row, QtWidgets.QFormLayout.FieldRole, holder)
+
+        self.bin_size_help = None
+        for widget in (self.startFreqSpinBox, self.stopFreqSpinBox, self.binSizeSpinBox):
+            widget.valueChanged.connect(self.refresh_bin_size_help)
+
+    def bin_size_inputs(self):
+        """The numbers the bin size window explains, as the controls stand"""
+        settings = QtCore.QSettings()
+        return {
+            "rate": self.tune_width(),
+            "bin_hz": max(1.0, self.binSizeSpinBox.value() * 1e3),
+            "low": self.startFreqSpinBox.value() * 1e6,
+            "high": self.stopFreqSpinBox.value() * 1e6,
+            "window": self.configured_window(),
+            "average": self.configured_average(),
+            "detector": settings.value("sweep_detector", "mean"),
+        }
+
+    def show_bin_size_help(self):
+        if self.bin_size_help is None:
+            self.bin_size_help = binsize.BinSizeExplainer(self.bin_size_inputs, self)
+        self.bin_size_help.show()
+        self.bin_size_help.raise_()
+        self.bin_size_help.activateWindow()
+
+    def refresh_bin_size_help(self, *_):
+        if self.bin_size_help is not None:
+            self.bin_size_help.refresh()
 
     def make_text_size(self):
         """A View menu that makes all the text bigger or smaller, Cmd +/- style
@@ -3081,11 +3130,13 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         if d is None:
             lines.append(self.tr("Signals closer together than about {} show "
                                  "as one.").format(
-                self.as_hz(self.binSizeSpinBox.value() * 1e3)))
+                self.as_hz(2 * self.binSizeSpinBox.value() * 1e3)))
             return " ".join(lines)
 
-        lines.append(self.tr("Signals closer together than {} show as one.")
-                     .format(self.as_hz(d["bin_hz"])))
+        # Two bins, not one: the window spreads a carrier over a little more
+        # than a bin, so two of them a bin apart run together as one peak
+        lines.append(self.tr("Signals closer together than about {} show as one.")
+                     .format(self.as_hz(2 * d["bin_hz"])))
         sweep = self.as_seconds(d["sweep"])
         if QtCore.QSettings().value("sweep_detector", "mean") == "peak":
             lines.append(self.tr("Each sweep keeps the loudest moment of {} of "
@@ -4371,6 +4422,8 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
             # for the next Start, which looks exactly like a setting that does
             # nothing: the readings keep arriving at the rate they had.
             self.apply_scope_band()
+            # Sample rate, detector and pulse all live in the dialog
+            self.refresh_bin_size_help()
 
     @QtCore.Slot()
     def on_action_About_triggered(self):
