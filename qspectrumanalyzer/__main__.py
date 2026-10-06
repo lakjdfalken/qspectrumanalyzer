@@ -8,7 +8,7 @@ from PySide6 import QtCore, QtGui, QtWidgets
 from qspectrumanalyzer import backends
 from qspectrumanalyzer.version import __version__
 from qspectrumanalyzer.data import DataStorage, HistoryBuffer
-from qspectrumanalyzer import findings, interference, periodicity, recording
+from qspectrumanalyzer import findings, interference, periodicity, receiver, recording
 from qspectrumanalyzer import lockwatch
 from qspectrumanalyzer.plot import (ScopePlotWidget, SpectrumPlotWidget,
                                     WaterfallPlotWidget, time_length)
@@ -602,6 +602,7 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         #: because the backend in use has no such setting; see apply_visibility()
         self.more_hidden, self.backend_hidden = set(), set()
         self.make_capture_groups()
+        self.make_receiver_check()
         self.make_results()
         self.make_more_settings()
         self.make_foldable()
@@ -2090,6 +2091,241 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
                         return after.strip()
         return next((line.strip() for line in reversed(lines) if line.strip()), "")
 
+    def make_receiver_check(self):
+        """A button that says whether the gain is right, and the radio hears the AP"""
+        self.receiverCheckButton = QtWidgets.QPushButton(self.tr("Check my receiver..."))
+        self.receiverCheckButton.setObjectName("receiverCheckButton")
+        self.receiverCheckButton.setToolTip(self.tr(
+            "Steps the gain {:g} dB down and up from where it is, a couple of "
+            "seconds each, and says whether it is too low, too high or right: "
+            "too low when more gain lifts the signals out of the radio's own "
+            "noise, too high when the strongest signal stops keeping up with "
+            "the gain. On a Wi-Fi channel it also checks the receiver hears "
+            "the access point's beacons. The gain is put back afterwards.")
+            .format(receiver.STEP_DB))
+        self.receiverCheckButton.clicked.connect(self.on_receiver_check_clicked)
+        self.receiver_check = None
+        self.receiver_timer = QtCore.QTimer(self)
+        self.receiver_timer.setInterval(50)
+        self.receiver_timer.timeout.connect(self.advance_receiver_check)
+
+    #: Seconds the check lets a gain change settle before it measures, how
+    #: long it measures each gain for, the fewest sweeps that make a
+    #: measurement, how long it waits for those, and how long it records
+    #: for the beacon count on a Wi-Fi channel
+    RECEIVER_SETTLE = 0.6
+    RECEIVER_DWELL = 2.0
+    RECEIVER_SWEEPS = 6
+    RECEIVER_PATIENCE = 12.0
+    RECEIVER_BEACON_SECONDS = 4.0
+    #: The longest sweep interval the check runs at as it is; above it the
+    #: interval is set to nothing while the check runs
+    RECEIVER_MAX_INTERVAL = 0.2
+
+    def on_receiver_check_clicked(self):
+        """Start the receiver check, or stop the one that is running"""
+        if self.receiver_check is not None:
+            self.finish_receiver_check(self.tr("Receiver check stopped"))
+            return
+        if self.survey is not None or self.interference is not None:
+            self.show_status(self.tr("Finish the survey or capture first"), timeout=5000)
+            return
+        if self.gainSpinBox.value() < 0:
+            self.show_status(self.tr("The gain is automatic - set a gain to "
+                                     "check first"), timeout=8000)
+            return
+        # A sweep every few seconds would take minutes to judge, and a new
+        # install delivers one every ten, so the interval goes to nothing for
+        # the check and is put back after it. It is only read when the radio
+        # starts, so a running radio is restarted for it.
+        running = self.power_thread.alive
+        interval = None
+        if self.intervalSpinBox.value() > self.RECEIVER_MAX_INTERVAL:
+            interval = self.intervalSpinBox.value()
+            self.stop()
+            self.intervalSpinBox.setValue(0)
+            self.setup_power_thread()
+        # Started first, because starting can hand the range to another
+        # backend, and what the check can do depends on which one runs
+        started = not self.power_thread.alive
+        if started:
+            self.start()
+        if not hasattr(self.power_thread, "set_gain"):
+            self.restore_after_receiver_check(started, interval, running)
+            self.show_status(self.tr(
+                "{} cannot change the gain while it runs, which the check "
+                "needs").format(self.active_backend), timeout=8000)
+            return
+
+        current = float(self.gainSpinBox.value())
+        step = receiver.STEP_DB
+        gains = [current]
+        if current - step >= self.gainSpinBox.minimum():
+            gains.append(current - step)
+        if current + step <= self.gainSpinBox.maximum():
+            gains.append(current + step)
+
+        low = self.startFreqSpinBox.value() * 1e6
+        high = self.stopFreqSpinBox.value() * 1e6
+        self.receiver_check = {
+            "current": current, "gains": gains, "index": 0, "points": {},
+            "counts": {}, "names": {}, "started": started, "interval": interval,
+            "running": running,
+            "beacons": (receiver.on_wifi(low, high)
+                        and hasattr(self.power_thread, "record")),
+            "kept": None,
+        }
+        self.receiverCheckButton.setText(self.tr("Stop the receiver check"))
+        self.begin_receiver_point()
+        self.receiver_timer.start()
+
+    def begin_receiver_point(self):
+        """Set the next gain, and wait for it to settle"""
+        state = self.receiver_check
+        gain = state["gains"][state["index"]]
+        if self.gainSpinBox.value() != gain:
+            self.gainSpinBox.setValue(gain)
+        state.update(phase="settle", since=time.monotonic(),
+                     mark=self.sweeps_recorded())
+        self.show_status(self.tr("Checking the receiver: {:g} dB ({} of {})...")
+                         .format(gain, state["index"] + 1, len(state["gains"])),
+                         timeout=0)
+
+    def advance_receiver_check(self):
+        """Move on once the gain being measured has had enough sweeps
+
+        Polled rather than fed by the data signal, so the check costs the
+        sweeps nothing when it is not running. The sweeps themselves are read
+        out of the recording afterwards, every one of them, by the count of
+        sweeps added to it since the measurement began."""
+        state = self.receiver_check
+        if state is None:
+            return
+        count = self.sweeps_recorded()
+        elapsed = time.monotonic() - state["since"]
+
+        if state["phase"] == "settle":
+            if elapsed >= self.RECEIVER_SETTLE and count > state["mark"]:
+                dwell = self.RECEIVER_DWELL
+                if state["index"] == 0 and state["beacons"]:
+                    sweep = self.sweep_seconds() or 1e-3
+                    self.power_thread.record(
+                        int(self.RECEIVER_BEACON_SECONDS / sweep) + 16)
+                    dwell = self.RECEIVER_BEACON_SECONDS
+                state.update(phase="measure", since=time.monotonic(),
+                             dwell=dwell, mark=count)
+            elif elapsed >= self.RECEIVER_PATIENCE:
+                self.finish_receiver_check(self.tr(
+                    "Receiver check stopped - no sweeps arrived"))
+            return
+
+        arrived = count - state["mark"]
+        enough = arrived >= self.RECEIVER_SWEEPS
+        if not ((elapsed >= state["dwell"] and enough)
+                or elapsed >= self.RECEIVER_PATIENCE):
+            return
+        if state["index"] == 0 and state["beacons"]:
+            state["kept"] = self.power_thread.take_recording()
+        gain = state["gains"][state["index"]]
+        if enough:
+            rows = self.data_storage.history.get_buffer()
+            rows = rows[-min(arrived, len(rows)):]
+            floor, strongest, used = receiver.levels(list(rows))
+            state["points"][gain] = (floor, strongest)
+            state["counts"][gain] = used
+            state["names"][gain] = self.gain_summary()
+        state["index"] += 1
+        if state["index"] < len(state["gains"]):
+            self.begin_receiver_point()
+        else:
+            self.finish_receiver_check()
+
+    def sweeps_recorded(self):
+        """How many sweeps the recording has had added since the run began"""
+        history = getattr(self.data_storage, "history", None)
+        return history.counter if history is not None else 0
+
+    def finish_receiver_check(self, why=None):
+        """Put the gain back, and say what the check found"""
+        state, self.receiver_check = self.receiver_check, None
+        self.receiver_timer.stop()
+        self.receiverCheckButton.setText(self.tr("Check my receiver..."))
+        if state is None:
+            return
+        take = getattr(self.power_thread, "take_recording", None)
+        if state["index"] == 0 and state["beacons"] and take is not None:
+            take()
+        self.gainSpinBox.setValue(state["current"])
+        self.restore_after_receiver_check(state["started"], state["interval"],
+                                          state["running"])
+        if why is not None:
+            self.show_status(why, timeout=0)
+            return
+
+        lines = self.receiver_report(state)
+        print("\n".join(lines))
+        self.show_status(lines[0], timeout=0)
+        title = self.tr("Receiver check")
+        self.add_result(title, lines[0],
+                        lambda: TextReport(lines, title, self).finish_and_show())
+        TextReport(lines, title, self).finish_and_show()
+
+    def restore_after_receiver_check(self, started, interval, running):
+        """Stop the radio if the check started it, and put the interval back"""
+        if started:
+            self.stop()
+        if interval is not None:
+            self.intervalSpinBox.setValue(interval)
+            self.setup_power_thread()
+            if running:
+                self.start()
+
+    def receiver_report(self, state):
+        """The receiver check's findings, verdict first"""
+        current, points = state["current"], state["points"]
+        lines = []
+        if current not in points or len(points) < 2:
+            lines.append(self.tr("Could not judge the gain - too few sweeps "
+                                 "arrived at each setting"))
+            detail = []
+        else:
+            verdict, suggestion, detail = receiver.judge(points, current,
+                                                         names=state["names"])
+            lines.append({
+                "low": self.tr("Gain too low: try {:g} dB").format(suggestion or 0),
+                "high": self.tr("Gain too high: try {:g} dB").format(suggestion or 0),
+                "good": self.tr("Gain is right at {:g} dB").format(current),
+            }[verdict])
+        lines.append("")
+        lines.append("{}, {:g}-{:g} MHz".format(
+            self.gain_summary(), self.startFreqSpinBox.value(),
+            self.stopFreqSpinBox.value()))
+        lines.extend(detail)
+
+        if state["beacons"]:
+            lines.append("")
+            kept = state["kept"]
+            if kept is None or len(kept[0]) < 2:
+                lines.append("Beacons: nothing was kept to count them in.")
+            else:
+                times, frequencies, powers = kept
+                detector = ("peak" if "--peak" in (QtCore.QSettings().value("params", "") or "")
+                            else QtCore.QSettings().value("sweep_detector", "mean"))
+                heard, expected, events = receiver.beacon_check(
+                    times, frequencies, powers, self.passband_hz(), detector)
+                if heard:
+                    lines.append("Beacons: {} of the {} an access point sends in "
+                                 "{:.1f} s fall on the 102.4 ms rhythm - the "
+                                 "receiver hears an access point on this channel."
+                                 .format(heard, expected, times[-1] - times[0]))
+                else:
+                    lines.append("Beacons: none found among {} wide bursts in "
+                                 "{:.1f} s. Either no access point is on this "
+                                 "channel, or the receiver does not hear it - "
+                                 "check the channel, then the gain and the RF "
+                                 "amp.".format(events, times[-1] - times[0]))
+        return lines
+
     def make_capture_groups(self):
         """Give each kind of recording a group of its own
 
@@ -2142,7 +2378,7 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
     #: it opens, so the rows appear where the arrow points.
     MORE_SETTINGS = {
         "receiverGroupBox": (
-            (("label_6", "gainSpinBox"), ("ampCheckBox",)),
+            (("label_6", "gainSpinBox"), ("ampCheckBox",), ("receiverCheckButton",)),
             (("label_lna", "lnaSpinBox"), ("label_vga", "vgaSpinBox"),
              ("label_4", "intervalSpinBox"), ("label_5", "ppmSpinBox"),
              ("label_7", "cropSpinBox"))),
