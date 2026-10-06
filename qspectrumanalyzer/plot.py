@@ -1176,11 +1176,12 @@ class ScopePlotWidget(ThrottledPlotWidget):
                     "move it inside the frequency range, or the range around it")
 
         if self.band_at_dc:
-            return ("The band covers the centre of the tune, where the "
-                    "receiver's own carrier is \u2014 the tap reads raw bins, "
-                    "so that carrier is in every reading. Move the band off "
-                    "the centre, or narrow the frequency range so the tune "
-                    "steps aside")
+            return ("The tap is watching the centre of the tune, where the "
+                    "receiver's own carrier is \u2014 it reads raw bins and "
+                    "keeps the loudest, so that carrier is not merely in "
+                    "every reading, it is every reading. Watch one frequency "
+                    "band clear of the centre, or narrow the frequency range "
+                    "so the tune steps aside")
 
         if self.trigger is not None:
             if self.single and self.captured:

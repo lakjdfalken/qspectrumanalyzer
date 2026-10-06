@@ -179,12 +179,82 @@ RADAR_PRESETS = [
      {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': True, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'gainSpinBox': 24.0, 'startFreqSpinBox': 1022.0, 'stopFreqSpinBox': 1042.0, 'binSizeSpinBox': 40.0, 'waterfallCheckBox': False, 'scopeCheckBox': True, 'scopeBandCheckBox': True, 'scopeCentreSpinBox': 1030.0, 'scopeWidthSpinBox': 4000.0, 'scopeFastCheckBox': True, 'scopeSpanSpinBox': 0.0, 'scopeTriggerCheckBox': False, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': False},
      {'tap_resolution': 0.0, 'tap_detector': 'peak', 'record_depth': 10000, 'sweep_detector': 'mean'}),
 
-    ("Wi-Fi burst \u2014 5 GHz channel 36",
+    ("Wi-Fi traffic \u2014 5 GHz, channel 36",
      "A Wi-Fi frame lasts tenths of a millisecond rather than a microsecond, "
      "so this smooths instead of chasing pulses: a 100 us step with the average "
      "detector, which drops the wobble from 3.3 dB to 1.6 and makes the shape "
-     "of a frame legible. Free running, so the traffic scrolls past.",
-     {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': False, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'gainSpinBox': 20.0, 'startFreqSpinBox': 5170.0, 'stopFreqSpinBox': 5190.0, 'binSizeSpinBox': 40.0, 'waterfallCheckBox': False, 'scopeCheckBox': True, 'scopeBandCheckBox': True, 'scopeCentreSpinBox': 5180.0, 'scopeWidthSpinBox': 20000.0, 'scopeFastCheckBox': True, 'scopeSpanSpinBox': 20.0, 'scopeTriggerCheckBox': False, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': False},
+     "of a frame legible. Free running, so the traffic scrolls past. The tune "
+     "is the channel centre give or take 2.5 MHz rather than the whole 20 MHz, "
+     "for the same reason the beacon presets are: a 20 MHz span is the whole "
+     "sample rate, so the tune cannot be offset and the receiver's own carrier "
+     "lands in the middle of the channel - and the tap keeps the loudest bin "
+     "of whatever it watches, so that carrier becomes every reading it makes "
+     "and the trace sits flat at its height for ever. A 5 MHz span moves the "
+     "carrier out of the tune altogether. Signal and noise both scale with "
+     "width, so a quarter of the channel costs nothing in signal to noise.",
+     {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': False, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'gainSpinBox': 24.0, 'startFreqSpinBox': 5177.5, 'stopFreqSpinBox': 5182.5, 'binSizeSpinBox': 40.0, 'waterfallCheckBox': False, 'scopeCheckBox': True, 'scopeBandCheckBox': False, 'scopeCentreSpinBox': 5180.0, 'scopeWidthSpinBox': 5000.0, 'scopeFastCheckBox': True, 'scopeSpanSpinBox': 20.0, 'scopeTriggerCheckBox': False, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': False},
+     {'tap_resolution': 100.0, 'tap_detector': 'mean', 'record_depth': 10000, 'sweep_detector': 'mean'}),
+    ("Wi-Fi beacons \u2014 2.4 GHz, channel 6",
+     "Every access point on a channel sends a beacon every 102.4 ms whether or "
+     "not anybody is using it, so it is the one Wi-Fi signal that can be "
+     "predicted - and the interval is the check that this is working: leave it "
+     "running for a minute and press Look for a repeating pulse on the Analyse tab, which should report a pulse every "
+     "102.4 ms. The tune is the channel centre give or take 2.5 MHz rather "
+     "than the whole 20 MHz, because a 5 MHz span is narrow enough for the "
+     "tune to be offset until the receiver's own carrier falls outside it, so "
+     "every bin on screen is measured rather than interpolated. Signal and "
+     "noise both scale with the width, so listening to a quarter of the "
+     "channel costs nothing in signal to noise. Channel 6 is 2437 MHz; channel 1 "
+     "is 2412 and they are 5 MHz apart from there, so 11 is 2462. To move, put "
+     "Start and Stop 2.5 MHz either side of the new centre. Beacons here go "
+     "out at the slowest rate the band has and last a couple of milliseconds, "
+     "which makes them the easiest of the three bands to see - but the band is "
+     "also full of Bluetooth hopping every 625 us and of microwave ovens, and "
+     "the 102.4 ms is what tells a beacon from the rest of it. The 100 us "
+     "step asked for lands on 102.4 us, four of the radio's 25.6 us frames, "
+     "so the readout saying 102.4 is not a misprint - it is a thousand "
+     "readings to a beacon interval.",
+     {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': False, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'gainSpinBox': 24.0, 'startFreqSpinBox': 2434.5, 'stopFreqSpinBox': 2439.5, 'binSizeSpinBox': 40.0, 'waterfallCheckBox': False, 'scopeCheckBox': True, 'scopeBandCheckBox': False, 'scopeCentreSpinBox': 2437.0, 'scopeWidthSpinBox': 5000.0, 'scopeFastCheckBox': True, 'scopeSpanSpinBox': 500.0, 'scopeTriggerCheckBox': False, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': False},
+     {'tap_resolution': 100.0, 'tap_detector': 'mean', 'record_depth': 10000, 'sweep_detector': 'mean'}),
+
+    ("Wi-Fi beacons \u2014 5 GHz, channel 36",
+     "The same trace at 5 GHz, where a beacon is OFDM at 6 Mbit/s and lasts a "
+     "few hundred microseconds instead of a couple of milliseconds - three or "
+     "four readings at a 100 us step rather than twenty. It is quieter up here "
+     "than at 2.4 GHz, which is what makes up for the shorter beacon. Channels "
+     "are numbered in 5 MHz steps from 5000 MHz, so 36 is 5180, 40 is 5200, 44 "
+     "is 5220, 48 is 5240 and 149 is 5745; put Start and Stop 2.5 MHz either "
+     "side of whichever one the access point is on. 52 to 140 are the channels "
+     "shared with radar and an access point is allowed to sit on them, so read "
+     "the channel off the laptop rather than guessing at it. Press Look for a repeating pulse "
+     "on the Analyse tab after a minute: 102.4 ms means an access point, anything else means the "
+     "tune is on the wrong channel.",
+     {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': False, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'gainSpinBox': 24.0, 'startFreqSpinBox': 5177.5, 'stopFreqSpinBox': 5182.5, 'binSizeSpinBox': 40.0, 'waterfallCheckBox': False, 'scopeCheckBox': True, 'scopeBandCheckBox': False, 'scopeCentreSpinBox': 5180.0, 'scopeWidthSpinBox': 5000.0, 'scopeFastCheckBox': True, 'scopeSpanSpinBox': 500.0, 'scopeTriggerCheckBox': False, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': False},
+     {'tap_resolution': 100.0, 'tap_detector': 'mean', 'record_depth': 10000, 'sweep_detector': 'mean'}),
+
+    ("Wi-Fi beacons \u2014 6 GHz, channel 5",
+     "At 6 GHz an access point has to make itself findable more often than a "
+     "beacon does: besides the beacon every 102.4 ms it sends a discovery "
+     "frame often enough that no more than 20 ms passes without one, so a "
+     "channel in use here carries a pulse train the repeating pulse search can find in seconds. "
+     "The 20 MHz channels are numbered 1, 5, 9 and on - channel 1 at 5955 MHz "
+     "and 5 MHz for every number after it - and an access point puts the "
+     "channel it beacons on at one "
+     "of the preferred scanning channels - 5, 21, 37, 53, one every 80 MHz - "
+     "which is why this starts at channel 5, 5975 MHz. Two things differ from "
+     "the lower bands. Indoor 6 GHz is low power by regulation and its access "
+     "points are a good deal quieter than a 2.4 GHz one, so this is the band "
+     "where the gain may want raising - it is left at 24 dB with the rest "
+     "because a preset cannot see what antenna is fitted, and a high gain one "
+     "close to an access point compresses the reading rather than improving "
+     "it. Raise it while watching the trace: compression shows as a trace "
+     "that stops responding when the gain does. And the HackRF is specified "
+     "to 6 GHz, which up here is only "
+     "channels 1, 5 and 9: it will tune above that and the numbers keep "
+     "arriving, but the front end is past its specification and nothing is "
+     "calibrated there, so a quiet trace above 6000 MHz is not evidence of a "
+     "quiet channel.",
+     {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': False, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'gainSpinBox': 24.0, 'startFreqSpinBox': 5972.5, 'stopFreqSpinBox': 5977.5, 'binSizeSpinBox': 40.0, 'waterfallCheckBox': False, 'scopeCheckBox': True, 'scopeBandCheckBox': False, 'scopeCentreSpinBox': 5975.0, 'scopeWidthSpinBox': 5000.0, 'scopeFastCheckBox': True, 'scopeSpanSpinBox': 500.0, 'scopeTriggerCheckBox': False, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': False},
      {'tap_resolution': 100.0, 'tap_detector': 'mean', 'record_depth': 10000, 'sweep_detector': 'mean'}),
 ]
 
@@ -1161,9 +1231,18 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         if band is None and self.scopeBandCheckBox.isChecked():
             band = self.spectrumPlotWidget.band()
 
+        # No band chosen does not mean nothing is being watched: the tap is
+        # pointed at the whole tune instead, and the whole tune is the one
+        # stretch guaranteed to contain the carrier. It matters more here than
+        # for a chosen band, because the tap reduces each frame to its loudest
+        # bin - so a carrier thirty decibels up is not merely included in the
+        # reading, it is the reading, and the trace sits flat at its height
+        # for ever. Checked against the same span the tap was given.
+        watched = band if band is not None else self.display_span()
+
         self.scopePlotWidget.band_at_dc = bool(
-            dc and band is not None and band[1] > band[0]
-            and min(band[1], dc[1]) > max(band[0], dc[0]))
+            dc and watched is not None and watched[1] > watched[0]
+            and min(watched[1], dc[1]) > max(watched[0], dc[0]))
 
         first, last = self.display_span()
         self.spectrumPlotWidget.set_dc_band(
