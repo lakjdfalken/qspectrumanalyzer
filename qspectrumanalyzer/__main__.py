@@ -33,6 +33,19 @@ signal.signal(signal.SIGINT, signal.SIG_DFL)
 signal.signal(signal.SIGTERM, signal.SIG_DFL)
 
 
+def release_widget(layout, widget):
+    """Take a widget out of a layout so that it can be laid out again elsewhere
+
+    Not takeAt(). That hands the layout item to PySide, which never frees it,
+    and a widget only registers the first item made for it: the one it is
+    given when re-added is a second, and Qt never tells a second item that
+    the widget changed. Its cached heights then go stale, and a group that
+    grew on opening was laid out at the height it had shut, drawn straight
+    over the group below. removeWidget() deletes the item, so the next one is
+    the widget's own."""
+    layout.removeWidget(widget)
+
+
 # Display options that cost redraw time, with the value that is fastest and
 # roughly what turning them on costs. Measured with 20000 bins and a 1400 px
 # wide plot; the exact figure varies with bin count and window size, but the
@@ -1664,9 +1677,12 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         Arm, then save it or search it for a rhythm."""
         grid = self.scopeGroupBox.layout()
         for i in reversed(range(grid.count())):
-            item = grid.takeAt(i)
-            if item.widget() is not None:
-                item.widget().setParent(None)
+            widget = grid.itemAt(i).widget()
+            if widget is not None:
+                release_widget(grid, widget)
+                widget.setParent(None)
+            else:
+                grid.takeAt(i)
         row = 0
         for entry in self.SCOPE_ORDER:
             if isinstance(entry, str):
@@ -1750,11 +1766,12 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         # its place at the end rather than being dropped
         held, stretch = [], None
         for i in reversed(range(column.count())):
-            item = column.takeAt(i)
+            item = column.itemAt(i)
             if item.widget() is not None:
                 held.append(item.widget())
+                release_widget(column, item.widget())
             elif item.spacerItem() is not None:
-                stretch = item
+                stretch = column.takeAt(i)
         held.extend(moved)
         rank = {name: i for i, name in enumerate(self.PANEL_ORDER)}
         held.sort(key=lambda w: rank.get(w.objectName(), len(rank)))
