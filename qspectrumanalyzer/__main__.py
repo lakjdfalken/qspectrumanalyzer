@@ -602,6 +602,7 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         #: because the backend in use has no such setting; see apply_visibility()
         self.more_hidden, self.backend_hidden = set(), set()
         self.make_capture_groups()
+        self.make_results()
         self.make_more_settings()
         self.make_foldable()
         self.make_workspaces()
@@ -1268,6 +1269,15 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
                 found[0].period * 1e3, found[0].repeats), timeout=0)
 
         span, readings = self.span_for_rhythm(found, step)
+        self.add_result(
+            self.tr("Repeating pulse"),
+            self.tr("nothing repeats") if not found
+            else self.tr("a pulse every {:.4f} ms").format(found[0].period * 1e3),
+            lambda: self.show_rhythm(lines, found, span, readings))
+        self.show_rhythm(lines, found, span, readings)
+
+    def show_rhythm(self, lines, found, span, readings):
+        """The rhythm report, and the scope span it offers"""
         dialog = RepeatingPulse(lines, found, span, readings, self)
         if dialog.exec() and readings >= RHYTHM_SPAN_MIN_READINGS:
             self.set_scope_span(span, found[0], readings)
@@ -1807,7 +1817,7 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
                     "says what it found.",
          ("frequencyGroupBox", "surveyGroupBox", "interferenceGroupBox")),
         ("Analyse", "Going back over what was recorded.",
-         ("historyGroupBox", "traceGroupBox")),
+         ("resultsGroupBox", "historyGroupBox", "traceGroupBox")),
     )
 
     def blurb(self, text):
@@ -1843,7 +1853,8 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
             if widget is not None:
                 groups[widget.objectName()] = widget
                 release_widget(column, widget)
-        for name in ("surveyGroupBox", "interferenceGroupBox", "traceGroupBox"):
+        for name in ("surveyGroupBox", "interferenceGroupBox", "traceGroupBox",
+                     "resultsGroupBox"):
             if getattr(self, name, None) is not None:
                 groups[name] = getattr(self, name)
         placed = {name for _, _, names in self.WORKSPACES for name in names}
@@ -1916,6 +1927,9 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
     def on_workspace_changed(self, index):
         QtCore.QSettings().setValue("workspace", index)
         self.carry_shared_groups(index)
+        if index == self.ANALYSE_TAB:
+            self.unseen_results = 0
+            self.label_analyse_tab()
 
     def carry_shared_groups(self, index):
         """Move each shared group onto the tab being shown, if it is one of its own
@@ -2006,6 +2020,75 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         prefixes = self.tasks[self.taskComboBox.currentIndex()][3]
         return [index for index, (label, *_) in enumerate(RADAR_PRESETS)
                 if index == 0 or not prefixes or label.startswith(prefixes)]
+
+    #: Where the Analyse tab is among WORKSPACES
+    ANALYSE_TAB = 2
+
+    def make_results(self):
+        """A list on the Analyse tab of every report this session
+
+        Reports came up in a window that was gone once closed, and the terminal
+        was the only place to find one again. Each now leaves a line here that
+        opens it again, as it was - with whatever it offered to do still on
+        offer. Kept for the session only: the recordings behind them are on
+        disk and can be read back with the command-line tools."""
+        self.results = []
+        self.unseen_results = 0
+        box = QtWidgets.QGroupBox(self.tr("Results"))
+        box.setObjectName("resultsGroupBox")
+        column = QtWidgets.QVBoxLayout(box)
+        column.addWidget(self.blurb(
+            "Every report since the program started, newest first. "
+            "Double-click one to open it again."))
+        self.resultsList = QtWidgets.QListWidget(box)
+        self.resultsList.setMinimumHeight(110)
+        self.resultsList.setMaximumHeight(160)
+        self.resultsList.setWordWrap(True)
+        self.resultsList.setSpacing(2)
+        empty = QtWidgets.QListWidgetItem(self.tr(
+            "Nothing yet. Surveys, repeating pulse searches, interference "
+            "captures and receiver checks land here."))
+        empty.setFlags(QtCore.Qt.NoItemFlags)
+        self.resultsList.addItem(empty)
+        self.resultsList.itemActivated.connect(self.open_result)
+        column.addWidget(self.resultsList)
+        self.resultsGroupBox = box
+
+    def add_result(self, title, summary, opener):
+        """List one report, so it can be opened again after it is closed"""
+        if not self.results:
+            self.resultsList.clear()
+        self.results.append(opener)
+        item = QtWidgets.QListWidgetItem("{}  {} \u2014 {}".format(
+            time.strftime("%H:%M"), title, summary))
+        item.setToolTip(summary)
+        item.setData(QtCore.Qt.UserRole, len(self.results) - 1)
+        self.resultsList.insertItem(0, item)
+        if self.workspaces.currentIndex() != self.ANALYSE_TAB:
+            self.unseen_results += 1
+            self.label_analyse_tab()
+
+    def label_analyse_tab(self):
+        """Say on the tab itself that there is something new to read there"""
+        title = self.tr(self.WORKSPACES[self.ANALYSE_TAB][0])
+        if self.unseen_results:
+            title = "{} ({})".format(title, self.unseen_results)
+        self.workspaces.setTabText(self.ANALYSE_TAB, title)
+
+    def open_result(self, item):
+        index = item.data(QtCore.Qt.UserRole)
+        if index is not None:
+            self.results[index]()
+
+    @staticmethod
+    def report_summary(lines):
+        """The first thing a report's "What this means" says, for its line in the list"""
+        for number, line in enumerate(lines):
+            if line.strip().startswith("What this means"):
+                for after in lines[number + 1:]:
+                    if after.strip():
+                        return after.strip()
+        return next((line.strip() for line in reversed(lines) if line.strip()), "")
 
     def make_capture_groups(self):
         """Give each kind of recording a group of its own
@@ -3301,7 +3384,10 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         self.show_status(self.tr("{} - {} sweeps x {} bins in {}").format(
             why, rows, files[0][2], ", ".join(entry[0] for entry in files)),
             timeout=0)
-        TextReport(lines, self.tr("What was not Wi-Fi"), self).finish_and_show()
+        title = self.tr("What was not Wi-Fi")
+        self.add_result(title, self.report_summary(lines),
+                        lambda: TextReport(lines, title, self).finish_and_show())
+        TextReport(lines, title, self).finish_and_show()
 
     # --- walking a range one tune at a time ---------------------------
 
@@ -3511,9 +3597,16 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         found, floor = findings.find(columns[:, 0], columns[:, 1],
                                      columns[:, 2], columns[:, 3])
         print("\n".join(findings.report(filename)))
-        if not found:
-            return
+        self.add_result(
+            self.tr("Survey"),
+            self.tr("{} found, saved as {}").format(len(found), os.path.basename(filename))
+            if found else self.tr("nothing stood out"),
+            lambda: self.show_survey_dialog(found, floor) if found else None)
+        if found:
+            self.show_survey_dialog(found, floor)
 
+    def show_survey_dialog(self, found, floor):
+        """The survey's findings, and the offer to go and look at one"""
         dialog = SurveyFindings(found, floor, self)
         if dialog.exec() != QtWidgets.QDialog.Accepted:
             return
