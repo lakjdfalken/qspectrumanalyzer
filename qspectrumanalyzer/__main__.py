@@ -206,8 +206,8 @@ RADAR_PRESETS = [
      "Every access point on a channel sends a beacon every 102.4 ms whether or "
      "not anybody is using it, so it is the one Wi-Fi signal that can be "
      "predicted - and the interval is the check that this is working: leave it "
-     "running for a minute and press Look for a repeating pulse on the Analyse tab, which should report a pulse every "
-     "102.4 ms. The tune is the channel centre give or take 2.5 MHz rather "
+     "running for a minute and press Check for a Wi-Fi beacon on the Analyse tab, which should say a beacon "
+     "is heard at 102.4 ms. The tune is the channel centre give or take 2.5 MHz rather "
      "than the whole 20 MHz, because a 5 MHz span is narrow enough for the "
      "tune to be offset until the receiver's own carrier falls outside it, so "
      "every bin on screen is measured rather than interpolated. Signal and "
@@ -234,8 +234,8 @@ RADAR_PRESETS = [
      "is 5220, 48 is 5240 and 149 is 5745; put Start and Stop 2.5 MHz either "
      "side of whichever one the access point is on. 52 to 140 are the channels "
      "shared with radar and an access point is allowed to sit on them, so read "
-     "the channel off the laptop rather than guessing at it. Press Look for a repeating pulse "
-     "on the Analyse tab after a minute: 102.4 ms means an access point, anything else means the "
+     "the channel off the laptop rather than guessing at it. Press Check for a Wi-Fi beacon "
+     "on the Analyse tab after a minute: heard means an access point, not clear of the controls means the "
      "tune is on the wrong channel.",
      {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': False, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'gainSpinBox': 24.0, 'startFreqSpinBox': 5177.5, 'stopFreqSpinBox': 5182.5, 'binSizeSpinBox': 40.0, 'waterfallCheckBox': False, 'scopeCheckBox': True, 'scopeBandCheckBox': False, 'scopeCentreSpinBox': 5180.0, 'scopeWidthSpinBox': 5000.0, 'scopeFastCheckBox': True, 'scopeSpanSpinBox': 500.0, 'scopeTriggerCheckBox': False, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': False},
      {'tap_resolution': 100.0, 'tap_detector': 'mean', 'record_depth': 10000, 'sweep_detector': 'mean'}),
@@ -1416,6 +1416,57 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
             lambda: self.show_rhythm(lines, found, span, readings))
         self.show_rhythm(lines, found, span, readings)
 
+    def check_beacon(self):
+        """Fold the recorded high rate trace at the Wi-Fi beacon interval
+
+        The search behind Look for a repeating pulse asks what repeats, and on
+        a Wi-Fi channel that has louder answers than the beacon: measured on an
+        access point beaconing cleanly at 102.4 ms, it reported a fifth and a
+        tenth of the interval and never the interval itself. Folding at the one
+        period the protocol fixes, against detuned controls, found the same
+        beacon by 12.8 dB. Same trace, same thread as the search, and for the
+        same reason."""
+        buffer = self.scopePlotWidget.fast
+        if buffer is None or buffer.history_size < 4096:
+            self.show_status(self.tr(
+                "Nothing to check yet - the high-rate tap has to be on, and "
+                "it needs a few seconds of recording"), timeout=8000)
+            return
+
+        period = interference.BEACON_INTERVAL
+        rows = np.array(buffer.get_buffer(), copy=True)
+        self.show_status(self.tr("Folding {:.2f} s of trace at {:g} ms...")
+                         .format(rows[-1, 0] - rows[0, 0], period * 1e3), timeout=0)
+        QtWidgets.QApplication.processEvents()
+        QtWidgets.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
+        try:
+            result = periodicity.at_period(rows[:, 0], rows[:, 1], period)
+            header = ["QSpectrumAnalyzer Wi-Fi beacon check"] + self.rhythm_header()[1:] + [
+                "",
+                "{:g} ms is 100 time units, the beacon interval nearly every access point".format(period * 1e3),
+                "uses. Only this tune was recorded, so an access point on another channel",
+                "- or the other band - is not in it."]
+            lines = periodicity.report_at(rows[:, 0], rows[:, 1], period, header, result)
+        except (ValueError, MemoryError) as error:
+            QtWidgets.QApplication.restoreOverrideCursor()
+            self.show_status(self.tr("Could not check: {}").format(error), timeout=0)
+            return
+        QtWidgets.QApplication.restoreOverrideCursor()
+        print("\n".join(lines))
+
+        _, controls, beat, margin = result
+        summary = (self.tr("heard, {:.1f} dB clear of every control").format(margin)
+                   if periodicity.heard(controls, beat, margin)
+                   else self.tr("not clear of the controls ({} of {})")
+                   .format(beat, len(controls)))
+        self.show_status(self.tr("Beacon at {:g} ms: {}").format(period * 1e3, summary),
+                         timeout=0)
+
+        def show():
+            TextReport(lines, self.tr("Wi-Fi beacon"), self).finish_and_show()
+        self.add_result(self.tr("Wi-Fi beacon"), summary, show)
+        show()
+
     def show_rhythm(self, lines, found, span, readings):
         """The rhythm report, and the scope span it offers"""
         dialog = RepeatingPulse(lines, found, span, readings, self)
@@ -2105,8 +2156,8 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
          "and draws a line down the waterfall."),
         ("Checking my Wi-Fi channel", "Live", None, ("Wi-Fi",),
          "Pick your band below, then put Start and Stop 2.5 MHz either side of "
-         "your channel. After a minute, Look for a repeating pulse on the "
-         "Analyse tab should find 102.4 ms: your access point's beacon."),
+         "your channel. After a minute, Check for a Wi-Fi beacon on the "
+         "Analyse tab should hear your access point's beacon at 102.4 ms."),
         ("Catching short pulses", "Live", None,
          ("C-band weather radar \u2014 catch", "C-band weather radar \u2014 time",
           "S-band airport radar \u2014 catch", "S-band airport radar \u2014 camp",
@@ -2475,6 +2526,18 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         oscilloscope's save and rhythm buttons sat under its trigger. They are
         things done with the settings rather than settings, so they move to
         the Capture and Analyse tabs, each with a line saying what it does."""
+        self.beaconButton = QtWidgets.QPushButton(self.tr("Check for a Wi-Fi beacon..."))
+        self.beaconButton.setObjectName("beaconButton")
+        self.beaconButton.setToolTip(self.tr(
+            "Folds the recorded high-rate trace at {:g} ms, the interval nearly "
+            "every access point sends its beacon at, and at {} periods detuned "
+            "far enough that nothing can be in step with both. A beacon here "
+            "stands clear of all of them. Unlike Look for a repeating pulse, "
+            "this does not have to find the beacon among everything else that "
+            "repeats on a busy channel - it only has to say whether it is there.")
+            .format(interference.BEACON_INTERVAL * 1e3, periodicity.CONTROL_COUNT))
+        self.beaconButton.clicked.connect(self.check_beacon)
+
         def group(name, title, explanation, rows):
             # A group whose controls this build has not got is left out
             # rather than made empty
@@ -2511,7 +2574,7 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
                ("interferenceButton",)))
         group("traceGroupBox", "Oscilloscope capture",
               "The sweep the oscilloscope caught, and the trace behind it.",
-              (("scopeSaveButton",), ("rhythmButton",)))
+              (("scopeSaveButton",), ("rhythmButton",), ("beaconButton",)))
 
     #: Each group's controls as rows: the few a newcomer needs, then a "More
     #: settings" fold, then what only an experienced hand reaches for. A row
