@@ -233,9 +233,10 @@ def fold(power, step, period, max_bins=MAX_BINS):
 #: sixteenth cost what one of the whole does.
 PIECES = (1, 4, 16)
 
-#: Readings used when folding to *choose* a rate rather than to report one.
-#: Telling one pulse from two needs a few hundred periods, not a million
-#: readings, and the choosing does it a few hundred times over.
+#: Readings used for the first look at which fraction of a rate is the period.
+#: It folds at every fraction, about ninety of them, so it looks at a few
+#: hundred periods rather than a million readings; the few that stand out are
+#: then folded again over everything.
 FOLD_SAMPLES = 262144
 
 #: Two rates are the same train if their ratio is a simple fraction. A pulse
@@ -246,14 +247,17 @@ SIMPLE_FRACTION = 12
 
 
 def _peaks(strength, sigma):
-    """Indices of local maxima standing at least `sigma` above the background"""
+    """The highest rate of each stretch standing at least `sigma` above the background
+
+    One per stretch, and its top rather than where it starts. Traffic on a
+    busy channel lifts a whole stretch of rates over the line - on a Wi-Fi
+    channel, everything from 9 to 11 Hz - and taking the first rate of the
+    stretch took 9.2 Hz and never looked at the beacon's 9.77 inside it."""
     above = np.flatnonzero(strength >= sigma)
     if not len(above):
         return above
-    peak = np.ones(len(above), dtype=bool)
-    peak[1:] &= np.diff(above) > 1                  # keep the first of a run
-    inner = above[(above > 0) & (above < len(strength) - 1)]
-    return above[peak]
+    runs = np.split(above, np.flatnonzero(np.diff(above) > 1) + 1)
+    return np.array([run[np.argmax(strength[run])] for run in runs])
 
 
 def _same_train(rate, other):
@@ -270,77 +274,72 @@ def _same_train(rate, other):
     return False
 
 
-def peaks_in(profile, below=3.0):
-    """How many separate pulses a folded profile has
+#: The simple fractions of a detected rate that the period is looked for
+#: among, as (multiple, divisor). The transform rarely hands over the rate
+#: itself: it can only see rates whose harmonics fit below the Nyquist
+#: frequency, so a train faster than that is found through a fraction of its
+#: rate, and a long pulse puts more of its energy into the harmonics of a
+#: multiple of its rate than into its own thirty-two. Both are simple
+#: fractions of the truth, and folding tells which.
+FRACTIONS = tuple((top, bottom) for top in range(1, 13) for bottom in range(1, 13))
 
-    This is what tells the true interval from a fraction of it. Folding a
-    train at exactly its own rate stacks every pulse into one place; folding
-    at half that rate stacks them into two, a third into three. So the pulse
-    interval is the longest one that still gives a single pulse - and both
-    look equally convincing until they are counted."""
-    if not len(profile):
-        return 0
-    # Half the height, or `below` down from the top, whichever is lower. A
-    # fixed drop from the peak is wrong at both ends: on a strong fold it sits
-    # above the second pulse when the two stack a little unevenly, and on a
-    # weak one it sits down among the bumps in the noise.
-    top = float(np.max(profile))
-    edge = min(0.5 * top, top - below)
-    above = profile >= edge
-    if not above.any():
-        return 0
-    # Circular, because a profile is one period and its ends are neighbours
-    starts = np.flatnonzero(above & ~np.roll(above, 1))
-    return max(len(starts), 1)
+#: Fractions that are folded again over the whole of the evidence
+SHORTLIST = 3
+
+#: Most rates a search will settle by folding. Each costs about ninety folds,
+#: and a busy channel can put hundreds of rates over the line; past the
+#: strongest few they are the same trains again or the traffic itself.
+MAX_HITS = 16
 
 
-def _fundamental(power, step, rate, limits):
-    """The longest interval that still folds the train into a single pulse
+def _stacking(power, step, period):
+    """How far a fold at `period` stands above what its noise alone would reach
 
-    What the transform finds is rarely the interval itself. Every multiple of
-    a train's rate carries a line, and simple fractions of it get partial
-    credit when some of their own multiples land on those lines - so a train
-    at 632 Hz can be reported at 3919, which is 31/5 of it. Folding settles
-    it, because folding is not a matter of degree: at the interval between
-    pulses they all land in one place, at half of it they land in two, and at
-    a rate that is not the train's at all they do not land anywhere.
+    The peak of a fold, in multiples of its scatter, less the height the
+    loudest of that many bins of pure noise would reach anyway. Without the
+    correction a longer period wins by having more bins for the noise to
+    peak in, which is the very mistake this is here to stop."""
+    profile = fold(power, step, period)
+    height = 10.0 ** (float(np.max(profile)) / 10.0) - 1e-3
+    return height - np.sqrt(2.0 * np.log(len(profile)))
 
-    So the candidates are the simple fractions of what was found, and the
-    answer is the lowest of them that still shows one pulse and stacks it as
-    high as the best does."""
-    power = power[:FOLD_SAMPLES]
-    trials = set()
-    for top in range(1, 33):
-        for bottom in range(1, 9):
-            trial = rate * bottom / top
-            if limits[0] <= trial <= limits[1]:
-                trials.add(round(trial, 6))
 
-    scored = []
-    for trial in sorted(trials):
-        profile = fold(power, step, 1.0 / trial)
-        if peaks_in(profile) == 1:
-            scored.append((trial, float(np.max(profile))))
-    if not scored:
+def _period(power, step, rate, limits, also=()):
+    """The period of the train found at `rate`, settled by folding
+
+    At the train's own period every pulse lands in the same place with every
+    period behind it. At a fraction of it - the transform's favourite, a third
+    or a fifth for a Wi-Fi beacon - the pulse is diluted by the periods it was
+    not in, and stands lower against the noise by the square root of how
+    many. At a multiple it is split between places, and stands lower again.
+    So the fold that stands highest is the period, and it is not a matter of
+    counting pulses: a busy channel puts a second, weaker one into the true
+    fold, and counting them threw the true period out for a fraction of it.
+
+    Measured on the access point's own beacon at 102.4 ms, where the search
+    used to report a fifth and a tenth of the interval, and on synthetic
+    radar trains, which came out at twice their period.
+
+    `power` is the piece the train was found in. `also` is the whole
+    recording, for a train that runs through it: the piece is what a radar's
+    dwell needs, and everything is what a beacon's does."""
+    first = power[:FOLD_SAMPLES]
+    longest = len(first) * step / MIN_CYCLES
+    trials = [trial for trial in sorted({round(rate * top / bottom, 9)
+                                         for top, bottom in FRACTIONS})
+              if limits[0] <= trial <= limits[1]
+              and 4 * step <= 1.0 / trial <= longest]
+    if not trials:
         return rate
-
-    best = max(peak for _, peak in scored)
-    for trial, peak in scored:                  # lowest first
-        if peak >= best - 6.0:
-            return trial
-    return rate
-
-
-def _stacks_worse(power, step, rate, against, by=6.0):
-    """Whether folding at `rate` stacks the pulses less well than at `against`
-
-    At the interval between pulses every one of them lands in the same place,
-    and so it does at any whole multiple of that rate — so a true fundamental
-    never stacks worse than the harmonic it was found through. A fraction that
-    is not one, on the other hand, spreads them, and that shows immediately."""
-    here = float(np.max(fold(power, step, 1.0 / rate)))
-    there = float(np.max(fold(power, step, 1.0 / against)))
-    return here < there - by
+    # A quick look at every fraction over the first part, then the closest
+    # few again over everything that holds the train. The two can disagree
+    # by less than a decibel on a short stretch of a busy channel, and the
+    # evidence that settles it is the rest of the recording
+    scores = [_stacking(first, step, 1.0 / trial) for trial in trials]
+    shortlist = [trials[i] for i in np.argsort(scores)[::-1][:SHORTLIST]]
+    whole = [power] + [trace for trace in also if len(trace) > len(power)]
+    return max(shortlist, key=lambda trial: max(
+        _stacking(trace, step, 1.0 / trial) for trace in whole))
 
 
 def _refine(power, step, rate, spread):
@@ -365,8 +364,9 @@ def search(times, power_db, rates=DEFAULT_RATES, harmonics=HARMONICS,
     """Look for a pulse train, and fold at whatever is found
 
     Returns (candidates, covered, step). Each candidate is one train, reported
-    at the lowest rate that explains it: a train at 1 kHz is also a peak at 2
-    and 3 kHz, and it is the 1 kHz that is the pulse interval."""
+    at the period its pulses keep: a train at 1 kHz is also a line at 500 Hz
+    and 2 kHz, and whichever the transform found, the fold that stacks the
+    pulses highest is the 1 ms one."""
     power, step, covered = on_a_grid(times, power_db)
 
     # Every rate that stood out, in every piece the recording was cut into,
@@ -391,42 +391,15 @@ def search(times, power_db, rates=DEFAULT_RATES, harmonics=HARMONICS,
 
     found = []
     claimed = []
-    for strongest, rate, start, size, resolution in hits:
+    for strongest, rate, start, size, resolution in hits[:MAX_HITS]:
         if len(found) >= limit:
             break
         if any(_same_train(rate, taken) for taken in claimed):
             continue
-        # The lowest rate in the same family is the interval between pulses;
-        # everything above it is a harmonic of the same train
         chunk = power[start:start + size]
-        # Every multiple of a train's rate carries the same lines, so the
-        # transform cannot tell 643 Hz from 1286: both sums are made of the
-        # same harmonics. What separates them from a fraction like 100 Hz -
-        # which only catches every tenth line and is a different train
-        # entirely - is how much of the family's strength they carry. So the
-        # interval between pulses is the lowest rate that is nearly as strong
-        # as the strongest, and simple fractions are only searched by folding
-        # when nothing else in the family was detected at all.
-        family = [(r, s) for s, r, _, _, _ in hits if _same_train(r, rate)]
-        peak_strength = max(s for _, s in family)
-        # Ascending, and the fold has the last word on each: a rate that is
-        # half the real one carries plenty of strength - a burst hundreds of
-        # microseconds long has few harmonics and they all land on it - but it
-        # folds two bursts into the period instead of one, and that is not a
-        # matter of degree.
-        lowest = rate
-        for candidate in sorted(r for r, s in family if s >= 0.6 * peak_strength):
-            if peaks_in(fold(chunk, step, 1.0 / candidate)) == 1:
-                lowest = candidate
-                break
-        if len(family) == 1:
-            lowest = _fundamental(chunk, step, rate, rates)
-        # A fraction that only catches every fifth line can still carry enough
-        # of the strength to look like the fundamental. Folding says whether it
-        # is one: at the interval between pulses they stack, and at a fifth of
-        # it they are spread across five places and the stack is poorer.
-        if lowest != rate and _stacks_worse(chunk, step, lowest, rate):
-            lowest = rate
+        lowest = _period(chunk, step, rate, rates, also=(power,))
+        if any(_same_train(lowest, taken) for taken in claimed):
+            continue
         claimed.append(rate)
         if lowest != rate:
             claimed.append(lowest)
