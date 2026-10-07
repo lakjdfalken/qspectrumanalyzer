@@ -530,9 +530,19 @@ def at_period(times, power_db, period, controls=None):
     return Candidate(1.0 / period, 0.0, profile, step, covered), peaks, beat, margin
 
 
-def report_at(times, power_db, period, header=()):
-    """Fold at a named period and say what was there, as lines of text"""
-    candidate, controls, beat, margin = at_period(times, power_db, period)
+def heard(controls, beat, margin):
+    """Whether a fold at a named period stood clear of its controls"""
+    return beat == len(controls) and margin >= CONTROL_MARGIN
+
+
+def report_at(times, power_db, period, header=(), result=None):
+    """Fold at a named period and say what was there, as lines of text
+
+    `result` is what at_period() already returned for this trace, for a caller
+    that needed the verdict as well as the words - folding at thirty-three
+    periods is what this costs, and doing it twice made the wait double."""
+    candidate, controls, beat, margin = result if result is not None else \
+        at_period(times, power_db, period)
     lines = list(header)
     lines.append("")
     lines.append("Folded at {:.4f} ms, which was asked for rather than found - "
@@ -552,7 +562,7 @@ def report_at(times, power_db, period, header=()):
     lines.append("    peaks {:+.1f} to {:+.1f} dB, and this one beat {} of {}"
                  .format(controls.min(), controls.max(), beat, len(controls)))
     lines.append("")
-    if beat == len(controls) and margin >= CONTROL_MARGIN:
+    if heard(controls, beat, margin):
         lines.append("  Higher than every control, by {:.1f} dB. Something is at "
                      "this period: folding at a period nothing is at does not do "
                      "that more than about once in {}.".format(
