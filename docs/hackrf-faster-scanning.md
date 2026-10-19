@@ -11,7 +11,7 @@ are suggestions; measure before and after every change.
 
 - `qspectrumanalyzer/backends/hackrf_sweep.py` runs `hackrf_sweep` as a subprocess:
   `-f start:stop -B -w <bin_hz>`, plus `-d`, `-l`/`-g`, `-a 1`, `-1` when set.
-  Only one `start:stop` range is ever passed.
+  With the Bands field filled in it passes one `-f` per band, up to 10 (idea 1, done).
 - Output is read as binary records (`read(4)` length, then `read(n)`), each tile parsed
   in `parse_output()`: `np.linspace` x-axis per tile, chunks collected, then
   `concatenate` + `argsort` once per sweep, converted to float64.
@@ -73,10 +73,19 @@ on the AP transmitting.
 ## Ideas, by expected payoff
 
 ### 1. Scan less spectrum
-- `hackrf_sweep` already accepts `-f` up to 10 times, and `hackrf_init_sweep()` up to
-  10 ranges. Add a band list to the settings instead of a single start/stop; this
-  works with the existing subprocess backend, no native mode needed. Time scales with
-  total MHz covered; each range is rounded up to whole 20 MHz steps.
+- **Done: the Bands field** (Frequency, under Stop), e.g. `2400-2500, 5150-5850`, and
+  the "Wi-Fi activity — 2.4 and 5 GHz at once" preset. One `-f` per band to the
+  existing subprocess backend. Measured: **10.1 sweeps/s against 2.0** for one range
+  over 2400–5850 MHz, the 405 steps/s ceiling either way. Time scales with total MHz
+  covered; each band is rounded up to whole 20 MHz steps.
+  - `hackrf_sweep` goes through the bands in the order given, so a sweep still starts
+    at the lowest band's start and ends at the top of the highest.
+  - The gaps are filled with NaN bins at the same spacing, so the axis stays evenly
+    spaced for the waterfall. Auto-range, waterfall levels and the scope's peak across
+    bins use `np.fmin`/`np.fmax` so the gap does not win. Smoothing still spreads NaN
+    half a window into each band's inner edge.
+  - Bands apply only while Start/Stop show their overall span; anything that moves the
+    span (a survey slice, the interference retune) sweeps that one range instead.
 - Two-stage scan: fast coarse sweep with large bins, flag tiles standing above their
   own running median (same idea as the survey's `active_sweeps`), then dwell on those
   tiles with `hackrf_stream`.
@@ -165,7 +174,7 @@ The settling question is answered by the source: a fixed discard of two 16 KB bl
 SDRs with ~56 MHz instantaneous bandwidth (bladeRF 2.0, USRP B210) cover nearly 3x per tune.
 
 ## Suggested order
-1. Multi-range band list in the existing `hackrf_sweep` backend (repeated `-f`).
+1. ~~Multi-range band list in the existing `hackrf_sweep` backend (repeated `-f`).~~ Done.
 2. Native sweep mode bindings + block parser, tested against a real HackRF.
 3. LINEAR 15 MHz profile (idea 4), measured against `hackrf_sweep` for rate, levels
    and ghosts.

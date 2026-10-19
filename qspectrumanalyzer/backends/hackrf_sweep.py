@@ -4,6 +4,7 @@ import numpy as np
 from PySide6 import QtCore
 
 from qspectrumanalyzer import subprocess
+from qspectrumanalyzer.bands import MAX_BANDS, fill_gaps, whole_steps
 from qspectrumanalyzer.backends import BaseInfo, BasePowerThread
 
 
@@ -31,6 +32,7 @@ class Info(BaseInfo):
     crop_min = 0
     crop_max = 0
     crop = 0
+    max_bands = MAX_BANDS
 
     @classmethod
     def list_devices(cls):
@@ -60,8 +62,11 @@ class PowerThread(BasePowerThread):
     def setup(self, start_freq=0, stop_freq=6000, bin_size=1000,
               interval=0.0, gain=40, ppm=0, crop=0, single_shot=False,
               device=0, sample_rate=20000000, bandwidth=0, lnb_lo=0, amp=False,
-              lna=None, vga=None):
-        """Setup hackrf_sweep params"""
+              lna=None, vga=None, bands=None):
+        """Setup hackrf_sweep params
+
+        `bands` is a list of (low, high) in MHz to sweep instead of
+        start_freq to stop_freq; see qspectrumanalyzer.bands."""
         # Small bin sizes (<40 kHz) are only suitable with an arbitrarily
         # reduced sweep interval. Bin sizes smaller than 3 kHz showed to be
         # infeasible also in these cases.
@@ -73,10 +78,19 @@ class PowerThread(BasePowerThread):
         # We only support whole numbers of steps with bandwidth equal to the
         # sample rate.
         step_bandwidth = sample_rate / 1000000
-        total_bandwidth = stop_freq - start_freq
-        step_count = 1 + (total_bandwidth - 1) // step_bandwidth
-        total_bandwidth = step_count * step_bandwidth
-        stop_freq = start_freq + total_bandwidth
+        if bands:
+            # hackrf_sweep steps 20 MHz whatever the sample rate setting says
+            # (it is shared with backends that do use it), and the bands have
+            # to be rounded the way it rounds them, or the sweep would be
+            # taken to end before the last band has been swept
+            bands = whole_steps(bands, Info.sample_rate / 1e6)
+            start_freq, stop_freq = bands[0][0], bands[-1][1]
+        else:
+            total_bandwidth = stop_freq - start_freq
+            step_count = 1 + (total_bandwidth - 1) // step_bandwidth
+            total_bandwidth = step_count * step_bandwidth
+            stop_freq = start_freq + total_bandwidth
+            bands = [(start_freq, stop_freq)]
 
         # Fill the LNA before the VGA unless the two were set apart from each
         # other. The LNA sets what the receiver can hear; the VGA is at
@@ -88,6 +102,7 @@ class PowerThread(BasePowerThread):
         self.params = {
             "start_freq": start_freq,  # MHz
             "stop_freq": stop_freq,  # MHz
+            "bands": bands,  # MHz, the first starting at start_freq and the last ending at stop_freq
             "hops": 0,
             "device": device,
             "sample_rate": 20e6,  # sps
@@ -112,9 +127,11 @@ class PowerThread(BasePowerThread):
         """Start hackrf_sweep process"""
         if not self.process and self.params:
             cmdline = shlex.split(self.executable("hackrf_sweep"))
+            # One -f per band; hackrf_sweep sweeps them in this order
+            for low, high in self.params["bands"]:
+                cmdline.extend(["-f", "{}:{}".format(int(low - self.lnb_lo / 1e6),
+                                                     int(high - self.lnb_lo / 1e6))])
             cmdline.extend([
-                "-f", "{}:{}".format(int(self.params["start_freq"] - self.lnb_lo / 1e6),
-                                     int(self.params["stop_freq"] - self.lnb_lo / 1e6)),
                 "-B",
                 "-w", "{}".format(int(self.params["bin_size"] * 1000)),
             ])
@@ -185,7 +202,12 @@ class PowerThread(BasePowerThread):
             x = np.concatenate(self.x_chunks, dtype=np.float64)
             y = np.concatenate(self.y_chunks, dtype=np.float64)
             order = np.argsort(x, kind="stable")
-            self.databuffer = {"timestamp": t_finish, "x": x[order], "y": y[order]}
+            x, y = x[order], y[order]
+            if len(self.params["bands"]) > 1:
+                # Nothing is measured between the bands, and the waterfall
+                # needs evenly spaced bins, so the gaps are filled with NaN
+                x, y = fill_gaps(x, y, step)
+            self.databuffer = {"timestamp": t_finish, "x": x, "y": y}
             self.data_storage.update(self.databuffer)
 
     def run(self):
