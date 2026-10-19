@@ -708,6 +708,8 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         self.power_thread = None
         self.backend = None
         self.active_backend = None
+        #: The Bands text as last applied to Start and Stop
+        self.bands_applied = ""
         #: The tap checkbox's own tooltip, kept so that offer_tap() can put it
         #: back after saying why the tap is unavailable
         self.tap_tooltip = None
@@ -3618,6 +3620,7 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
             self.bandsLineEdit.setText(bands.format_bands(entered))
         for box in (self.startFreqSpinBox, self.stopFreqSpinBox):
             box.setEnabled(len(entered) < 2)
+        self.bands_applied = self.bandsLineEdit.text()
         # Bands can change without the span changing, which is all the
         # readout otherwise listens for
         self.update_readout()
@@ -4450,6 +4453,13 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
     def start(self, single_shot=False):
         """Start power thread"""
         settings = QtCore.QSettings()
+
+        # Bands typed and not yet applied, because the field applies on Enter
+        # or on losing focus and a button clicked on macOS takes no focus.
+        # Only an edit: a survey slice has moved Start and Stop on purpose,
+        # and applying unchanged bands would put them back.
+        if self.bandsLineEdit.text() != self.bands_applied:
+            self.apply_bands()
 
         # The frequency range is only settled now, so this is the first point
         # at which we can tell whether the chosen backend can measure it
