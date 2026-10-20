@@ -9,7 +9,7 @@ from qspectrumanalyzer import backends
 from qspectrumanalyzer.version import __version__
 from qspectrumanalyzer.data import DataStorage, HistoryBuffer
 from qspectrumanalyzer import findings, interference, periodicity, receiver, recording
-from qspectrumanalyzer import bands, binsize, fontscale, lockwatch
+from qspectrumanalyzer import bands, binsize, fontscale, infotips, lockwatch
 from qspectrumanalyzer.plot import (frame_clock, ScopePlotWidget, SpectrumPlotWidget,
                                     WaterfallPlotWidget, time_length)
 from qspectrumanalyzer.utils import guard_against_the_wheel, str_to_color, human_time
@@ -754,6 +754,9 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         if self.lock_watch is not None:
             self.lock_watch.start()
 
+        # On the label, so that its [i] sits beside the word Bands. What is
+        # wrong with what was typed goes to the status bar
+        self.bandsLabel.setToolTip(self.tr(self.BANDS_TIP))
         self.populate_presets()
         self.update_buttons()
         self.load_settings()
@@ -761,6 +764,8 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         self.update_history_controls()
         self.make_text_size()
         self.make_bin_size_help()
+        # Last, once everything has been moved to where it stays
+        self.info_tips = infotips.InfoTips(self)
 
     def make_bin_size_help(self):
         """A ? beside Bin size, opening a window that explains it as it turns
@@ -3606,8 +3611,6 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         except ValueError as error:
             entered, problem = [], str(error)
         self.bandsLineEdit.setStyleSheet("QLineEdit { color: #d04040; }" if problem else "")
-        self.bandsLineEdit.setToolTip(self.tr(self.BANDS_TIP) if problem is None
-                                      else "{}\n\n{}".format(problem, self.tr(self.BANDS_TIP)))
         if problem:
             self.show_status(self.tr("Bands: {}").format(problem), timeout=0)
         if entered:
