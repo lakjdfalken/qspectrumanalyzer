@@ -3,7 +3,7 @@ Running QSpectrumAnalyzer on macOS
 
 Dependencies (Qt 6 / PySide6):
 
-    python3 -m pip install PySide6 numpy pyqtgraph
+    python3 -m pip install PySide6_Essentials numpy pyqtgraph
 
 Backends (Homebrew):
 
