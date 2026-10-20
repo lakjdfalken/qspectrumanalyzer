@@ -37,6 +37,10 @@ class BaseInfo:
     additional_params = ''
     help_device = None
 
+    #: How many bands setup() can be given to sweep as one, through its
+    #: `bands` argument. A backend that sweeps only one range is never passed it.
+    max_bands = 1
+
     #: Backend to hand over to when this one cannot cover what was asked for,
     #: by module name, or None to always attempt it anyway
     fallback = None

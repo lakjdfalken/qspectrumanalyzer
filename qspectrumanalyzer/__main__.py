@@ -9,7 +9,7 @@ from qspectrumanalyzer import backends
 from qspectrumanalyzer.version import __version__
 from qspectrumanalyzer.data import DataStorage, HistoryBuffer
 from qspectrumanalyzer import findings, interference, periodicity, receiver, recording
-from qspectrumanalyzer import binsize, fontscale, lockwatch
+from qspectrumanalyzer import bands, binsize, fontscale, infotips, lockwatch
 from qspectrumanalyzer.plot import (frame_clock, ScopePlotWidget, SpectrumPlotWidget,
                                     WaterfallPlotWidget, time_length)
 from qspectrumanalyzer.utils import guard_against_the_wheel, str_to_color, human_time
@@ -186,6 +186,21 @@ RADAR_PRESETS = [
      "whip can be set to exactly.",
      {'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': True, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'gainSpinBox': 24.0, 'startFreqSpinBox': 1022.0, 'stopFreqSpinBox': 1042.0, 'binSizeSpinBox': 40.0, 'waterfallCheckBox': False, 'scopeCheckBox': True, 'scopeBandCheckBox': True, 'scopeCentreSpinBox': 1030.0, 'scopeWidthSpinBox': 4000.0, 'scopeFastCheckBox': True, 'scopeSpanSpinBox': 0.0, 'scopeTriggerCheckBox': False, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': False},
      {'tap_resolution': 0.0, 'tap_detector': 'peak', 'record_depth': 10000, 'sweep_detector': 'mean'}),
+
+    ("Wi-Fi activity \u2014 2.4 and 5 GHz at once",
+     "Both Wi-Fi bands swept as two bands, 2400-2500 and 5150-5850 MHz, and "
+     "nothing in between. That is 800 MHz instead of the 3450 from one end to "
+     "the other, so a sweep comes round about ten times a second instead of "
+     "twice. The gap is drawn as a gap: the trace breaks and the waterfall is "
+     "blank, because nothing there was measured. Max hold and the waterfall "
+     "are on, so a channel in use builds up a block within a minute; read its "
+     "centre off the plot and use the beacon presets to listen to it. Channel "
+     "1 is 2412 MHz and 13 is 2472; at 5 GHz channel 36 is 5180 and 165 is "
+     "5825. It needs the hackrf_sweep backend, which is what hackrf_stream "
+     "hands a span this wide to anyway. 250 kHz bins put eighty across a "
+     "20 MHz channel, enough to see its shape.",
+     {'bandsLineEdit': '2400-2500, 5150-5850', 'mainCurveCheckBox': True, 'peakHoldMaxCheckBox': True, 'peakHoldMinCheckBox': False, 'averageCheckBox': False, 'persistenceCheckBox': False, 'smoothCheckBox': False, 'gainSpinBox': 24.0, 'binSizeSpinBox': 250.0, 'waterfallCheckBox': True, 'scopeCheckBox': False, 'scopeBandCheckBox': False, 'scopeFastCheckBox': False, 'scopeSpanSpinBox': 0.0, 'scopeTriggerCheckBox': False, 'scopeTriggerSpinBox': -200.0, 'scopeSingleCheckBox': False},
+     {}),
 
     ("Wi-Fi traffic \u2014 5 GHz, channel 36",
      "A Wi-Fi frame lasts tenths of a millisecond rather than a microsecond, "
@@ -693,6 +708,8 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         self.power_thread = None
         self.backend = None
         self.active_backend = None
+        #: The Bands text as last applied to Start and Stop
+        self.bands_applied = ""
         #: The tap checkbox's own tooltip, kept so that offer_tap() can put it
         #: back after saying why the tap is unavailable
         self.tap_tooltip = None
@@ -737,6 +754,9 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         if self.lock_watch is not None:
             self.lock_watch.start()
 
+        # On the label, so that its [i] sits beside the word Bands. What is
+        # wrong with what was typed goes to the status bar
+        self.bandsLabel.setToolTip(self.tr(self.BANDS_TIP))
         self.populate_presets()
         self.update_buttons()
         self.load_settings()
@@ -744,6 +764,8 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         self.update_history_controls()
         self.make_text_size()
         self.make_bin_size_help()
+        # Last, once everything has been moved to where it stays
+        self.info_tips = infotips.InfoTips(self)
 
     def make_bin_size_help(self):
         """A ? beside Bin size, opening a window that explains it as it turns
@@ -847,7 +869,8 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         except AttributeError:
             backend_module = backends.soapy_power
 
-        if self.backend is None or backend != self.backend:
+        backend_changed = self.backend is None or backend != self.backend
+        if backend_changed:
             self.backend = backend
             self.gainSpinBox.setMinimum(backend_module.Info.gain_min)
             self.gainSpinBox.setMaximum(backend_module.Info.gain_max)
@@ -905,6 +928,13 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         self.stopFreqSpinBox.setMaximum(stop_freq_max)
         if stop_freq < stop_freq_min or stop_freq > stop_freq_max:
             self.stopFreqSpinBox.setValue(stop_freq_max)
+
+        # A new backend has just put its own default span in Start and Stop,
+        # and bands still entered would then sit there not being swept. Only
+        # then: a survey or the interference retune also comes through here,
+        # having moved the span on purpose.
+        if backend_changed and len(self.entered_bands()) > 1:
+            self.apply_bands()
 
         self.create_power_thread(backend_module, backend)
 
@@ -3251,8 +3281,15 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         `d` is the backend's arithmetic, or None where there is none, in which
         case only what the boxes themselves say is said."""
         start, stop = self.startFreqSpinBox.value(), self.stopFreqSpinBox.value()
-        lines = [self.tr("You are watching {} around {:.3f} MHz.").format(
-            self.as_hz((stop - start) * 1e6), (start + stop) / 2.0)]
+        entered = self.entered_bands()
+        if len(entered) > 1:
+            lines = [self.tr("You are watching {} bands, {} in all, between {:.3f} "
+                             "and {:.3f} MHz.").format(
+                len(entered), self.as_hz(sum(high - low for low, high in entered) * 1e6),
+                start, stop)]
+        else:
+            lines = [self.tr("You are watching {} around {:.3f} MHz.").format(
+                self.as_hz((stop - start) * 1e6), (start + stop) / 2.0)]
         if d is None:
             lines.append(self.tr("Signals closer together than about {} show "
                                  "as one.").format(
@@ -3376,6 +3413,8 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         settings = QtCore.QSettings()
         self.startFreqSpinBox.setValue(settings.value("start_freq", 87.0, float))
         self.stopFreqSpinBox.setValue(settings.value("stop_freq", 108.0, float))
+        self.bandsLineEdit.setText(settings.value("bands", ""))
+        self.apply_bands()
         self.binSizeSpinBox.setValue(settings.value("bin_size", 10.0, float))
         self.intervalSpinBox.setValue(settings.value("interval", 10.0, float))
         self.gainSpinBox.setValue(settings.value("gain", 0, float))
@@ -3450,6 +3489,7 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         settings.setValue("font_scale", self.font_scale.scale)
         settings.setValue("start_freq", self.startFreqSpinBox.value())
         settings.setValue("stop_freq", self.stopFreqSpinBox.value())
+        settings.setValue("bands", self.bandsLineEdit.text())
         settings.setValue("bin_size", self.binSizeSpinBox.value())
         settings.setValue("interval", self.intervalSpinBox.value())
         settings.setValue("gain", self.gainSpinBox.value())
@@ -3538,6 +3578,78 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         self.sweep_count = 0
         self.rate_timestamp = now
 
+    # --- several bands swept as one ------------------------------------
+
+    BANDS_TIP = (
+        "Sweep only these bands instead of everything from Start to Stop, "
+        "e.g. 2400-2500, 5150-5850 (MHz). A sweep spends its time on the "
+        "spectrum it covers, so leaving out what lies between is that much "
+        "faster. Nothing is measured in the gaps: the trace breaks there and "
+        "the waterfall is blank. While bands are set, Start and Stop show "
+        "their overall span; clear this to set Start and Stop by hand. Only "
+        "the hackrf_sweep backend sweeps bands, up to {}.".format(bands.MAX_BANDS))
+
+    def entered_bands(self):
+        """The bands typed into Bands, or [] for none or for text that is not bands"""
+        try:
+            return bands.parse_bands(self.bandsLineEdit.text())
+        except ValueError:
+            return []
+
+    @QtCore.Slot()
+    def on_bandsLineEdit_editingFinished(self):
+        self.apply_bands()
+
+    def apply_bands(self):
+        """Put Start and Stop on the bands' overall span, or say what is wrong with them
+
+        While two or more bands are set, Start and Stop show their span and
+        cannot be edited. One band is just a range, so it goes into Start and
+        Stop and the field is emptied."""
+        try:
+            entered, problem = bands.parse_bands(self.bandsLineEdit.text()), None
+        except ValueError as error:
+            entered, problem = [], str(error)
+        self.bandsLineEdit.setStyleSheet("QLineEdit { color: #d04040; }" if problem else "")
+        if problem:
+            self.show_status(self.tr("Bands: {}").format(problem), timeout=0)
+        if entered:
+            self.startFreqSpinBox.setValue(entered[0][0])
+            self.stopFreqSpinBox.setValue(entered[-1][1])
+        if len(entered) == 1:
+            self.bandsLineEdit.clear()
+        elif len(entered) > 1:
+            # Tidied: sorted, with overlaps joined
+            self.bandsLineEdit.setText(bands.format_bands(entered))
+        for box in (self.startFreqSpinBox, self.stopFreqSpinBox):
+            box.setEnabled(len(entered) < 2)
+        self.bands_applied = self.bandsLineEdit.text()
+        # Bands can change without the span changing, which is all the
+        # readout otherwise listens for
+        self.update_readout()
+
+    def sweep_bands(self):
+        """The bands this run sweeps, or None to sweep Start to Stop
+
+        Bands count only while Start and Stop still show their span. A survey
+        slice or the interference retune moves the span on purpose, and that
+        run then sweeps the range it was moved to."""
+        entered = self.entered_bands()
+        if len(entered) < 2:
+            return None
+        start, stop = self.startFreqSpinBox.value(), self.stopFreqSpinBox.value()
+        if not (math.isclose(start, entered[0][0], abs_tol=1e-3)
+                and math.isclose(stop, entered[-1][1], abs_tol=1e-3)):
+            return None
+        info = getattr(backends, self.active_backend).Info
+        if info.max_bands < len(entered):
+            print("{} sweeps one range, so the bands are swept as {:g}-{:g} MHz whole; "
+                  "choose hackrf_sweep in Settings to sweep only the bands".format(
+                      self.active_backend, start, stop))
+            return None
+        print("Sweeping {} bands: {}".format(len(entered), bands.format_bands(entered)))
+        return entered
+
     # --- ready-made settings for a particular job ---------------------
 
     def populate_presets(self):
@@ -3567,10 +3679,16 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         for key, value in values.items():
             settings.setValue(key, value)
 
+        # Cleared first: bands left over from before would hold Start and
+        # Stop on their span instead of the one this preset sets
+        self.bandsLineEdit.setText(widgets.get("bandsLineEdit", ""))
+        self.apply_bands()
         for name, value in widgets.items():
             widget = getattr(self, name)
             if isinstance(widget, QtWidgets.QCheckBox):
                 widget.setChecked(bool(value))
+            elif isinstance(widget, QtWidgets.QLineEdit):
+                continue
             else:
                 widget.setValue(value)
 
@@ -4339,6 +4457,13 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
         """Start power thread"""
         settings = QtCore.QSettings()
 
+        # Bands typed and not yet applied, because the field applies on Enter
+        # or on losing focus and a button clicked on macOS takes no focus.
+        # Only an edit: a survey slice has moved Start and Stop on purpose,
+        # and applying unchanged bands would put them back.
+        if self.bandsLineEdit.text() != self.bands_applied:
+            self.apply_bands()
+
         # The frequency range is only settled now, so this is the first point
         # at which we can tell whether the chosen backend can measure it
         self.apply_backend_for_range()
@@ -4418,6 +4543,8 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
 
         starting = not self.power_thread.alive
         if starting:
+            # Only to a backend that sweeps bands; the others never had the argument
+            swept = self.sweep_bands()
             self.power_thread.setup(
                 float(self.startFreqSpinBox.value()),
                 float(self.stopFreqSpinBox.value()),
@@ -4433,7 +4560,8 @@ class QSpectrumAnalyzerMainWindow(QtWidgets.QMainWindow, Ui_QSpectrumAnalyzerMai
                 sample_rate=settings.value("sample_rate", 2560000, float),
                 bandwidth=settings.value("bandwidth", 0, float),
                 lnb_lo=settings.value("lnb_lo", 0, float),
-                amp=bool(self.ampCheckBox.isChecked())
+                amp=bool(self.ampCheckBox.isChecked()),
+                **({"bands": swept} if swept else {})
             )
 
         # After setup(), which clears whatever band the backend was watching.

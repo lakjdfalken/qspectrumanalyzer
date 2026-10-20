@@ -767,7 +767,10 @@ class SpectrumPlotWidget(ThrottledPlotWidget):
             for y in arrays:
                 if y is None or not len(y):
                     continue
-                bottom, top = float(np.min(y)), float(np.max(y))
+                # fmin/fmax pass over the NaN bins between swept bands
+                bottom, top = float(np.fmin.reduce(y)), float(np.fmax.reduce(y))
+                if math.isnan(bottom):
+                    continue
                 low = bottom if low is None else min(low, bottom)
                 high = top if high is None else max(high, top)
         return low, high
@@ -1719,11 +1722,12 @@ class ScopePlotWidget(ThrottledPlotWidget):
                 or arrived < 0 or arrived >= history.history_size):
             # The peak across the bins, not the mean: a narrow signal in a
             # wide span should show its own level, not one diluted by the
-            # noise either side of it
-            self.trace = buffer[:, bins].max(axis=1)
+            # noise either side of it. fmax, so that the NaN bins between
+            # swept bands are passed over rather than winning.
+            self.trace = np.fmax.reduce(buffer[:, bins], axis=1)
         elif arrived:
             self.trace = np.concatenate(
-                (self.trace, buffer[-arrived:, bins].max(axis=1)))[-history.history_size:]
+                (self.trace, np.fmax.reduce(buffer[-arrived:, bins], axis=1)))[-history.history_size:]
 
         self.trace_bins = bins
         self.trace_counter = history.counter
@@ -2422,7 +2426,8 @@ class WaterfallPlotWidget(ThrottledPlotWidget):
             self.link_levels_meter()
         else:
             self.unlink_levels_meter()
-            self.waterfallImg.setLevels((float(np.min(history)), float(np.max(history))))
+            self.waterfallImg.setLevels((float(np.fmin.reduce(history, axis=None)),
+                                         float(np.fmax.reduce(history, axis=None))))
 
     def link_levels_meter(self):
         """Point the level meter at the current waterfall image

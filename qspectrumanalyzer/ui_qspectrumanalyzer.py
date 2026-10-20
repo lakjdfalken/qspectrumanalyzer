@@ -18,10 +18,10 @@ from PySide6.QtGui import (QAction, QBrush, QColor, QConicalGradient,
     QTransform)
 from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDockWidget,
     QDoubleSpinBox, QFormLayout, QGridLayout, QGroupBox,
-    QHBoxLayout, QLabel, QMainWindow, QMenu,
-    QMenuBar, QPushButton, QSizePolicy, QSlider,
-    QSpacerItem, QSpinBox, QSplitter, QStatusBar,
-    QToolButton, QVBoxLayout, QWidget)
+    QHBoxLayout, QLabel, QLineEdit, QMainWindow,
+    QMenu, QMenuBar, QPushButton, QSizePolicy,
+    QSlider, QSpacerItem, QSpinBox, QSplitter,
+    QStatusBar, QToolButton, QVBoxLayout, QWidget)
 
 from pyqtgraph import GraphicsLayoutWidget
 
@@ -355,15 +355,28 @@ class Ui_QSpectrumAnalyzerMainWindow(object):
 
         self.formLayout.setWidget(1, QFormLayout.ItemRole.FieldRole, self.stopFreqSpinBox)
 
+        self.bandsLabel = QLabel(self.frequencyDockWidgetContents)
+        self.bandsLabel.setObjectName(u"bandsLabel")
+
+        self.formLayout.setWidget(2, QFormLayout.ItemRole.LabelRole, self.bandsLabel)
+
+        self.bandsLineEdit = QLineEdit(self.frequencyDockWidgetContents)
+        self.bandsLineEdit.setObjectName(u"bandsLineEdit")
+        sizePolicy3.setHeightForWidth(self.bandsLineEdit.sizePolicy().hasHeightForWidth())
+        self.bandsLineEdit.setSizePolicy(sizePolicy3)
+        self.bandsLineEdit.setClearButtonEnabled(True)
+
+        self.formLayout.setWidget(2, QFormLayout.ItemRole.FieldRole, self.bandsLineEdit)
+
         self.label = QLabel(self.frequencyDockWidgetContents)
         self.label.setObjectName(u"label")
 
-        self.formLayout.setWidget(2, QFormLayout.ItemRole.LabelRole, self.label)
+        self.formLayout.setWidget(3, QFormLayout.ItemRole.LabelRole, self.label)
 
         self.surveyDwellLabel = QLabel(self.frequencyDockWidgetContents)
         self.surveyDwellLabel.setObjectName(u"surveyDwellLabel")
 
-        self.formLayout.setWidget(3, QFormLayout.ItemRole.LabelRole, self.surveyDwellLabel)
+        self.formLayout.setWidget(4, QFormLayout.ItemRole.LabelRole, self.surveyDwellLabel)
 
         self.surveyDwellSpinBox = QSpinBox(self.frequencyDockWidgetContents)
         self.surveyDwellSpinBox.setObjectName(u"surveyDwellSpinBox")
@@ -372,28 +385,28 @@ class Ui_QSpectrumAnalyzerMainWindow(object):
         self.surveyDwellSpinBox.setMaximum(3600)
         self.surveyDwellSpinBox.setValue(30)
 
-        self.formLayout.setWidget(3, QFormLayout.ItemRole.FieldRole, self.surveyDwellSpinBox)
+        self.formLayout.setWidget(4, QFormLayout.ItemRole.FieldRole, self.surveyDwellSpinBox)
 
         self.surveyVerifyCheckBox = QCheckBox(self.frequencyDockWidgetContents)
         self.surveyVerifyCheckBox.setObjectName(u"surveyVerifyCheckBox")
 
-        self.formLayout.setWidget(4, QFormLayout.ItemRole.SpanningRole, self.surveyVerifyCheckBox)
+        self.formLayout.setWidget(5, QFormLayout.ItemRole.SpanningRole, self.surveyVerifyCheckBox)
 
         self.surveyButton = QPushButton(self.frequencyDockWidgetContents)
         self.surveyButton.setObjectName(u"surveyButton")
 
-        self.formLayout.setWidget(5, QFormLayout.ItemRole.SpanningRole, self.surveyButton)
+        self.formLayout.setWidget(6, QFormLayout.ItemRole.SpanningRole, self.surveyButton)
 
         self.surveyProgressLabel = QLabel(self.frequencyDockWidgetContents)
         self.surveyProgressLabel.setObjectName(u"surveyProgressLabel")
         self.surveyProgressLabel.setWordWrap(True)
 
-        self.formLayout.setWidget(6, QFormLayout.ItemRole.SpanningRole, self.surveyProgressLabel)
+        self.formLayout.setWidget(7, QFormLayout.ItemRole.SpanningRole, self.surveyProgressLabel)
 
         self.interferenceSecondsLabel = QLabel(self.frequencyDockWidgetContents)
         self.interferenceSecondsLabel.setObjectName(u"interferenceSecondsLabel")
 
-        self.formLayout.setWidget(7, QFormLayout.ItemRole.LabelRole, self.interferenceSecondsLabel)
+        self.formLayout.setWidget(8, QFormLayout.ItemRole.LabelRole, self.interferenceSecondsLabel)
 
         self.interferenceSecondsSpinBox = QSpinBox(self.frequencyDockWidgetContents)
         self.interferenceSecondsSpinBox.setObjectName(u"interferenceSecondsSpinBox")
@@ -402,12 +415,12 @@ class Ui_QSpectrumAnalyzerMainWindow(object):
         self.interferenceSecondsSpinBox.setMaximum(600)
         self.interferenceSecondsSpinBox.setValue(20)
 
-        self.formLayout.setWidget(7, QFormLayout.ItemRole.FieldRole, self.interferenceSecondsSpinBox)
+        self.formLayout.setWidget(8, QFormLayout.ItemRole.FieldRole, self.interferenceSecondsSpinBox)
 
         self.interferenceButton = QPushButton(self.frequencyDockWidgetContents)
         self.interferenceButton.setObjectName(u"interferenceButton")
 
-        self.formLayout.setWidget(8, QFormLayout.ItemRole.SpanningRole, self.interferenceButton)
+        self.formLayout.setWidget(9, QFormLayout.ItemRole.SpanningRole, self.interferenceButton)
 
         self.binSizeSpinBox = QDoubleSpinBox(self.frequencyDockWidgetContents)
         self.binSizeSpinBox.setObjectName(u"binSizeSpinBox")
@@ -420,11 +433,11 @@ class Ui_QSpectrumAnalyzerMainWindow(object):
         self.binSizeSpinBox.setMaximum(10000.000000000000000)
         self.binSizeSpinBox.setValue(10.000000000000000)
 
-        self.formLayout.setWidget(2, QFormLayout.ItemRole.FieldRole, self.binSizeSpinBox)
+        self.formLayout.setWidget(3, QFormLayout.ItemRole.FieldRole, self.binSizeSpinBox)
 
         self.verticalSpacer_3 = QSpacerItem(20, 0, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
 
-        self.formLayout.setItem(9, QFormLayout.ItemRole.SpanningRole, self.verticalSpacer_3)
+        self.formLayout.setItem(10, QFormLayout.ItemRole.SpanningRole, self.verticalSpacer_3)
 
         self.frequencyDockWidget.setWidget(self.frequencyDockWidgetContents)
         QSpectrumAnalyzerMainWindow.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.frequencyDockWidget)
@@ -623,6 +636,7 @@ class Ui_QSpectrumAnalyzerMainWindow(object):
         self.scopePreTriggerLabel.setBuddy(self.scopePreTriggerSpinBox)
         self.label_2.setBuddy(self.startFreqSpinBox)
         self.label_3.setBuddy(self.stopFreqSpinBox)
+        self.bandsLabel.setBuddy(self.bandsLineEdit)
         self.label.setBuddy(self.binSizeSpinBox)
         self.surveyDwellLabel.setBuddy(self.surveyDwellSpinBox)
         self.interferenceSecondsLabel.setBuddy(self.interferenceSecondsSpinBox)
@@ -656,7 +670,8 @@ class Ui_QSpectrumAnalyzerMainWindow(object):
         QWidget.setTabOrder(self.scopeSaveButton, self.rhythmButton)
         QWidget.setTabOrder(self.rhythmButton, self.startFreqSpinBox)
         QWidget.setTabOrder(self.startFreqSpinBox, self.stopFreqSpinBox)
-        QWidget.setTabOrder(self.stopFreqSpinBox, self.binSizeSpinBox)
+        QWidget.setTabOrder(self.stopFreqSpinBox, self.bandsLineEdit)
+        QWidget.setTabOrder(self.bandsLineEdit, self.binSizeSpinBox)
         QWidget.setTabOrder(self.binSizeSpinBox, self.surveyDwellSpinBox)
         QWidget.setTabOrder(self.surveyDwellSpinBox, self.surveyButton)
         QWidget.setTabOrder(self.surveyButton, self.interferenceSecondsSpinBox)
@@ -813,6 +828,8 @@ class Ui_QSpectrumAnalyzerMainWindow(object):
         self.startFreqSpinBox.setSuffix(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u" MHz", None))
         self.label_3.setText(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Stop:", None))
         self.stopFreqSpinBox.setSuffix(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u" MHz", None))
+        self.bandsLabel.setText(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Bands:", None))
+        self.bandsLineEdit.setPlaceholderText(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Start to Stop", None))
         self.label.setText(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"Bin si&ze:", None))
         self.surveyDwellLabel.setText(QCoreApplication.translate("QSpectrumAnalyzerMainWindow", u"D&well:", None))
 #if QT_CONFIG(tooltip)

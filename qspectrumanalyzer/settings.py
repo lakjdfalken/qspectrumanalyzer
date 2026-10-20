@@ -2,7 +2,7 @@ import re
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
-from qspectrumanalyzer import backends, fontscale
+from qspectrumanalyzer import backends, fontscale, infotips
 from qspectrumanalyzer.data import HistoryBuffer
 from qspectrumanalyzer.plot import ScopePlotWidget
 from qspectrumanalyzer.utils import guard_against_the_wheel, human_time
@@ -74,6 +74,7 @@ class QSpectrumAnalyzerSettings(QtWidgets.QDialog, Ui_QSpectrumAnalyzerSettings)
         self.backendComboBox.blockSignals(False)
 
         self.update_tap_estimate()
+        self.info_tips = infotips.InfoTips(self)
 
     def populate_devices(self, backend_module, device):
         """Offer whatever devices this backend can see, keeping `device` set
